@@ -6,7 +6,15 @@ import {
   useRef,
   useState,
 } from "react";
-import { ArrowLeft } from "lucide-react";
+import {
+  AlertCircle,
+  ArrowLeft,
+  CheckCircle2,
+  Columns,
+  Eye,
+  Loader2,
+  Pencil,
+} from "lucide-react";
 import { useTranslations } from "next-intl";
 import { MarkdownPreview } from "@/components/MarkdownPreview";
 import {
@@ -32,6 +40,8 @@ type SaveState =
   | { kind: "conflict" }
   | { kind: "error"; message: string };
 
+type ViewMode = "edit" | "split" | "preview";
+
 const AUTOSAVE_DEBOUNCE_MS = 2000;
 
 export default function Editor({ fileId, filename, onBack }: Props) {
@@ -39,6 +49,7 @@ export default function Editor({ fileId, filename, onBack }: Props) {
   const [content, setContent] = useState<string | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [saveState, setSaveState] = useState<SaveState>({ kind: "idle" });
+  const [viewMode, setViewMode] = useState<ViewMode>("edit");
   const etagRef = useRef<string>("");
   const lastSavedRef = useRef<string>("");
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
@@ -97,10 +108,6 @@ export default function Editor({ fileId, filename, onBack }: Props) {
     }, AUTOSAVE_DEBOUNCE_MS);
   }, [content, performSave]);
 
-  // On unmount, flush any pending unsaved changes instead of discarding
-  // the debounce timer. The save runs in the background — we can't await
-  // it inside a React cleanup — but the PUT is fire-and-forget at that
-  // point, which is the best we can do without a beforeunload guard.
   useEffect(() => {
     return () => {
       if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
@@ -121,7 +128,6 @@ export default function Editor({ fileId, filename, onBack }: Props) {
       action,
     );
     setContent(text);
-    // Restore selection after React re-renders
     requestAnimationFrame(() => {
       ta.focus();
       ta.setSelectionRange(selStart, selEnd);
@@ -153,44 +159,69 @@ export default function Editor({ fileId, filename, onBack }: Props) {
 
   if (loadError) {
     return (
-      <div className="p-6 text-accent-danger">
+      <div className="flex flex-1 items-center justify-center p-6 text-sm text-red-400">
         {t("loadFailed", { error: loadError })}
       </div>
     );
   }
   if (content === null) {
-    return <div className="p-6 text-text-muted">{t("loading")}</div>;
+    return (
+      <div className="flex flex-1 items-center justify-center gap-2 text-sm text-text-muted">
+        <Loader2 size={14} className="animate-spin" />
+        {t("loading")}
+      </div>
+    );
   }
 
+  const displayName = filename.replace(/\.md$/i, "");
+
   return (
-    <div className="flex flex-col h-[calc(100vh-120px)]">
-      <header className="flex items-center justify-between border-b border-border-default bg-surface-elevated px-4 py-2">
+    <div className="flex min-h-0 flex-1 flex-col">
+      <header className="flex items-center gap-3 border-b border-bg-border px-4 py-2.5">
         <button
           type="button"
           onClick={onBack}
-          className="inline-flex items-center gap-1 text-sm text-text-secondary hover:text-text-primary"
+          className="flex h-8 w-8 items-center justify-center rounded-md text-text-muted hover:bg-bg-elevated hover:text-text-primary md:hidden"
+          aria-label={t("back")}
         >
           <ArrowLeft size={16} />
-          {t("back")}
         </button>
-        <span className="text-sm font-medium text-text-primary">{filename}</span>
+        <div className="min-w-0 flex-1">
+          <h1 className="truncate text-base font-semibold text-text-primary">
+            {displayName}
+          </h1>
+        </div>
         <SaveIndicator state={saveState} />
+        <ViewModeToggle mode={viewMode} onChange={setViewMode} />
       </header>
 
-      <EditorToolbar onAction={handleToolbar} />
+      {viewMode !== "preview" && <EditorToolbar onAction={handleToolbar} />}
 
-      <div className="grid flex-1 min-h-0 md:grid-cols-2">
-        <textarea
-          ref={textareaRef}
-          value={content}
-          onChange={(e) => setContent(e.target.value)}
-          spellCheck={false}
-          className="h-full w-full resize-none border-r border-border-default bg-surface-base p-4 font-mono text-sm text-text-primary focus:outline-none"
-          aria-label={t("editArea")}
-        />
-        <div className="h-full overflow-auto bg-surface-base">
-          <MarkdownPreview source={content} />
-        </div>
+      <div
+        className={`grid flex-1 min-h-0 ${
+          viewMode === "split" ? "md:grid-cols-2" : "grid-cols-1"
+        }`}
+      >
+        {viewMode !== "preview" && (
+          <textarea
+            ref={textareaRef}
+            value={content}
+            onChange={(e) => setContent(e.target.value)}
+            spellCheck={false}
+            className={`h-full w-full resize-none bg-bg-primary px-8 py-6 font-mono text-[13.5px] leading-relaxed text-text-primary focus:outline-none ${
+              viewMode === "split" ? "border-r border-bg-border" : ""
+            }`}
+            aria-label={t("editArea")}
+            placeholder={t("placeholder")}
+          />
+        )}
+        {viewMode !== "edit" && (
+          <div className="h-full overflow-auto bg-bg-primary px-8 py-6">
+            <div className="mx-auto max-w-3xl">
+              <MarkdownPreview source={content} />
+            </div>
+          </div>
+        )}
       </div>
 
       {saveState.kind === "conflict" && (
@@ -204,16 +235,79 @@ export default function Editor({ fileId, filename, onBack }: Props) {
   );
 }
 
+function ViewModeToggle({
+  mode,
+  onChange,
+}: {
+  mode: ViewMode;
+  onChange: (m: ViewMode) => void;
+}) {
+  const t = useTranslations("knowledge.editor.view");
+  const options: { id: ViewMode; icon: typeof Pencil; label: string }[] = [
+    { id: "edit", icon: Pencil, label: t("edit") },
+    { id: "split", icon: Columns, label: t("split") },
+    { id: "preview", icon: Eye, label: t("preview") },
+  ];
+  return (
+    <div className="flex items-center gap-0.5 rounded-md border border-bg-border bg-bg-card p-0.5">
+      {options.map((o) => {
+        const Icon = o.icon;
+        const isActive = mode === o.id;
+        return (
+          <button
+            key={o.id}
+            type="button"
+            onClick={() => onChange(o.id)}
+            aria-label={o.label}
+            title={o.label}
+            aria-pressed={isActive}
+            className={`flex h-7 w-7 items-center justify-center rounded transition-colors ${
+              isActive
+                ? "bg-bg-elevated text-text-primary"
+                : "text-text-muted hover:text-text-primary"
+            }`}
+          >
+            <Icon size={14} />
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
 function SaveIndicator({ state }: { state: SaveState }) {
   const t = useTranslations("knowledge.editor.status");
-  if (state.kind === "idle") return null;
+  if (state.kind === "idle") return <span className="w-16" />;
   if (state.kind === "saving")
-    return <span className="text-xs text-text-muted">{t("saving")}</span>;
+    return (
+      <span className="flex items-center gap-1 text-xs text-text-muted">
+        <Loader2 size={12} className="animate-spin" />
+        {t("saving")}
+      </span>
+    );
   if (state.kind === "saved")
-    return <span className="text-xs text-text-muted">{t("saved")}</span>;
+    return (
+      <span className="flex items-center gap-1 text-xs text-text-muted">
+        <CheckCircle2 size={12} className="text-accent-teal" />
+        {t("saved")}
+      </span>
+    );
   if (state.kind === "conflict")
-    return <span className="text-xs text-accent-danger">{t("conflict")}</span>;
-  return <span className="text-xs text-accent-danger">{state.message}</span>;
+    return (
+      <span className="flex items-center gap-1 text-xs text-red-400">
+        <AlertCircle size={12} />
+        {t("conflict")}
+      </span>
+    );
+  return (
+    <span
+      className="flex max-w-[180px] items-center gap-1 truncate text-xs text-red-400"
+      title={state.message}
+    >
+      <AlertCircle size={12} />
+      {state.message}
+    </span>
+  );
 }
 
 function ConflictModal({
@@ -227,31 +321,34 @@ function ConflictModal({
 }) {
   const t = useTranslations("knowledge.editor.conflict");
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-      <div className="w-full max-w-md rounded-xl bg-surface-elevated p-6 shadow-xl">
-        <h3 className="mb-2 text-lg font-bold text-text-primary">
-          {t("title")}
-        </h3>
-        <p className="mb-6 text-sm text-text-secondary">{t("description")}</p>
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 animate-fade-in">
+      <div className="w-full max-w-md rounded-xl border border-bg-border bg-bg-card p-6 shadow-2xl animate-fade-in-scale">
+        <div className="mb-3 flex items-center gap-2 text-red-400">
+          <AlertCircle size={18} />
+          <h3 className="text-base font-semibold text-text-primary">
+            {t("title")}
+          </h3>
+        </div>
+        <p className="mb-6 text-sm text-text-muted">{t("description")}</p>
         <div className="flex flex-col gap-2">
           <button
             type="button"
             onClick={onReload}
-            className="rounded bg-accent-cta px-4 py-2 text-sm font-medium text-white"
+            className="rounded-md bg-accent-cta px-4 py-2 text-sm font-medium text-white hover:bg-accent"
           >
             {t("reload")}
           </button>
           <button
             type="button"
             onClick={onOverwrite}
-            className="rounded border border-border-default px-4 py-2 text-sm text-text-primary hover:bg-surface-hover"
+            className="rounded-md border border-bg-border bg-bg-elevated px-4 py-2 text-sm text-text-primary hover:border-accent/40"
           >
             {t("overwrite")}
           </button>
           <button
             type="button"
             onClick={onDismiss}
-            className="rounded px-4 py-2 text-sm text-text-muted hover:bg-surface-hover"
+            className="rounded-md px-4 py-2 text-sm text-text-muted hover:bg-bg-elevated"
           >
             {t("dismiss")}
           </button>

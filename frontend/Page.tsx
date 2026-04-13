@@ -3,12 +3,11 @@
 import { useCallback, useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { useTranslations } from "next-intl";
+import { NotebookPen } from "lucide-react";
 import { listVaults, type CoreFileItem, type Vault } from "./api";
 import VaultSetup from "./VaultSetup";
-import VaultSwitcher from "./VaultSwitcher";
-import FileList from "./FileList";
+import Sidebar from "./Sidebar";
 import Editor from "./Editor";
-import SearchBar from "./SearchBar";
 
 type Mode =
   | { kind: "loading" }
@@ -57,10 +56,18 @@ export default function KnowledgePage() {
   }, [refresh]);
 
   if (error) {
-    return <div className="p-6 text-accent-danger">{error}</div>;
+    return (
+      <div className="flex min-h-[60vh] items-center justify-center p-6 text-sm text-red-400">
+        {error}
+      </div>
+    );
   }
   if (mode.kind === "loading") {
-    return <div className="p-6 text-text-muted">{t("loading")}</div>;
+    return (
+      <div className="flex min-h-[60vh] items-center justify-center text-sm text-text-muted">
+        {t("loading")}
+      </div>
+    );
   }
 
   if (mode.kind === "setup" || mode.kind === "addNew") {
@@ -71,45 +78,57 @@ export default function KnowledgePage() {
           setActiveId(v.id);
           setMode({ kind: "list" });
         }}
+        onCancel={
+          mode.kind === "addNew" ? () => setMode({ kind: "list" }) : undefined
+        }
       />
     );
   }
 
   const active = vaults.find((v) => v.id === activeId) ?? vaults[0];
-
-  if (mode.kind === "edit") {
-    return (
-      <Editor
-        fileId={mode.file.id}
-        filename={mode.file.title || mode.file.filename}
-        onBack={() => setMode({ kind: "list" })}
-      />
-    );
-  }
+  const selectedFile = mode.kind === "edit" ? mode.file : null;
 
   return (
-    <div className="mx-auto max-w-4xl p-6">
-      <header className="mb-6 flex items-center justify-between">
-        <h1 className="text-2xl font-bold text-text-primary">{t("title")}</h1>
-        <VaultSwitcher
-          vaults={vaults}
-          activeId={activeId}
-          onSwitched={(v) => setActiveId(v.id)}
-          onAddNew={() => setMode({ kind: "addNew" })}
-        />
-      </header>
+    <div className="flex h-[calc(100vh-64px)] overflow-hidden bg-bg-primary">
       {active && (
-        <>
-          <SearchBar
-            vault={active}
-            onSelect={(f) => setMode({ kind: "edit", file: f })}
-          />
-          <FileList
-            vault={active}
-            onSelect={(f) => setMode({ kind: "edit", file: f })}
-          />
-        </>
+        <Sidebar
+          vaults={vaults}
+          active={active}
+          selectedFileId={selectedFile?.id ?? null}
+          onSwitchVault={(v) => {
+            setActiveId(v.id);
+            setMode({ kind: "list" });
+          }}
+          onAddVault={() => setMode({ kind: "addNew" })}
+          onSelectFile={(f) => setMode({ kind: "edit", file: f })}
+        />
       )}
+      <main className="flex min-w-0 flex-1 flex-col">
+        {selectedFile ? (
+          <Editor
+            fileId={selectedFile.id}
+            filename={selectedFile.title || selectedFile.filename}
+            onBack={() => setMode({ kind: "list" })}
+          />
+        ) : (
+          <EmptyState />
+        )}
+      </main>
+    </div>
+  );
+}
+
+function EmptyState() {
+  const t = useTranslations("knowledge.empty");
+  return (
+    <div className="flex flex-1 flex-col items-center justify-center gap-4 px-6 text-center">
+      <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-bg-elevated text-text-muted">
+        <NotebookPen size={28} strokeWidth={1.6} />
+      </div>
+      <div>
+        <h2 className="text-lg font-semibold text-text-primary">{t("title")}</h2>
+        <p className="mt-1 max-w-sm text-sm text-text-muted">{t("description")}</p>
+      </div>
     </div>
   );
 }

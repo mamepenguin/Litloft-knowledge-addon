@@ -1,14 +1,16 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { NotebookPen } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { createVault, listDrives, type CoreDrive, type Vault } from "./api";
 
 interface Props {
   onCreated: (vault: Vault) => void;
+  onCancel?: () => void;
 }
 
-export default function VaultSetup({ onCreated }: Props) {
+export default function VaultSetup({ onCreated, onCancel }: Props) {
   const t = useTranslations("knowledge");
   const [drives, setDrives] = useState<CoreDrive[]>([]);
   const [label, setLabel] = useState("");
@@ -45,65 +47,94 @@ export default function VaultSetup({ onCreated }: Props) {
     }
   }
 
+  const inputClass =
+    "w-full rounded-md border border-bg-border bg-bg-primary px-3 py-2 text-sm text-text-primary placeholder:text-text-muted focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent";
+
   return (
-    <div className="mx-auto max-w-md p-6">
-      <h2 className="mb-4 text-xl font-bold text-text-primary">
-        {t("setup.title")}
-      </h2>
-      <p className="mb-6 text-sm text-text-muted">{t("setup.description")}</p>
-      <form onSubmit={handleSubmit} className="flex flex-col gap-4">
-        <label className="flex flex-col gap-1">
-          <span className="text-sm text-text-secondary">
-            {t("setup.labelField")}
-          </span>
-          <input
-            type="text"
-            value={label}
-            onChange={(e) => setLabel(e.target.value)}
-            required
-            maxLength={100}
-            placeholder={t("setup.labelPlaceholder")}
-            className="rounded border border-border-default bg-surface-base px-3 py-2 text-text-primary"
-          />
-        </label>
-        <label className="flex flex-col gap-1">
-          <span className="text-sm text-text-secondary">
-            {t("setup.driveField")}
-          </span>
-          <select
-            value={drive}
-            onChange={(e) => setDrive(e.target.value)}
-            required
-            className="rounded border border-border-default bg-surface-base px-3 py-2 text-text-primary"
-          >
-            {drives.map((d) => (
-              <option key={d.name} value={d.name}>
-                {d.name}
-              </option>
-            ))}
-          </select>
-        </label>
-        <label className="flex flex-col gap-1">
-          <span className="text-sm text-text-secondary">
-            {t("setup.pathField")}
-          </span>
-          <input
-            type="text"
-            value={path}
-            onChange={(e) => setPath(e.target.value)}
-            placeholder="Knowledge"
-            className="rounded border border-border-default bg-surface-base px-3 py-2 text-text-primary"
-          />
-        </label>
-        {error && <div className="text-sm text-accent-danger">{error}</div>}
-        <button
-          type="submit"
-          disabled={submitting || !label.trim() || !drive}
-          className="rounded bg-accent-cta px-4 py-2 font-medium text-white disabled:opacity-50"
-        >
-          {submitting ? t("setup.creating") : t("setup.create")}
-        </button>
-      </form>
+    <div className="flex min-h-[calc(100vh-64px)] items-center justify-center bg-bg-primary p-6">
+      <div className="w-full max-w-md rounded-2xl border border-bg-border bg-bg-card p-8 shadow-xl">
+        <div className="mb-5 flex items-center gap-3">
+          <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-accent/15 text-accent">
+            <NotebookPen size={22} strokeWidth={1.75} />
+          </div>
+          <div>
+            <h2 className="text-lg font-semibold text-text-primary">
+              {t("setup.title")}
+            </h2>
+          </div>
+        </div>
+        <p className="mb-6 text-sm leading-relaxed text-text-muted">
+          {t("setup.description")}
+        </p>
+        <form onSubmit={handleSubmit} className="flex flex-col gap-4">
+          <label className="flex flex-col gap-1.5">
+            <span className="text-xs font-medium uppercase tracking-wide text-text-muted">
+              {t("setup.labelField")}
+            </span>
+            <input
+              type="text"
+              value={label}
+              onChange={(e) => setLabel(e.target.value)}
+              required
+              maxLength={100}
+              placeholder={t("setup.labelPlaceholder")}
+              className={inputClass}
+            />
+          </label>
+          <label className="flex flex-col gap-1.5">
+            <span className="text-xs font-medium uppercase tracking-wide text-text-muted">
+              {t("setup.driveField")}
+            </span>
+            <select
+              value={drive}
+              onChange={(e) => setDrive(e.target.value)}
+              required
+              className={inputClass}
+            >
+              {drives.map((d) => (
+                <option key={d.name} value={d.name}>
+                  {d.name}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className="flex flex-col gap-1.5">
+            <span className="text-xs font-medium uppercase tracking-wide text-text-muted">
+              {t("setup.pathField")}
+            </span>
+            <input
+              type="text"
+              value={path}
+              onChange={(e) => setPath(e.target.value)}
+              placeholder="Knowledge"
+              className={`${inputClass} font-mono text-[13px]`}
+            />
+          </label>
+          {error && (
+            <div className="rounded-md border border-red-500/30 bg-red-500/10 px-3 py-2 text-sm text-red-400">
+              {error}
+            </div>
+          )}
+          <div className="mt-2 flex items-center gap-2">
+            {onCancel && (
+              <button
+                type="button"
+                onClick={onCancel}
+                className="flex-1 rounded-md border border-bg-border bg-bg-elevated px-4 py-2 text-sm font-medium text-text-primary hover:border-accent/40"
+              >
+                {t("setup.cancel")}
+              </button>
+            )}
+            <button
+              type="submit"
+              disabled={submitting || !label.trim() || !drive}
+              className="flex-1 rounded-md bg-accent-cta px-4 py-2 text-sm font-medium text-white hover:bg-accent disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              {submitting ? t("setup.creating") : t("setup.create")}
+            </button>
+          </div>
+        </form>
+      </div>
     </div>
   );
 }

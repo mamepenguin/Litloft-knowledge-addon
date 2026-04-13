@@ -17,70 +17,77 @@ export default function EditorToolbar({ onAction }: Props) {
   const t = useTranslations("knowledge.editor.toolbar");
 
   const btnClass =
-    "inline-flex items-center justify-center rounded p-2 text-text-secondary hover:bg-surface-hover hover:text-text-primary";
+    "inline-flex h-8 w-8 items-center justify-center rounded-md text-text-muted transition-colors hover:bg-bg-elevated hover:text-text-primary";
 
   return (
     <div
       role="toolbar"
       aria-label={t("label")}
-      className="flex flex-wrap items-center gap-1 border-b border-border-default bg-surface-elevated p-1"
+      className="flex flex-wrap items-center gap-0.5 border-b border-bg-border bg-bg-card px-3 py-1.5"
     >
       <button
         type="button"
         className={btnClass}
         aria-label={t("h1")}
+        title={t("h1")}
         onClick={() => onAction({ kind: "prefix", text: "# " })}
       >
-        <Heading1 size={16} />
+        <Heading1 size={15} />
       </button>
       <button
         type="button"
         className={btnClass}
         aria-label={t("h2")}
+        title={t("h2")}
         onClick={() => onAction({ kind: "prefix", text: "## " })}
       >
-        <Heading2 size={16} />
+        <Heading2 size={15} />
       </button>
       <button
         type="button"
         className={btnClass}
         aria-label={t("h3")}
+        title={t("h3")}
         onClick={() => onAction({ kind: "prefix", text: "### " })}
       >
-        <Heading3 size={16} />
+        <Heading3 size={15} />
       </button>
-      <span className="mx-1 h-4 w-px bg-border-default" />
+      <span className="mx-1.5 h-4 w-px bg-bg-border" />
       <button
         type="button"
         className={btnClass}
         aria-label={t("bold")}
+        title={t("bold")}
         onClick={() => onAction({ kind: "wrap", before: "**", after: "**" })}
       >
-        <Bold size={16} />
+        <Bold size={15} />
       </button>
       <button
         type="button"
         className={btnClass}
         aria-label={t("list")}
+        title={t("list")}
         onClick={() => onAction({ kind: "prefix", text: "- " })}
       >
-        <List size={16} />
+        <List size={15} />
       </button>
       <button
         type="button"
         className={btnClass}
         aria-label={t("link")}
+        title={t("link")}
         onClick={() => onAction({ kind: "link" })}
       >
-        <Link size={16} />
+        <Link size={15} />
       </button>
       <button
         type="button"
         className={btnClass}
         aria-label={t("code")}
+        title={t("code")}
         onClick={() => onAction({ kind: "codeblock" })}
       >
-        <Code size={16} />
+        <Code size={15} />
       </button>
     </div>
   );
@@ -123,7 +130,6 @@ export function applyEditorAction(
       selEnd: urlStart + 3,
     };
   }
-  // codeblock
   const selected = text.slice(selStart, selEnd);
   const inserted = `\n\`\`\`\n${selected}\n\`\`\`\n`;
   const newText = text.slice(0, selStart) + inserted + text.slice(selEnd);

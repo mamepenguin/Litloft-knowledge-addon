@@ -42,14 +42,14 @@ export default function KnowledgeEditSection({ fileId }: { fileId: string }) {
   const href = `/addons/knowledge?edit=${encodeURIComponent(file.id)}`;
 
   return (
-    <section className="rounded-xl border border-border-default bg-surface-base p-4">
+    <section className="rounded-xl border border-bg-border bg-bg-card p-4">
       <h3 className="mb-2 text-sm font-semibold text-text-primary">
         {t("title")}
       </h3>
       <p className="mb-3 text-xs text-text-muted">{t("description")}</p>
       <Link
         href={href}
-        className="inline-flex items-center gap-2 rounded bg-accent-cta px-3 py-1.5 text-sm font-medium text-white"
+        className="inline-flex items-center gap-2 rounded-md bg-accent-cta px-3 py-1.5 text-sm font-medium text-white hover:bg-accent"
       >
         <Pencil size={14} />
         {t("openEditor")}

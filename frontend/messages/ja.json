@@ -2,15 +2,20 @@
   "knowledge": {
     "title": "Knowledge",
     "loading": "読み込み中...",
+    "empty": {
+      "title": "ノートを選択してください",
+      "description": "左のサイドバーからノートを選ぶか、新しいノートを作成して書き始めましょう。"
+    },
     "setup": {
       "title": "Vault を作成",
-      "description": "Knowledge アドオンは「Vault」（ドライブ内のフォルダ）を基点にノートやクリップを管理します。最初の Vault を作成しましょう。",
+      "description": "Knowledge アドオンは「Vault」（ドライブ内のフォルダ）を基点にノートを管理します。最初の Vault を作成しましょう。",
       "labelField": "ラベル",
       "labelPlaceholder": "例: 個人メモ",
       "driveField": "ドライブ",
       "pathField": "フォルダパス（ドライブ直下からの相対パス）",
       "create": "作成",
-      "creating": "作成中..."
+      "creating": "作成中...",
+      "cancel": "キャンセル"
     },
     "switcher": {
       "none": "Vault 未選択",
@@ -20,10 +25,10 @@
       "loading": "ファイルを読み込み中...",
       "empty": "このフォルダには何もありません。",
       "newFile": "新規ノート",
-      "newFilePrompt": "ファイル名を入力してください（.md が自動で付きます）"
+      "newFilePlaceholder": "ノートのタイトル..."
     },
     "search": {
-      "placeholder": "Vault 内を検索...",
+      "placeholder": "検索...",
       "clear": "クリア",
       "searching": "検索中...",
       "noResults": "該当するノートがありません。",
@@ -42,6 +47,12 @@
       "loadFailed": "読み込みに失敗しました: {error}",
       "back": "一覧に戻る",
       "editArea": "Markdown エディタ",
+      "placeholder": "ここに書き始めましょう...",
+      "view": {
+        "edit": "編集",
+        "split": "分割表示",
+        "preview": "プレビュー"
+      },
       "toolbar": {
         "label": "書式ツールバー",
         "h1": "見出し 1",

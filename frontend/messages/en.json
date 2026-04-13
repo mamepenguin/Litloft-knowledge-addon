@@ -2,15 +2,20 @@
   "knowledge": {
     "title": "Knowledge",
     "loading": "Loading...",
+    "empty": {
+      "title": "Select a note",
+      "description": "Pick a note from the sidebar, or create a new one to start writing."
+    },
     "setup": {
       "title": "Create a Vault",
-      "description": "The Knowledge addon organizes notes and clips inside a Vault (a folder on one of your drives). Let's create your first Vault.",
+      "description": "The Knowledge addon organizes notes inside a Vault (a folder on one of your drives). Let's create your first Vault.",
       "labelField": "Label",
       "labelPlaceholder": "e.g. Personal notes",
       "driveField": "Drive",
       "pathField": "Folder path (relative to drive root)",
       "create": "Create",
-      "creating": "Creating..."
+      "creating": "Creating...",
+      "cancel": "Cancel"
     },
     "switcher": {
       "none": "No Vault selected",
@@ -20,10 +25,10 @@
       "loading": "Loading files...",
       "empty": "Nothing in this folder yet.",
       "newFile": "New note",
-      "newFilePrompt": "Enter a filename (.md will be appended)"
+      "newFilePlaceholder": "Note title…"
     },
     "search": {
-      "placeholder": "Search this vault…",
+      "placeholder": "Search…",
       "clear": "Clear",
       "searching": "Searching…",
       "noResults": "No notes match.",
@@ -42,6 +47,12 @@
       "loadFailed": "Failed to load: {error}",
       "back": "Back to list",
       "editArea": "Markdown editor",
+      "placeholder": "Start writing here…",
+      "view": {
+        "edit": "Edit",
+        "split": "Split",
+        "preview": "Preview"
+      },
       "toolbar": {
         "label": "Formatting toolbar",
         "h1": "Heading 1",
