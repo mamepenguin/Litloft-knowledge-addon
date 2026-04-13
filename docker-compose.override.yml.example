@@ -1,0 +1,20 @@
+# Example snippet to merge into the main repo's docker-compose.override.yml
+# to enable the knowledge addon.
+#
+#   services:
+#     backend:
+#       environment:
+#         - KNOWLEDGE_SERVICE_URL=http://knowledge:8200
+#
+#     knowledge:
+#       build: ./addons/knowledge
+#       expose:
+#         - "8200"
+#       volumes:
+#         - ./addons/knowledge/knowledge-data:/knowledge-data
+#       environment:
+#         - HOMEVAULT_INTERNAL_URL=http://backend:8000
+#       depends_on:
+#         backend:
+#           condition: service_healthy
+#       restart: unless-stopped

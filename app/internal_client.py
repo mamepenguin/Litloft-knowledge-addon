@@ -1,0 +1,85 @@
+"""Thin HTTP client over HomeVault core's Internal API.
+
+Used by the knowledge addon to discover which drives the current user
+can access (so we can validate Vault registrations) and to perform the
+core-side file operations we don't duplicate ourselves
+(``POST /api/drives/{drive}/files``, ``PUT /api/files/{id}/content``).
+
+The caller's Cookie string is passed through as the authorization
+context: the core already understands ``hv_token`` (drive unlocks) and
+``hv_viewer`` (profile identity), and the Generic Addon Proxy forwards
+both cookies transparently.
+"""
+import httpx
+
+from app.config import HOMEVAULT_INTERNAL_URL
+
+
+class InternalAPIError(Exception):
+    def __init__(self, status_code: int, detail: str):
+        self.status_code = status_code
+        self.detail = detail
+        super().__init__(f"{status_code}: {detail}")
+
+
+class InternalClient:
+    def __init__(self, cookie_header: str | None = None):
+        self._cookie = cookie_header or ""
+
+    def _headers(self) -> dict[str, str]:
+        headers: dict[str, str] = {}
+        if self._cookie:
+            headers["Cookie"] = self._cookie
+        return headers
+
+    async def accessible_drives(self) -> list[str]:
+        async with httpx.AsyncClient(timeout=10.0) as client:
+            r = await client.get(
+                f"{HOMEVAULT_INTERNAL_URL}/api/internal/accessible-drives",
+                headers=self._headers(),
+            )
+        if r.status_code != 200:
+            raise InternalAPIError(r.status_code, r.text)
+        return list(r.json().get("drives", []))
+
+    async def create_text_file(
+        self, drive: str, path: str, content: str
+    ) -> dict:
+        """Create a new text file in the given drive via core POST /files."""
+        async with httpx.AsyncClient(timeout=30.0) as client:
+            r = await client.post(
+                f"{HOMEVAULT_INTERNAL_URL}/api/drives/{drive}/files",
+                headers={**self._headers(), "Content-Type": "application/json"},
+                json={"path": path, "content": content},
+            )
+        if r.status_code not in (200, 201):
+            raise InternalAPIError(r.status_code, r.text)
+        return r.json()
+
+    async def put_file_content(
+        self, file_id: str, content: str, if_match: str
+    ) -> str:
+        """Write file content with optimistic concurrency. Returns new ETag."""
+        async with httpx.AsyncClient(timeout=30.0) as client:
+            r = await client.put(
+                f"{HOMEVAULT_INTERNAL_URL}/api/files/{file_id}/content",
+                headers={
+                    **self._headers(),
+                    "Content-Type": "text/plain; charset=utf-8",
+                    "If-Match": if_match,
+                },
+                content=content.encode("utf-8"),
+            )
+        if r.status_code != 200:
+            raise InternalAPIError(r.status_code, r.text)
+        return r.headers.get("etag", "")
+
+    async def get_file(self, file_id: str) -> dict:
+        async with httpx.AsyncClient(timeout=10.0) as client:
+            r = await client.get(
+                f"{HOMEVAULT_INTERNAL_URL}/api/internal/files/{file_id}",
+                headers=self._headers(),
+            )
+        if r.status_code != 200:
+            raise InternalAPIError(r.status_code, r.text)
+        return r.json()

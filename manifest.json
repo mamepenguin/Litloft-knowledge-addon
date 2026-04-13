@@ -1,0 +1,54 @@
+{
+    "label": "Knowledge",
+    "icon": "notebook-pen",
+    "type": "external_service",
+    "href": "/addons/knowledge",
+    "slots": {
+        "sidebar-sections": [],
+        "file-detail-sections": [
+            {"id": "knowledge-edit", "label": "Edit", "priority": 5}
+        ]
+    },
+    "proxy": {
+        "target_env": "KNOWLEDGE_SERVICE_URL",
+        "target_default": "http://knowledge:8200",
+        "health_check": "/health",
+        "routes": [
+            {
+                "path": "/vaults",
+                "methods": ["GET", "POST"],
+                "response_filter": null
+            },
+            {
+                "path": "/vaults/{vault_id}",
+                "methods": ["GET", "PUT", "DELETE"],
+                "response_filter": null
+            },
+            {
+                "path": "/vaults/{vault_id}/activate",
+                "methods": ["POST"],
+                "response_filter": null
+            },
+            {
+                "path": "/clips",
+                "methods": ["POST"],
+                "response_filter": null
+            },
+            {
+                "path": "/clips/pasted",
+                "methods": ["POST"],
+                "response_filter": null
+            },
+            {
+                "path": "/search",
+                "methods": ["GET"],
+                "response_filter": null
+            },
+            {
+                "path": "/status",
+                "methods": ["GET"],
+                "response_filter": null
+            }
+        ]
+    }
+}
