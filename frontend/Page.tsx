@@ -24,6 +24,29 @@ async function fetchFileMeta(fileId: string): Promise<CoreFileItem | null> {
   return res.json();
 }
 
+function lastFileKey(vaultId: number): string {
+  return `knowledge:lastFile:${vaultId}`;
+}
+
+function loadLastFileId(vaultId: number): string | null {
+  if (typeof window === "undefined") return null;
+  try {
+    return window.localStorage.getItem(lastFileKey(vaultId));
+  } catch {
+    return null;
+  }
+}
+
+function saveLastFileId(vaultId: number, fileId: string | null): void {
+  if (typeof window === "undefined") return;
+  try {
+    if (fileId) window.localStorage.setItem(lastFileKey(vaultId), fileId);
+    else window.localStorage.removeItem(lastFileKey(vaultId));
+  } catch {
+    // ignore quota / disabled storage
+  }
+}
+
 export default function KnowledgePage() {
   const t = useTranslations("knowledge");
   const searchParams = useSearchParams();
@@ -32,6 +55,7 @@ export default function KnowledgePage() {
   const [vaults, setVaults] = useState<Vault[]>([]);
   const [activeId, setActiveId] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [reloadKey, setReloadKey] = useState(0);
 
   const refresh = useCallback(async () => {
     try {
@@ -45,6 +69,18 @@ export default function KnowledgePage() {
           return;
         }
       }
+      const activeVaultId = res.active_vault_id ?? res.vaults[0]?.id ?? null;
+      if (activeVaultId !== null) {
+        const lastId = loadLastFileId(activeVaultId);
+        if (lastId) {
+          const file = await fetchFileMeta(lastId);
+          if (file) {
+            setMode({ kind: "edit", file });
+            return;
+          }
+          saveLastFileId(activeVaultId, null);
+        }
+      }
       setMode(res.vaults.length === 0 ? { kind: "setup" } : { kind: "list" });
     } catch (e) {
       setError((e as Error).message);
@@ -54,6 +90,12 @@ export default function KnowledgePage() {
   useEffect(() => {
     refresh();
   }, [refresh]);
+
+  const selectedFileId = mode.kind === "edit" ? mode.file.id : null;
+  useEffect(() => {
+    if (activeId === null) return;
+    saveLastFileId(activeId, selectedFileId);
+  }, [activeId, selectedFileId]);
 
   if (error) {
     return (
@@ -95,6 +137,7 @@ export default function KnowledgePage() {
           vaults={vaults}
           active={active}
           selectedFileId={selectedFile?.id ?? null}
+          reloadKey={reloadKey}
           onSwitchVault={(v) => {
             setActiveId(v.id);
             setMode({ kind: "list" });
@@ -107,8 +150,15 @@ export default function KnowledgePage() {
         {selectedFile ? (
           <Editor
             fileId={selectedFile.id}
-            filename={selectedFile.title || selectedFile.filename}
+            filename={selectedFile.filename}
             onBack={() => setMode({ kind: "list" })}
+            onRenamed={(newFilename) => {
+              setMode({
+                kind: "edit",
+                file: { ...selectedFile, filename: newFilename },
+              });
+              setReloadKey((k) => k + 1);
+            }}
           />
         ) : (
           <EmptyState />

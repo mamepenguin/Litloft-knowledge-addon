@@ -25,7 +25,12 @@
       "loading": "Loading files...",
       "empty": "Nothing in this folder yet.",
       "newFile": "New note",
-      "newFilePlaceholder": "Note title…"
+      "newFilePlaceholder": "Note title…",
+      "newFolder": "New folder",
+      "newFolderPlaceholder": "Folder name…",
+      "folderUp": "Up one level",
+      "newFileHere": "New note here",
+      "newFolderHere": "New folder here"
     },
     "search": {
       "placeholder": "Search…",
@@ -48,6 +53,10 @@
       "back": "Back to list",
       "editArea": "Markdown editor",
       "placeholder": "Start writing here…",
+      "title": {
+        "label": "Note title",
+        "editHint": "Click to rename"
+      },
       "view": {
         "edit": "Edit",
         "split": "Split",

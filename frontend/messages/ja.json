@@ -25,7 +25,12 @@
       "loading": "ファイルを読み込み中...",
       "empty": "このフォルダには何もありません。",
       "newFile": "新規ノート",
-      "newFilePlaceholder": "ノートのタイトル..."
+      "newFilePlaceholder": "ノートのタイトル...",
+      "newFolder": "新規フォルダ",
+      "newFolderPlaceholder": "フォルダ名...",
+      "folderUp": "上の階層へ",
+      "newFileHere": "ここに新規ノート",
+      "newFolderHere": "ここに新規フォルダ"
     },
     "search": {
       "placeholder": "検索...",
@@ -48,6 +53,10 @@
       "back": "一覧に戻る",
       "editArea": "Markdown エディタ",
       "placeholder": "ここに書き始めましょう...",
+      "title": {
+        "label": "ノートのタイトル",
+        "editHint": "クリックして名前を変更"
+      },
       "view": {
         "edit": "編集",
         "split": "分割表示",

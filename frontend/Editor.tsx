@@ -21,6 +21,7 @@ import {
   ConflictError,
   getFileContent,
   putFileContent,
+  renameFile,
 } from "./api";
 import EditorToolbar, {
   applyEditorAction,
@@ -31,6 +32,7 @@ interface Props {
   fileId: string;
   filename: string;
   onBack: () => void;
+  onRenamed?: (newFilename: string) => void;
 }
 
 type SaveState =
@@ -44,7 +46,7 @@ type ViewMode = "edit" | "split" | "preview";
 
 const AUTOSAVE_DEBOUNCE_MS = 2000;
 
-export default function Editor({ fileId, filename, onBack }: Props) {
+export default function Editor({ fileId, filename, onBack, onRenamed }: Props) {
   const t = useTranslations("knowledge.editor");
   const [content, setContent] = useState<string | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -187,9 +189,11 @@ export default function Editor({ fileId, filename, onBack }: Props) {
           <ArrowLeft size={16} />
         </button>
         <div className="min-w-0 flex-1">
-          <h1 className="truncate text-base font-semibold text-text-primary">
-            {displayName}
-          </h1>
+          <TitleField
+            fileId={fileId}
+            displayName={displayName}
+            onRenamed={onRenamed}
+          />
         </div>
         <SaveIndicator state={saveState} />
         <ViewModeToggle mode={viewMode} onChange={setViewMode} />
@@ -232,6 +236,104 @@ export default function Editor({ fileId, filename, onBack }: Props) {
         />
       )}
     </div>
+  );
+}
+
+function TitleField({
+  fileId,
+  displayName,
+  onRenamed,
+}: {
+  fileId: string;
+  displayName: string;
+  onRenamed?: (newFilename: string) => void;
+}) {
+  const t = useTranslations("knowledge.editor.title");
+  const [editing, setEditing] = useState(false);
+  const [value, setValue] = useState(displayName);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const inputRef = useRef<HTMLInputElement | null>(null);
+
+  useEffect(() => {
+    if (!editing) setValue(displayName);
+  }, [displayName, editing]);
+
+  useEffect(() => {
+    if (editing) {
+      inputRef.current?.focus();
+      inputRef.current?.select();
+    }
+  }, [editing]);
+
+  async function commit() {
+    const trimmed = value.trim();
+    if (!trimmed || trimmed === displayName) {
+      setEditing(false);
+      setValue(displayName);
+      setError(null);
+      return;
+    }
+    const clean = trimmed.endsWith(".md") ? trimmed : `${trimmed}.md`;
+    setSaving(true);
+    setError(null);
+    try {
+      const updated = await renameFile(fileId, clean);
+      onRenamed?.(updated.filename);
+      setEditing(false);
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  if (!editing) {
+    return (
+      <button
+        type="button"
+        onClick={() => setEditing(true)}
+        title={t("editHint")}
+        className="block w-full truncate rounded px-1 py-0.5 text-left text-base font-semibold text-text-primary hover:bg-bg-elevated"
+      >
+        {displayName}
+      </button>
+    );
+  }
+
+  return (
+    <form
+      onSubmit={(e) => {
+        e.preventDefault();
+        commit();
+      }}
+      className="flex items-center gap-2"
+    >
+      <input
+        ref={inputRef}
+        type="text"
+        value={value}
+        onChange={(e) => setValue(e.target.value)}
+        onBlur={() => {
+          if (!saving) commit();
+        }}
+        onKeyDown={(e) => {
+          if (e.key === "Escape") {
+            setEditing(false);
+            setValue(displayName);
+            setError(null);
+          }
+        }}
+        disabled={saving}
+        aria-label={t("label")}
+        className="w-full rounded border border-bg-border bg-bg-primary px-2 py-1 text-base font-semibold text-text-primary focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent"
+      />
+      {error && (
+        <span className="text-xs text-red-400" title={error}>
+          <AlertCircle size={12} />
+        </span>
+      )}
+    </form>
   );
 }
 

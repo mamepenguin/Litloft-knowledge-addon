@@ -1,10 +1,22 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type RefObject,
+} from "react";
 import {
   Check,
+  ChevronDown,
+  ChevronRight,
   ChevronsUpDown,
+  FilePlus,
   FileText,
+  Folder,
+  FolderPlus,
   Plus,
   Search,
   X,
@@ -12,61 +24,163 @@ import {
 import { useTranslations } from "next-intl";
 import {
   activateVault,
+  createFolder,
   createTextFile,
   listVaultFiles,
+  listVaultFolders,
   searchVault,
   type CoreFileItem,
+  type CoreFolderItem,
   type SearchHit,
   type Vault,
 } from "./api";
+
+function untitledFilename(): string {
+  const d = new Date();
+  const pad = (n: number) => String(n).padStart(2, "0");
+  const stamp =
+    `${d.getFullYear()}${pad(d.getMonth() + 1)}${pad(d.getDate())}` +
+    `-${pad(d.getHours())}${pad(d.getMinutes())}${pad(d.getSeconds())}`;
+  return `untitled-${stamp}.md`;
+}
+
+interface Contents {
+  folders: CoreFolderItem[];
+  files: CoreFileItem[];
+}
 
 interface Props {
   vaults: Vault[];
   active: Vault;
   selectedFileId: string | null;
+  reloadKey?: number;
   onSwitchVault: (v: Vault) => void;
   onAddVault: () => void;
   onSelectFile: (f: CoreFileItem) => void;
+}
+
+function expandedStorageKey(vaultId: number): string {
+  return `knowledge:tree:${vaultId}:expanded`;
+}
+
+function loadExpanded(vaultId: number, rootPath: string): Set<string> {
+  if (typeof window === "undefined") return new Set([rootPath]);
+  try {
+    const raw = window.localStorage.getItem(expandedStorageKey(vaultId));
+    if (!raw) return new Set([rootPath]);
+    const arr = JSON.parse(raw) as string[];
+    return new Set([rootPath, ...arr]);
+  } catch {
+    return new Set([rootPath]);
+  }
+}
+
+function saveExpanded(vaultId: number, set: Set<string>): void {
+  if (typeof window === "undefined") return;
+  try {
+    window.localStorage.setItem(
+      expandedStorageKey(vaultId),
+      JSON.stringify([...set]),
+    );
+  } catch {
+    // ignore quota / disabled storage
+  }
 }
 
 export default function Sidebar({
   vaults,
   active,
   selectedFileId,
+  reloadKey = 0,
   onSwitchVault,
   onAddVault,
   onSelectFile,
 }: Props) {
-  const t = useTranslations("knowledge");
   const tFile = useTranslations("knowledge.fileList");
   const tSearch = useTranslations("knowledge.search");
 
-  const [files, setFiles] = useState<CoreFileItem[] | null>(null);
-  const [listError, setListError] = useState<string | null>(null);
+  const rootPath = active.path;
+
+  const [contents, setContents] = useState<Map<string, Contents>>(new Map());
+  const [loadingPaths, setLoadingPaths] = useState<Set<string>>(new Set());
+  const [errors, setErrors] = useState<Map<string, string>>(new Map());
+  const [expanded, setExpanded] = useState<Set<string>>(() =>
+    loadExpanded(active.id, rootPath),
+  );
 
   const [query, setQuery] = useState("");
   const [hits, setHits] = useState<SearchHit[] | null>(null);
   const [searching, setSearching] = useState(false);
   const [searchTruncated, setSearchTruncated] = useState(false);
 
+  const [pendingFolder, setPendingFolder] = useState<{
+    parent: string;
+  } | null>(null);
   const [creating, setCreating] = useState(false);
-  const [newName, setNewName] = useState<string | null>(null);
-  const newNameRef = useRef<HTMLInputElement | null>(null);
-
-  const reload = useCallback(async () => {
-    setFiles(null);
-    setListError(null);
-    try {
-      const res = await listVaultFiles(active.drive, active.path);
-      setFiles(res.data);
-    } catch (e) {
-      setListError((e as Error).message);
-    }
-  }, [active.drive, active.path]);
+  const folderInputRef = useRef<HTMLInputElement | null>(null);
 
   useEffect(() => {
-    reload();
-  }, [reload]);
+    saveExpanded(active.id, expanded);
+  }, [active.id, expanded]);
+
+  const loadPath = useCallback(
+    async (path: string): Promise<void> => {
+      setLoadingPaths((prev) => {
+        if (prev.has(path)) return prev;
+        const next = new Set(prev);
+        next.add(path);
+        return next;
+      });
+      try {
+        const [f, fd] = await Promise.all([
+          listVaultFiles(active.drive, path),
+          listVaultFolders(active.drive, path),
+        ]);
+        setContents((prev) => {
+          const next = new Map(prev);
+          next.set(path, { folders: fd, files: f.data });
+          return next;
+        });
+        setErrors((prev) => {
+          if (!prev.has(path)) return prev;
+          const next = new Map(prev);
+          next.delete(path);
+          return next;
+        });
+      } catch (e) {
+        setErrors((prev) => {
+          const next = new Map(prev);
+          next.set(path, (e as Error).message);
+          return next;
+        });
+      } finally {
+        setLoadingPaths((prev) => {
+          if (!prev.has(path)) return prev;
+          const next = new Set(prev);
+          next.delete(path);
+          return next;
+        });
+      }
+    },
+    [active.drive],
+  );
+
+  // On vault switch or external reload signal: reset caches, rehydrate
+  // expanded state from localStorage, and prefetch contents for the root
+  // plus every persisted-expanded folder (otherwise restored folders look
+  // empty on first paint).
+  useEffect(() => {
+    const persisted = loadExpanded(active.id, rootPath);
+    setExpanded(persisted);
+    setContents(new Map());
+    setErrors(new Map());
+    for (const p of persisted) void loadPath(p);
+    if (!persisted.has(rootPath)) void loadPath(rootPath);
+  }, [active.id, rootPath, reloadKey, loadPath]);
+
+  useEffect(() => {
+    if (pendingFolder !== null) folderInputRef.current?.focus();
+  }, [pendingFolder]);
 
   useEffect(() => {
     const q = query.trim();
@@ -91,38 +205,78 @@ export default function Sidebar({
     return () => clearTimeout(handle);
   }, [query, active.id]);
 
-  useEffect(() => {
-    if (newName !== null) {
-      newNameRef.current?.focus();
-    }
-  }, [newName]);
+  function toggleExpand(path: string): void {
+    setExpanded((prev) => {
+      const next = new Set(prev);
+      if (next.has(path)) next.delete(path);
+      else next.add(path);
+      return next;
+    });
+    if (!contents.has(path)) void loadPath(path);
+  }
 
-  async function handleCreate(name: string) {
+  function ensureExpanded(path: string): void {
+    setExpanded((prev) => {
+      if (prev.has(path)) return prev;
+      const next = new Set(prev);
+      next.add(path);
+      return next;
+    });
+    if (!contents.has(path)) void loadPath(path);
+  }
+
+  async function createNoteIn(parent: string): Promise<void> {
     if (creating) return;
-    const trimmed = name.trim();
-    if (!trimmed) {
-      setNewName(null);
-      return;
-    }
-    const clean = trimmed.endsWith(".md") ? trimmed : `${trimmed}.md`;
-    const rel = active.path ? `${active.path}/${clean}` : clean;
+    const name = untitledFilename();
+    const rel = parent ? `${parent}/${name}` : name;
     setCreating(true);
     try {
       const created = await createTextFile(active.drive, {
         path: rel,
         content: "",
       });
-      setNewName(null);
-      await reload();
+      await loadPath(parent);
+      ensureExpanded(parent);
       onSelectFile(created);
     } catch (e) {
-      setListError((e as Error).message);
+      setErrors((prev) => {
+        const next = new Map(prev);
+        next.set(parent, (e as Error).message);
+        return next;
+      });
+    } finally {
+      setCreating(false);
+    }
+  }
+
+  async function submitPendingFolder(name: string): Promise<void> {
+    if (!pendingFolder) return;
+    const trimmed = name.trim();
+    if (!trimmed) {
+      setPendingFolder(null);
+      return;
+    }
+    const { parent } = pendingFolder;
+    setCreating(true);
+    try {
+      await createFolder(active.drive, parent, trimmed);
+      setPendingFolder(null);
+      await loadPath(parent);
+      ensureExpanded(parent);
+    } catch (e) {
+      setErrors((prev) => {
+        const next = new Map(prev);
+        next.set(parent, (e as Error).message);
+        return next;
+      });
     } finally {
       setCreating(false);
     }
   }
 
   const showSearch = query.trim().length > 0;
+  const rootContents = contents.get(rootPath);
+  const rootLoading = loadingPaths.has(rootPath) && !rootContents;
 
   return (
     <aside className="flex h-full w-72 flex-col border-r border-bg-border bg-bg-card">
@@ -172,7 +326,7 @@ export default function Sidebar({
                 filename: hit.filename,
                 title: hit.title,
                 drive: active.drive,
-                folder_path: active.path,
+                folder_path: rootPath,
                 file_type: "document",
                 mime_type: "text/markdown",
                 thumbnail_url: "",
@@ -183,35 +337,328 @@ export default function Sidebar({
             }
             selectedFileId={selectedFileId}
           />
+        ) : rootLoading ? (
+          <div className="px-3 py-6 text-center text-xs text-text-muted">
+            {tFile("loading")}
+          </div>
         ) : (
-          <FileListPane
-            files={files}
-            error={listError}
-            selectedFileId={selectedFileId}
-            onSelect={onSelectFile}
-            pendingNew={newName}
-            onPendingChange={setNewName}
-            onCreate={handleCreate}
-            creating={creating}
-            inputRef={newNameRef}
-          />
+          <div className="p-2">
+            {rootContents &&
+            rootContents.folders.length === 0 &&
+            rootContents.files.length === 0 &&
+            !pendingFolder ? (
+              <div className="px-3 py-6 text-center text-xs text-text-muted">
+                {tFile("empty")}
+              </div>
+            ) : (
+              <FolderBody
+                parentPath={rootPath}
+                contents={contents}
+                loadingPaths={loadingPaths}
+                errors={errors}
+                expanded={expanded}
+                pendingFolder={pendingFolder}
+                onPendingFolderChange={setPendingFolder}
+                onSubmitPendingFolder={submitPendingFolder}
+                creating={creating}
+                folderInputRef={folderInputRef}
+                selectedFileId={selectedFileId}
+                onSelectFile={onSelectFile}
+                onToggle={toggleExpand}
+                onCreateNote={createNoteIn}
+                onStartCreateFolder={(parent) =>
+                  setPendingFolder({ parent })
+                }
+                depth={0}
+              />
+            )}
+          </div>
         )}
       </div>
 
       {!showSearch && (
-        <div className="border-t border-bg-border p-2">
+        <div className="flex items-center gap-1 border-t border-bg-border p-2">
           <button
             type="button"
-            onClick={() => setNewName("")}
-            disabled={creating || newName !== null}
-            className="flex w-full items-center gap-2 rounded-md px-2.5 py-2 text-sm font-medium text-text-primary hover:bg-bg-elevated disabled:opacity-50"
+            onClick={() => createNoteIn(rootPath)}
+            disabled={creating}
+            className="flex flex-1 items-center gap-2 rounded-md px-2.5 py-2 text-sm font-medium text-text-primary hover:bg-bg-elevated disabled:opacity-50"
           >
             <Plus size={16} className="text-accent" />
             {tFile("newFile")}
           </button>
+          <button
+            type="button"
+            onClick={() => setPendingFolder({ parent: rootPath })}
+            disabled={creating || pendingFolder !== null}
+            title={tFile("newFolder")}
+            aria-label={tFile("newFolder")}
+            className="flex h-9 w-9 items-center justify-center rounded-md text-text-muted hover:bg-bg-elevated hover:text-text-primary disabled:opacity-50"
+          >
+            <FolderPlus size={16} />
+          </button>
         </div>
       )}
     </aside>
+  );
+}
+
+interface FolderBodyProps {
+  parentPath: string;
+  contents: Map<string, Contents>;
+  loadingPaths: Set<string>;
+  errors: Map<string, string>;
+  expanded: Set<string>;
+  pendingFolder: { parent: string } | null;
+  onPendingFolderChange: (v: { parent: string } | null) => void;
+  onSubmitPendingFolder: (name: string) => void;
+  creating: boolean;
+  folderInputRef: RefObject<HTMLInputElement | null>;
+  selectedFileId: string | null;
+  onSelectFile: (f: CoreFileItem) => void;
+  onToggle: (path: string) => void;
+  onCreateNote: (parent: string) => void;
+  onStartCreateFolder: (parent: string) => void;
+  depth: number;
+}
+
+function FolderBody(props: FolderBodyProps) {
+  const {
+    parentPath,
+    contents,
+    loadingPaths,
+    errors,
+    expanded,
+    pendingFolder,
+    onPendingFolderChange,
+    onSubmitPendingFolder,
+    creating,
+    folderInputRef,
+    selectedFileId,
+    onSelectFile,
+    onToggle,
+    onCreateNote,
+    onStartCreateFolder,
+    depth,
+  } = props;
+  const tFile = useTranslations("knowledge.fileList");
+  const c = contents.get(parentPath);
+  const err = errors.get(parentPath);
+  const isLoading = loadingPaths.has(parentPath) && !c;
+
+  const sortedFolders = useMemo(
+    () => (c ? [...c.folders].sort((a, b) => a.name.localeCompare(b.name)) : []),
+    [c],
+  );
+  const sortedFiles = useMemo(
+    () =>
+      c
+        ? [...c.files].sort((a, b) => {
+            const at = a.updated_at || a.created_at || "";
+            const bt = b.updated_at || b.created_at || "";
+            return bt.localeCompare(at);
+          })
+        : [],
+    [c],
+  );
+
+  const isPendingHere =
+    pendingFolder !== null && pendingFolder.parent === parentPath;
+
+  if (isLoading) {
+    return (
+      <div
+        className="px-3 py-2 text-xs text-text-muted"
+        style={{ paddingLeft: `${depth * 12 + 12}px` }}
+      >
+        {tFile("loading")}
+      </div>
+    );
+  }
+
+  return (
+    <ul className="flex flex-col">
+      {err && (
+        <li
+          className="mb-1 rounded-md border border-red-500/30 bg-red-500/10 p-2 text-xs text-red-400"
+          style={{ marginLeft: `${depth * 12}px` }}
+        >
+          {err}
+        </li>
+      )}
+      {isPendingHere && (
+        <li style={{ paddingLeft: `${depth * 12}px` }}>
+          <FolderInputRow
+            inputRef={folderInputRef}
+            disabled={creating}
+            onSubmit={(name) => onSubmitPendingFolder(name)}
+            onCancel={() => onPendingFolderChange(null)}
+          />
+        </li>
+      )}
+      {sortedFolders.map((f) => (
+        <FolderRow
+          key={`dir:${f.path}`}
+          folder={f}
+          depth={depth}
+          expanded={expanded.has(f.path)}
+          onToggle={() => onToggle(f.path)}
+          onCreateNote={() => onCreateNote(f.path)}
+          onStartCreateFolder={() => onStartCreateFolder(f.path)}
+          childContent={
+            expanded.has(f.path) ? (
+              <FolderBody
+                {...props}
+                parentPath={f.path}
+                depth={depth + 1}
+              />
+            ) : null
+          }
+        />
+      ))}
+      {sortedFiles.map((f) => {
+        const isActive = f.id === selectedFileId;
+        return (
+          <li key={f.id} style={{ paddingLeft: `${depth * 12}px` }}>
+            <button
+              type="button"
+              onClick={() => onSelectFile(f)}
+              className={`flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left transition-colors ${
+                isActive
+                  ? "bg-accent/15 text-text-primary"
+                  : "text-text-primary hover:bg-bg-elevated"
+              }`}
+            >
+              <span className="flex h-4 w-4 flex-shrink-0 items-center justify-center">
+                <FileText
+                  size={14}
+                  className={isActive ? "text-accent" : "text-text-muted"}
+                />
+              </span>
+              <span className="flex-1 truncate text-sm">
+                {f.title || f.filename.replace(/\.md$/i, "")}
+              </span>
+            </button>
+          </li>
+        );
+      })}
+    </ul>
+  );
+}
+
+function FolderRow({
+  folder,
+  depth,
+  expanded,
+  onToggle,
+  onCreateNote,
+  onStartCreateFolder,
+  childContent,
+}: {
+  folder: CoreFolderItem;
+  depth: number;
+  expanded: boolean;
+  onToggle: () => void;
+  onCreateNote: () => void;
+  onStartCreateFolder: () => void;
+  childContent: React.ReactNode;
+}) {
+  const tFile = useTranslations("knowledge.fileList");
+  return (
+    <li>
+      <div
+        className="group flex items-center gap-1 rounded-md pr-1 hover:bg-bg-elevated"
+        style={{ paddingLeft: `${depth * 12}px` }}
+      >
+        <button
+          type="button"
+          onClick={onToggle}
+          aria-expanded={expanded}
+          className="flex flex-1 items-center gap-1 overflow-hidden py-1.5 text-left"
+        >
+          <span className="flex h-4 w-4 flex-shrink-0 items-center justify-center text-text-muted">
+            {expanded ? (
+              <ChevronDown size={14} />
+            ) : (
+              <ChevronRight size={14} />
+            )}
+          </span>
+          <Folder size={14} className="flex-shrink-0 text-accent" />
+          <span className="flex-1 truncate text-sm text-text-primary">
+            {folder.name}
+          </span>
+        </button>
+        <div className="flex items-center gap-0.5 opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100">
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              onCreateNote();
+            }}
+            title={tFile("newFileHere")}
+            aria-label={tFile("newFileHere")}
+            className="flex h-6 w-6 items-center justify-center rounded text-text-muted hover:bg-bg-card hover:text-text-primary"
+          >
+            <FilePlus size={12} />
+          </button>
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              onStartCreateFolder();
+            }}
+            title={tFile("newFolderHere")}
+            aria-label={tFile("newFolderHere")}
+            className="flex h-6 w-6 items-center justify-center rounded text-text-muted hover:bg-bg-card hover:text-text-primary"
+          >
+            <FolderPlus size={12} />
+          </button>
+        </div>
+      </div>
+      {childContent}
+    </li>
+  );
+}
+
+function FolderInputRow({
+  inputRef,
+  disabled,
+  onSubmit,
+  onCancel,
+}: {
+  inputRef: RefObject<HTMLInputElement | null>;
+  disabled: boolean;
+  onSubmit: (name: string) => void;
+  onCancel: () => void;
+}) {
+  const tFile = useTranslations("knowledge.fileList");
+  const [value, setValue] = useState("");
+  return (
+    <div className="mb-1 ml-4 flex items-center gap-2 rounded-md bg-bg-elevated px-2 py-1.5">
+      <Folder size={14} className="flex-shrink-0 text-text-muted" />
+      <input
+        ref={inputRef}
+        type="text"
+        value={value}
+        onChange={(e) => setValue(e.target.value)}
+        onBlur={() => {
+          if (disabled) return;
+          if (!value.trim()) onCancel();
+          else onSubmit(value);
+        }}
+        onKeyDown={(e) => {
+          if (e.key === "Enter") {
+            e.preventDefault();
+            onSubmit(value);
+          } else if (e.key === "Escape") {
+            onCancel();
+          }
+        }}
+        disabled={disabled}
+        placeholder={tFile("newFolderPlaceholder")}
+        className="flex-1 bg-transparent text-sm text-text-primary placeholder:text-text-muted focus:outline-none"
+      />
+    </div>
   );
 }
 
@@ -314,114 +761,6 @@ function VaultHeader({
   );
 }
 
-function FileListPane({
-  files,
-  error,
-  selectedFileId,
-  onSelect,
-  pendingNew,
-  onPendingChange,
-  onCreate,
-  creating,
-  inputRef,
-}: {
-  files: CoreFileItem[] | null;
-  error: string | null;
-  selectedFileId: string | null;
-  onSelect: (f: CoreFileItem) => void;
-  pendingNew: string | null;
-  onPendingChange: (v: string | null) => void;
-  onCreate: (name: string) => void;
-  creating: boolean;
-  inputRef: React.RefObject<HTMLInputElement | null>;
-}) {
-  const tFile = useTranslations("knowledge.fileList");
-  const sorted = useMemo(() => {
-    if (!files) return null;
-    return [...files].sort((a, b) => {
-      const at = a.updated_at || a.created_at || "";
-      const bt = b.updated_at || b.created_at || "";
-      return bt.localeCompare(at);
-    });
-  }, [files]);
-
-  return (
-    <div className="p-2">
-      {error && (
-        <div className="mb-2 rounded-md border border-red-500/30 bg-red-500/10 p-2 text-xs text-red-400">
-          {error}
-        </div>
-      )}
-      {pendingNew !== null && (
-        <form
-          onSubmit={(e) => {
-            e.preventDefault();
-            onCreate(pendingNew);
-          }}
-          className="mb-1 flex items-center gap-2 rounded-md bg-bg-elevated px-2 py-1.5"
-        >
-          <FileText size={14} className="flex-shrink-0 text-text-muted" />
-          <input
-            ref={inputRef}
-            type="text"
-            value={pendingNew}
-            onChange={(e) => onPendingChange(e.target.value)}
-            onBlur={() => {
-              if (creating) return;
-              if (!pendingNew.trim()) onPendingChange(null);
-              else onCreate(pendingNew);
-            }}
-            onKeyDown={(e) => {
-              if (e.key === "Escape") onPendingChange(null);
-            }}
-            disabled={creating}
-            placeholder={tFile("newFilePlaceholder")}
-            className="flex-1 bg-transparent text-sm text-text-primary placeholder:text-text-muted focus:outline-none"
-          />
-        </form>
-      )}
-      {sorted === null ? (
-        <div className="px-3 py-6 text-center text-xs text-text-muted">
-          {tFile("loading")}
-        </div>
-      ) : sorted.length === 0 && pendingNew === null ? (
-        <div className="px-3 py-6 text-center text-xs text-text-muted">
-          {tFile("empty")}
-        </div>
-      ) : (
-        <ul className="flex flex-col">
-          {sorted.map((f) => {
-            const isActive = f.id === selectedFileId;
-            return (
-              <li key={f.id}>
-                <button
-                  type="button"
-                  onClick={() => onSelect(f)}
-                  className={`flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left transition-colors ${
-                    isActive
-                      ? "bg-accent/15 text-text-primary"
-                      : "text-text-primary hover:bg-bg-elevated"
-                  }`}
-                >
-                  <FileText
-                    size={14}
-                    className={`flex-shrink-0 ${
-                      isActive ? "text-accent" : "text-text-muted"
-                    }`}
-                  />
-                  <span className="flex-1 truncate text-sm">
-                    {f.title || f.filename.replace(/\.md$/i, "")}
-                  </span>
-                </button>
-              </li>
-            );
-          })}
-        </ul>
-      )}
-    </div>
-  );
-}
-
 function SearchResults({
   searching,
   hits,
@@ -462,17 +801,13 @@ function SearchResults({
                 type="button"
                 onClick={() => onPick(hit)}
                 className={`flex w-full flex-col gap-0.5 rounded-md px-2 py-1.5 text-left transition-colors ${
-                  isActive
-                    ? "bg-accent/15"
-                    : "hover:bg-bg-elevated"
+                  isActive ? "bg-accent/15" : "hover:bg-bg-elevated"
                 }`}
               >
                 <span className="flex items-center gap-2 text-sm font-medium text-text-primary">
                   <FileText
                     size={13}
-                    className={
-                      isActive ? "text-accent" : "text-text-muted"
-                    }
+                    className={isActive ? "text-accent" : "text-text-muted"}
                   />
                   <span className="truncate">
                     {hit.title || hit.filename}

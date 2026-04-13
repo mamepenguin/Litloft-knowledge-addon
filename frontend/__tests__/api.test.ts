@@ -1,10 +1,13 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   activateVault,
+  createFolder,
   createVault,
   deleteVault,
   listVaultFiles,
+  listVaultFolders,
   listVaults,
+  renameFile,
   updateVault,
 } from "../api";
 
@@ -130,5 +133,65 @@ describe("knowledge/api", () => {
     expect(url).toContain("path=notes%2Fsub");
     expect(url).toContain("sort=title");
     expect(url).toContain("order=asc");
+  });
+
+  it("listVaultFolders encodes drive and path", async () => {
+    const fetchMock = mockFetch([{ ok: true, body: [] }]);
+    await listVaultFolders("d r", "a/b");
+    const url = fetchMock.mock.calls[0][0] as string;
+    expect(url.startsWith("/api/drives/d%20r/folders?")).toBe(true);
+    expect(url).toContain("path=a%2Fb");
+  });
+
+  it("createFolder POSTs name and path", async () => {
+    const fetchMock = mockFetch([
+      {
+        ok: true,
+        body: { name: "sub", path: "notes/sub", file_count: 0, thumbnail_file_id: null },
+      },
+    ]);
+    const out = await createFolder("vault", "notes", "sub");
+    expect(out.name).toBe("sub");
+    const call = fetchMock.mock.calls[0];
+    expect(call[0]).toBe("/api/drives/vault/folders");
+    expect(call[1].method).toBe("POST");
+    expect(JSON.parse(call[1].body)).toEqual({ path: "notes", name: "sub" });
+  });
+
+  it("createFolder surfaces server detail on error", async () => {
+    mockFetch([{ ok: false, status: 409, body: { detail: "exists" } }]);
+    await expect(createFolder("v", "", "dup")).rejects.toThrow("exists");
+  });
+
+  it("renameFile PUTs new_filename to rename endpoint", async () => {
+    const fetchMock = mockFetch([
+      {
+        ok: true,
+        body: {
+          id: "abc",
+          filename: "new.md",
+          title: "new",
+          drive: "d",
+          folder_path: "",
+          file_type: "document",
+          mime_type: "text/markdown",
+          thumbnail_url: "",
+          file_size: 0,
+          created_at: "",
+          updated_at: "",
+        },
+      },
+    ]);
+    const out = await renameFile("abc", "new.md");
+    expect(out.filename).toBe("new.md");
+    const call = fetchMock.mock.calls[0];
+    expect(call[0]).toBe("/api/files/abc/rename");
+    expect(call[1].method).toBe("PUT");
+    expect(JSON.parse(call[1].body)).toEqual({ new_filename: "new.md" });
+  });
+
+  it("renameFile throws with server detail on error", async () => {
+    mockFetch([{ ok: false, status: 400, body: { detail: "forbidden char" } }]);
+    await expect(renameFile("id", "bad/name.md")).rejects.toThrow("forbidden char");
   });
 });

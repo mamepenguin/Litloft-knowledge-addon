@@ -215,6 +215,67 @@ export async function createTextFile(
   return res.json();
 }
 
+export async function renameFile(
+  fileId: string,
+  newFilename: string,
+): Promise<CoreFileItem> {
+  const res = await fetch(
+    `/api/files/${encodeURIComponent(fileId)}/rename`,
+    {
+      method: "PUT",
+      credentials: "include",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ new_filename: newFilename }),
+    },
+  );
+  if (!res.ok) {
+    const data = await res.json().catch(() => null);
+    throw new Error(data?.detail ?? `Error: ${res.status}`);
+  }
+  return res.json();
+}
+
+export interface CoreFolderItem {
+  name: string;
+  path: string;
+  file_count: number;
+  thumbnail_file_id: string | null;
+}
+
+export async function listVaultFolders(
+  drive: string,
+  path: string,
+): Promise<CoreFolderItem[]> {
+  const qs = new URLSearchParams({ path });
+  const res = await fetch(
+    `/api/drives/${encodeURIComponent(drive)}/folders?${qs}`,
+    { credentials: "include" },
+  );
+  if (!res.ok) throw new Error(`Error: ${res.status}`);
+  return res.json();
+}
+
+export async function createFolder(
+  drive: string,
+  path: string,
+  name: string,
+): Promise<CoreFolderItem> {
+  const res = await fetch(
+    `/api/drives/${encodeURIComponent(drive)}/folders`,
+    {
+      method: "POST",
+      credentials: "include",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ path, name }),
+    },
+  );
+  if (!res.ok) {
+    const data = await res.json().catch(() => null);
+    throw new Error(data?.detail ?? `Error: ${res.status}`);
+  }
+  return res.json();
+}
+
 export async function listVaultFiles(
   drive: string,
   path: string,
