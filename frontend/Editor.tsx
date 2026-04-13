@@ -197,31 +197,31 @@ export default function Editor({ fileId, filename, onBack }: Props) {
 
       {viewMode !== "preview" && <EditorToolbar onAction={handleToolbar} />}
 
+      {/* Keep both panes permanently mounted so that mermaid diagrams and other
+          stateful DOM do not get destroyed when switching view modes.
+          CSS visibility (hidden / display:none via Tailwind) controls what the
+          user sees instead of conditional rendering. */}
       <div
         className={`grid flex-1 min-h-0 ${
           viewMode === "split" ? "md:grid-cols-2" : "grid-cols-1"
         }`}
       >
-        {viewMode !== "preview" && (
-          <textarea
-            ref={textareaRef}
-            value={content}
-            onChange={(e) => setContent(e.target.value)}
-            spellCheck={false}
-            className={`h-full w-full resize-none bg-bg-primary px-8 py-6 font-mono text-[13.5px] leading-relaxed text-text-primary focus:outline-none ${
-              viewMode === "split" ? "border-r border-bg-border" : ""
-            }`}
-            aria-label={t("editArea")}
-            placeholder={t("placeholder")}
-          />
-        )}
-        {viewMode !== "edit" && (
-          <div className="h-full overflow-auto bg-bg-primary px-8 py-6">
-            <div className="mx-auto max-w-3xl">
-              <MarkdownPreview source={content} />
-            </div>
+        <textarea
+          ref={textareaRef}
+          value={content}
+          onChange={(e) => setContent(e.target.value)}
+          spellCheck={false}
+          className={`h-full w-full resize-none bg-bg-primary px-8 py-6 font-mono text-[13.5px] leading-relaxed text-text-primary focus:outline-none ${
+            viewMode === "split" ? "border-r border-bg-border" : ""
+          } ${viewMode === "preview" ? "hidden" : ""}`}
+          aria-label={t("editArea")}
+          placeholder={t("placeholder")}
+        />
+        <div className={`h-full overflow-auto bg-bg-primary px-8 py-6 ${viewMode === "edit" ? "hidden" : ""}`}>
+          <div className="mx-auto max-w-3xl">
+            <MarkdownPreview source={content} showFrontmatter={false} className="h-full" />
           </div>
-        )}
+        </div>
       </div>
 
       {saveState.kind === "conflict" && (
