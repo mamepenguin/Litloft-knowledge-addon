@@ -11,7 +11,7 @@
 #       expose:
 #         - "8200"
 #       volumes:
-#         - ./addons/knowledge/knowledge-data:/knowledge-data
+#         - ./data/addons/knowledge:/knowledge-data
 #       environment:
 #         - HOMEVAULT_INTERNAL_URL=http://backend:8000
 #       depends_on:
