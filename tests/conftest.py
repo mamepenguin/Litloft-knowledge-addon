@@ -47,3 +47,47 @@ def client(knowledge_db):
     from app.main import app
     with TestClient(app) as c:
         yield c
+
+
+class FakeInternalClient:
+    """Stand-in for ``InternalClient`` in unit tests.
+
+    Defaults: every caller can see drives ``["test-drive", "media"]``.
+    Override via ``FakeInternalClient.accessible_drives_override`` (set at
+    the class level so the router's freshly-constructed instance sees it).
+    """
+
+    accessible_drives_override: list[str] = ["test-drive", "media"]
+
+    def __init__(self, cookie_header: str | None = None):
+        self._cookie = cookie_header
+
+    async def accessible_drives(self) -> list[str]:
+        return list(FakeInternalClient.accessible_drives_override)
+
+    async def create_text_file(self, drive, path, content):
+        return {"id": "fake12345678", "drive": drive, "file_path": path}
+
+    async def put_file_content(self, file_id, content, if_match):
+        return '"new-etag"'
+
+    async def get_file(self, file_id):
+        return {"id": file_id, "drive": "test-drive", "filename": "x.md"}
+
+
+@pytest.fixture()
+def fake_internal(monkeypatch):
+    """Swap InternalClient with FakeInternalClient wherever the routers
+    import it, and reset the per-test accessible-drives override."""
+    import app.routers.vaults as vaults
+
+    FakeInternalClient.accessible_drives_override = ["test-drive", "media"]
+    monkeypatch.setattr(vaults, "InternalClient", FakeInternalClient)
+    yield FakeInternalClient
+
+
+@pytest.fixture()
+def viewer_cookie():
+    """Cookie header corresponding to a nickname of 'alice'. Tests that
+    need a specific viewer_id import ``nickname_to_viewer_id`` directly."""
+    return "hv_viewer=alice"

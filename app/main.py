@@ -10,6 +10,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 
 from app.database import init_schema
+from app.routers import vaults
 
 logger = logging.getLogger(__name__)
 
@@ -26,6 +27,8 @@ app = FastAPI(
     description="Notes and web clips — personal knowledge hub for HomeVault",
     lifespan=lifespan,
 )
+
+app.include_router(vaults.router)
 
 
 @app.get("/health")
