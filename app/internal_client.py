@@ -83,3 +83,42 @@ class InternalClient:
         if r.status_code != 200:
             raise InternalAPIError(r.status_code, r.text)
         return r.json()
+
+    async def list_drive_files(
+        self, drive: str, path: str, *, limit: int = 500
+    ) -> list[dict]:
+        """List files under ``drive/path`` via the core's paginated route.
+
+        Returns the ``data`` array from the core response. The caller
+        is responsible for filtering to text files — this just forwards
+        the drive listing with access control intact.
+        """
+        async with httpx.AsyncClient(timeout=20.0) as client:
+            r = await client.get(
+                f"{HOMEVAULT_INTERNAL_URL}/api/drives/{drive}/files",
+                headers=self._headers(),
+                params={
+                    "path": path,
+                    "limit": limit,
+                    "sort": "title",
+                    "order": "asc",
+                },
+            )
+        if r.status_code != 200:
+            raise InternalAPIError(r.status_code, r.text)
+        return list(r.json().get("data", []))
+
+    async def get_file_content(self, file_id: str) -> str:
+        """Fetch the raw text content of a file via the core stream route.
+
+        Used by the webclip worker when it needs the current ETag basis
+        for its If-Match PUT. Returns the decoded UTF-8 string.
+        """
+        async with httpx.AsyncClient(timeout=30.0) as client:
+            r = await client.get(
+                f"{HOMEVAULT_INTERNAL_URL}/api/files/{file_id}/stream",
+                headers=self._headers(),
+            )
+        if r.status_code != 200:
+            raise InternalAPIError(r.status_code, r.text)
+        return r.text

@@ -1,0 +1,69 @@
+{
+  "knowledge": {
+    "title": "Knowledge",
+    "loading": "読み込み中...",
+    "setup": {
+      "title": "Vault を作成",
+      "description": "Knowledge アドオンは「Vault」（ドライブ内のフォルダ）を基点にノートやクリップを管理します。最初の Vault を作成しましょう。",
+      "labelField": "ラベル",
+      "labelPlaceholder": "例: 個人メモ",
+      "driveField": "ドライブ",
+      "pathField": "フォルダパス（ドライブ直下からの相対パス）",
+      "create": "作成",
+      "creating": "作成中..."
+    },
+    "switcher": {
+      "none": "Vault 未選択",
+      "addNew": "新しい Vault を追加"
+    },
+    "fileList": {
+      "loading": "ファイルを読み込み中...",
+      "empty": "このフォルダには何もありません。",
+      "newFile": "新規ノート",
+      "newFilePrompt": "ファイル名を入力してください（.md が自動で付きます）"
+    },
+    "search": {
+      "placeholder": "Vault 内を検索...",
+      "clear": "クリア",
+      "searching": "検索中...",
+      "noResults": "該当するノートがありません。",
+      "truncated": "結果が多すぎます — 検索語を絞ってください。"
+    },
+    "sidebar": {
+      "activePrefix": "アクティブ: {label}"
+    },
+    "editSection": {
+      "title": "Knowledge",
+      "description": "このファイルを Markdown エディタで編集します。",
+      "openEditor": "エディタを開く"
+    },
+    "editor": {
+      "loading": "読み込み中...",
+      "loadFailed": "読み込みに失敗しました: {error}",
+      "back": "一覧に戻る",
+      "editArea": "Markdown エディタ",
+      "toolbar": {
+        "label": "書式ツールバー",
+        "h1": "見出し 1",
+        "h2": "見出し 2",
+        "h3": "見出し 3",
+        "bold": "太字",
+        "list": "リスト",
+        "link": "リンク",
+        "code": "コードブロック"
+      },
+      "status": {
+        "saving": "保存中...",
+        "saved": "保存済み",
+        "conflict": "競合を検知"
+      },
+      "conflict": {
+        "title": "別のデバイスで変更あり",
+        "description": "このファイルは別の場所で更新されています。どうしますか？",
+        "reload": "サーバーから読み込み直す（自分の変更は破棄）",
+        "overwrite": "自分の変更で上書きする",
+        "dismiss": "閉じる"
+      }
+    }
+  }
+}

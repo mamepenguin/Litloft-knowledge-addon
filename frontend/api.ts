@@ -1,0 +1,237 @@
+export interface Vault {
+  id: number;
+  label: string;
+  drive: string;
+  path: string;
+  is_active: boolean;
+  created_at: string;
+}
+
+export interface VaultListResponse {
+  vaults: Vault[];
+  active_vault_id: number | null;
+}
+
+export interface VaultCreateBody {
+  label: string;
+  drive: string;
+  path?: string;
+}
+
+const KNOWLEDGE_BASE = "/api/addons/knowledge";
+
+async function request<T>(path: string, init?: RequestInit): Promise<T> {
+  const res = await fetch(`${KNOWLEDGE_BASE}${path}`, {
+    credentials: "include",
+    headers:
+      init?.body !== undefined
+        ? { "Content-Type": "application/json", ...(init?.headers ?? {}) }
+        : init?.headers,
+    ...init,
+  });
+  if (!res.ok) {
+    const data = await res.json().catch(() => null);
+    throw new Error(data?.detail ?? `Error: ${res.status}`);
+  }
+  if (res.status === 204) return undefined as T;
+  return res.json() as Promise<T>;
+}
+
+export function listVaults(): Promise<VaultListResponse> {
+  return request<VaultListResponse>("/vaults");
+}
+
+export function createVault(body: VaultCreateBody): Promise<Vault> {
+  return request<Vault>("/vaults", {
+    method: "POST",
+    body: JSON.stringify(body),
+  });
+}
+
+export function updateVault(id: number, label: string): Promise<Vault> {
+  return request<Vault>(`/vaults/${id}`, {
+    method: "PUT",
+    body: JSON.stringify({ label }),
+  });
+}
+
+export function deleteVault(id: number): Promise<void> {
+  return request<void>(`/vaults/${id}`, { method: "DELETE" });
+}
+
+export function activateVault(id: number): Promise<Vault> {
+  return request<Vault>(`/vaults/${id}/activate`, { method: "POST" });
+}
+
+// ---- Core API (for file list inside a Vault folder) ----
+
+export interface CoreDrive {
+  name: string;
+  protected: boolean;
+}
+
+export interface CoreFileItem {
+  id: string;
+  filename: string;
+  title: string;
+  drive: string;
+  folder_path: string;
+  file_type: string;
+  mime_type: string;
+  thumbnail_url: string;
+  file_size: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface CorePaginatedFiles {
+  data: CoreFileItem[];
+  meta: { total: number; page: number; limit: number };
+}
+
+export async function listDrives(): Promise<CoreDrive[]> {
+  const res = await fetch("/api/drives", { credentials: "include" });
+  if (!res.ok) throw new Error(`Error: ${res.status}`);
+  return res.json();
+}
+
+// ---- Vault-scoped search ----
+
+export interface SearchHit {
+  file_id: string;
+  filename: string;
+  title: string;
+  snippet: string;
+}
+
+export interface SearchResponse {
+  query: string;
+  vault_id: number;
+  results: SearchHit[];
+  truncated: boolean;
+}
+
+export async function searchVault(
+  vaultId: number,
+  query: string,
+): Promise<SearchResponse> {
+  const qs = new URLSearchParams({
+    vault_id: String(vaultId),
+    q: query,
+  });
+  const res = await fetch(`${KNOWLEDGE_BASE}/search?${qs}`, {
+    credentials: "include",
+  });
+  if (!res.ok) {
+    const data = await res.json().catch(() => null);
+    throw new Error(data?.detail ?? `Error: ${res.status}`);
+  }
+  return res.json();
+}
+
+// ---- Text file editing (core API) ----
+
+export async function computeTextEtag(text: string): Promise<string> {
+  const bytes = new TextEncoder().encode(text);
+  const hash = await crypto.subtle.digest("SHA-256", bytes);
+  return Array.from(new Uint8Array(hash))
+    .map((b) => b.toString(16).padStart(2, "0"))
+    .join("");
+}
+
+export interface LoadedTextFile {
+  content: string;
+  etag: string;
+}
+
+export async function getFileContent(fileId: string): Promise<LoadedTextFile> {
+  const res = await fetch(`/api/files/${encodeURIComponent(fileId)}/stream`, {
+    credentials: "include",
+  });
+  if (!res.ok) throw new Error(`Error: ${res.status}`);
+  const content = await res.text();
+  const headerEtag = res.headers.get("etag");
+  const etag = headerEtag
+    ? headerEtag.replace(/^W\//, "").replace(/^"|"$/g, "")
+    : await computeTextEtag(content);
+  return { content, etag };
+}
+
+export class ConflictError extends Error {
+  constructor() {
+    super("ETag mismatch");
+    this.name = "ConflictError";
+  }
+}
+
+export async function putFileContent(
+  fileId: string,
+  content: string,
+  ifMatch: string,
+): Promise<string> {
+  const res = await fetch(`/api/files/${encodeURIComponent(fileId)}/content`, {
+    method: "PUT",
+    credentials: "include",
+    headers: {
+      "Content-Type": "text/plain; charset=utf-8",
+      "If-Match": `"${ifMatch}"`,
+    },
+    body: content,
+  });
+  if (res.status === 412) throw new ConflictError();
+  if (!res.ok) {
+    const data = await res.json().catch(() => null);
+    throw new Error(data?.detail ?? `Error: ${res.status}`);
+  }
+  const headerEtag = res.headers.get("etag");
+  if (headerEtag) {
+    return headerEtag.replace(/^W\//, "").replace(/^"|"$/g, "");
+  }
+  return computeTextEtag(content);
+}
+
+export interface CreateTextFileBody {
+  path: string;
+  content?: string;
+}
+
+export async function createTextFile(
+  drive: string,
+  body: CreateTextFileBody,
+): Promise<CoreFileItem> {
+  const res = await fetch(
+    `/api/drives/${encodeURIComponent(drive)}/files`,
+    {
+      method: "POST",
+      credentials: "include",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ content: "", ...body }),
+    },
+  );
+  if (!res.ok) {
+    const data = await res.json().catch(() => null);
+    throw new Error(data?.detail ?? `Error: ${res.status}`);
+  }
+  return res.json();
+}
+
+export async function listVaultFiles(
+  drive: string,
+  path: string,
+  page = 1,
+  limit = 100,
+): Promise<CorePaginatedFiles> {
+  const qs = new URLSearchParams({
+    path,
+    page: String(page),
+    limit: String(limit),
+    sort: "title",
+    order: "asc",
+  });
+  const res = await fetch(
+    `/api/drives/${encodeURIComponent(drive)}/files?${qs}`,
+    { credentials: "include" },
+  );
+  if (!res.ok) throw new Error(`Error: ${res.status}`);
+  return res.json();
+}

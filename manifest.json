@@ -4,9 +4,11 @@
     "type": "external_service",
     "href": "/addons/knowledge",
     "slots": {
-        "sidebar-sections": [],
+        "sidebar-sections": [
+            {"id": "knowledge-vault-summary", "label": "Active Vault", "priority": 10}
+        ],
         "file-detail-sections": [
-            {"id": "knowledge-edit", "label": "Edit", "priority": 5}
+            {"id": "knowledge-edit", "label": "Edit Note", "priority": 5}
         ]
     },
     "proxy": {

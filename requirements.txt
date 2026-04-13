@@ -5,6 +5,7 @@ pydantic==2.11.1
 httpx==0.28.1
 readability-lxml==0.8.1
 lxml==5.3.1
+lxml_html_clean==0.4.1
 bleach==6.2.0
 markdownify==1.0.0
 PyYAML==6.0.2
