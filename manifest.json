@@ -2,6 +2,7 @@
     "label": "Knowledge",
     "icon": "notebook-pen",
     "type": "external_service",
+    "scope": "global",
     "href": "/addons/knowledge",
     "slots": {
         "sidebar-sections": [
