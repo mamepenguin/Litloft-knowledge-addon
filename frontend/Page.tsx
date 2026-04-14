@@ -1,9 +1,10 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { useSearchParams } from "next/navigation";
+import { useSearchParams, notFound } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { NotebookPen } from "lucide-react";
+import { useCurrentDrive } from "@/components/CurrentDriveProvider";
 import { listVaults, type CoreFileItem, type Vault } from "./api";
 import VaultSetup from "./VaultSetup";
 import Sidebar from "./Sidebar";
@@ -49,6 +50,7 @@ function saveLastFileId(vaultId: number, fileId: string | null): void {
 
 export default function KnowledgePage() {
   const t = useTranslations("knowledge");
+  const drive = useCurrentDrive();
   const searchParams = useSearchParams();
   const editParam = searchParams.get("edit");
   const [mode, setMode] = useState<Mode>({ kind: "loading" });
@@ -57,9 +59,15 @@ export default function KnowledgePage() {
   const [error, setError] = useState<string | null>(null);
   const [reloadKey, setReloadKey] = useState(0);
 
+  // Drive scope: this page only renders under /drive/{drive}/addons/knowledge.
+  // Reaching it without a drive context is a routing bug.
+  if (drive === null) {
+    notFound();
+  }
+
   const refresh = useCallback(async () => {
     try {
-      const res = await listVaults();
+      const res = await listVaults(drive);
       setVaults(res.vaults);
       setActiveId(res.active_vault_id);
       if (editParam) {
@@ -85,7 +93,7 @@ export default function KnowledgePage() {
     } catch (e) {
       setError((e as Error).message);
     }
-  }, [editParam]);
+  }, [editParam, drive]);
 
   useEffect(() => {
     refresh();
@@ -115,6 +123,7 @@ export default function KnowledgePage() {
   if (mode.kind === "setup" || mode.kind === "addNew") {
     return (
       <VaultSetup
+        drive={drive}
         onCreated={(v) => {
           setVaults((prev) => [...prev, v]);
           setActiveId(v.id);
@@ -134,6 +143,7 @@ export default function KnowledgePage() {
     <div className="flex h-[calc(100vh-64px)] overflow-hidden bg-bg-primary">
       {active && (
         <Sidebar
+          drive={drive}
           vaults={vaults}
           active={active}
           selectedFileId={selectedFile?.id ?? null}

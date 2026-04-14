@@ -39,12 +39,12 @@ describe("knowledge/api", () => {
     const fetchMock = mockFetch([
       { ok: true, body: { vaults: [], active_vault_id: null } },
     ]);
-    const res = await listVaults();
+    const res = await listVaults("test-drive");
     expect(res.vaults).toEqual([]);
-    expect(fetchMock).toHaveBeenCalledWith(
-      "/api/addons/knowledge/vaults",
-      expect.objectContaining({ credentials: "include" }),
-    );
+    const call = fetchMock.mock.calls[0];
+    expect(call[0]).toBe("/api/addons/knowledge/vaults");
+    expect(call[1].credentials).toBe("include");
+    expect(call[1].headers["X-HV-Drive"]).toBe("test-drive");
   });
 
   it("createVault POSTs JSON body", async () => {
@@ -61,13 +61,14 @@ describe("knowledge/api", () => {
         },
       },
     ]);
-    const v = await createVault({ label: "L", drive: "D", path: "P" });
+    const v = await createVault("D", { label: "L", drive: "D", path: "P" });
     expect(v.id).toBe(1);
     const call = fetchMock.mock.calls[0];
     expect(call[0]).toBe("/api/addons/knowledge/vaults");
     expect(call[1].method).toBe("POST");
     expect(JSON.parse(call[1].body)).toEqual({ label: "L", drive: "D", path: "P" });
     expect(call[1].headers["Content-Type"]).toBe("application/json");
+    expect(call[1].headers["X-HV-Drive"]).toBe("D");
   });
 
   it("updateVault sends PUT with label", async () => {
@@ -84,7 +85,7 @@ describe("knowledge/api", () => {
         },
       },
     ]);
-    await updateVault(7, "new");
+    await updateVault("d", 7, "new");
     const call = fetchMock.mock.calls[0];
     expect(call[0]).toBe("/api/addons/knowledge/vaults/7");
     expect(call[1].method).toBe("PUT");
@@ -93,7 +94,7 @@ describe("knowledge/api", () => {
 
   it("deleteVault handles 204 without parsing body", async () => {
     const fetchMock = mockFetch([{ ok: true, status: 204 }]);
-    await expect(deleteVault(3)).resolves.toBeUndefined();
+    await expect(deleteVault("d", 3)).resolves.toBeUndefined();
     expect(fetchMock.mock.calls[0][1].method).toBe("DELETE");
   });
 
@@ -111,7 +112,7 @@ describe("knowledge/api", () => {
         },
       },
     ]);
-    const v = await activateVault(2);
+    const v = await activateVault("d", 2);
     expect(v.is_active).toBe(true);
     expect(fetchMock.mock.calls[0][0]).toBe(
       "/api/addons/knowledge/vaults/2/activate",
@@ -120,7 +121,7 @@ describe("knowledge/api", () => {
 
   it("throws with server detail on error", async () => {
     mockFetch([{ ok: false, status: 409, body: { detail: "dup" } }]);
-    await expect(createVault({ label: "l", drive: "d" })).rejects.toThrow("dup");
+    await expect(createVault("d", { label: "l", drive: "d" })).rejects.toThrow("dup");
   });
 
   it("listVaultFiles encodes drive and builds query string", async () => {

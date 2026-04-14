@@ -4,10 +4,13 @@ Three tables:
 - ``user_vaults``        — one row per (viewer_id, drive, path). Labels
                            are user-facing; drive+path is the source of
                            truth for where notes live.
-- ``user_vault_state``   — at most one row per viewer_id, pointing to the
-                           currently-active Vault. Kept separate to make
-                           "exactly one active Vault per user" a PK
-                           invariant rather than a soft guarantee.
+- ``user_vault_state``   — at most one row per (viewer_id, drive),
+                           pointing to the currently-active Vault for
+                           that drive. Composite PK enforces the
+                           "exactly one active Vault per (user, drive)"
+                           invariant. Cross-drive isolation means
+                           switching drives never leaks the other
+                           drive's active selection.
 - ``clip_jobs``          — per-file webclip ingestion state. Used to
                            recover in-flight jobs after a restart and to
                            gate editing while a clip is fetching.
@@ -39,6 +42,7 @@ class UserVaultState(Base):
     __tablename__ = "user_vault_state"
 
     viewer_id: Mapped[str] = mapped_column(String(16), primary_key=True)
+    drive: Mapped[str] = mapped_column(String(128), primary_key=True)
     active_vault_id: Mapped[int] = mapped_column(
         ForeignKey("user_vaults.id", ondelete="CASCADE"),
         nullable=False,

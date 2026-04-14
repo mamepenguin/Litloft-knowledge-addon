@@ -14,6 +14,14 @@ vi.mock("next-intl", () => ({
   },
 }));
 
+// Drive context: KnowledgeVaultSummary is drive-scoped and pulls the
+// current drive from ``CurrentDriveProvider``. The test shell doesn't
+// mount a <Provider/>, so we stub the hook to return a fixed value.
+let _mockDrive: string | null = "test-drive";
+vi.mock("@/components/CurrentDriveProvider", () => ({
+  useCurrentDrive: () => _mockDrive,
+}));
+
 const KnowledgeEditSection = (await import("../KnowledgeEditSection")).default;
 const KnowledgeVaultSummary = (await import("../KnowledgeVaultSummary")).default;
 
@@ -78,10 +86,21 @@ describe("KnowledgeEditSection", () => {
 });
 
 describe("KnowledgeVaultSummary", () => {
-  beforeEach(() => vi.unstubAllGlobals());
+  beforeEach(() => {
+    vi.unstubAllGlobals();
+    _mockDrive = "test-drive";
+  });
   afterEach(() => {
     cleanup();
     vi.restoreAllMocks();
+  });
+
+  it("renders nothing when no current drive", async () => {
+    _mockDrive = null;
+    stubFetch({});
+    const { container } = render(wrap(<KnowledgeVaultSummary />));
+    await new Promise((r) => setTimeout(r, 20));
+    expect(container.innerHTML).toBe("");
   });
 
   it("renders active vault label", async () => {

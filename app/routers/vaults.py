@@ -1,18 +1,24 @@
-"""Vault CRUD endpoints.
+"""Vault CRUD endpoints — drive-scoped.
 
-All routes are scoped to the caller's viewer_id. The core's Generic Addon
-Proxy injects no server-side identity beyond forwarding the client's
-cookies, so viewer_id here comes from ``hv_viewer`` via
-``get_viewer_id``. Clients cannot override it — the dependency ignores
-any viewer_id query / body fields.
+Every request carries drive context via the ``X-HV-Drive`` header, set
+by the core addon_proxy when the request arrives through
+``/drive/{drive}/addons/knowledge/...``. We treat the header as the
+authoritative drive: Vault listing, activation, and mutations are
+filtered to that drive.
 
-Drive accessibility is validated on create via the HomeVault Internal
-API so that users cannot register a Vault on a drive they cannot see.
+viewer_id still comes from the ``hv_viewer`` cookie. Active-vault state
+is keyed by ``(viewer_id, drive)`` so each drive remembers its own
+active Vault independently.
+
+Drive accessibility on create is validated via the HomeVault Internal
+API (defense in depth — the proxy already enforces drive access before
+forwarding, but we re-check for requests that bypass the proxy in
+tests / internal callers).
 """
 import logging
 from typing import Annotated
 
-from fastapi import APIRouter, Cookie, Depends, Header, HTTPException
+from fastapi import APIRouter, Depends, Header, HTTPException
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
@@ -39,9 +45,22 @@ def _vault_to_out(v: UserVault, active_id: int | None) -> VaultOut:
     )
 
 
-def _active_id_for(db: Session, viewer_id: str) -> int | None:
-    state = db.query(UserVaultState).filter_by(viewer_id=viewer_id).first()
+def _active_id_for(db: Session, viewer_id: str, drive: str) -> int | None:
+    state = (
+        db.query(UserVaultState)
+        .filter_by(viewer_id=viewer_id, drive=drive)
+        .first()
+    )
     return state.active_vault_id if state else None
+
+
+def _require_drive(drive: str | None) -> str:
+    """Reject requests that arrived without the drive context header."""
+    if not drive:
+        raise HTTPException(
+            status_code=400, detail="Drive context required"
+        )
+    return drive
 
 
 async def _validate_drive_access(cookie: str | None, drive: str) -> None:
@@ -57,18 +76,37 @@ async def _validate_drive_access(cookie: str | None, drive: str) -> None:
         )
 
 
+def _get_owned_vault_in_drive_or_404(
+    db: Session, vault_id: int, viewer_id: str, drive: str
+) -> UserVault:
+    vault = (
+        db.query(UserVault)
+        .filter(
+            UserVault.id == vault_id,
+            UserVault.viewer_id == viewer_id,
+            UserVault.drive == drive,
+        )
+        .first()
+    )
+    if vault is None:
+        raise HTTPException(status_code=404, detail="Vault not found")
+    return vault
+
+
 @router.get("", response_model=VaultListResponse)
 async def list_vaults(
     db: Annotated[Session, Depends(get_db)],
     viewer_id: Annotated[str, Depends(get_viewer_id)],
+    x_hv_drive: Annotated[str | None, Header(alias="X-HV-Drive")] = None,
 ):
+    drive = _require_drive(x_hv_drive)
     vaults = (
         db.query(UserVault)
-        .filter(UserVault.viewer_id == viewer_id)
+        .filter(UserVault.viewer_id == viewer_id, UserVault.drive == drive)
         .order_by(UserVault.created_at.asc())
         .all()
     )
-    active_id = _active_id_for(db, viewer_id)
+    active_id = _active_id_for(db, viewer_id, drive)
     return VaultListResponse(
         vaults=[_vault_to_out(v, active_id) for v in vaults],
         active_vault_id=active_id,
@@ -81,17 +119,26 @@ async def create_vault(
     db: Annotated[Session, Depends(get_db)],
     viewer_id: Annotated[str, Depends(get_viewer_id)],
     cookie: Annotated[str | None, Header(alias="Cookie")] = None,
+    x_hv_drive: Annotated[str | None, Header(alias="X-HV-Drive")] = None,
 ):
-    # Structural path validation
-    validate_relative_path(body.path)
+    drive = _require_drive(x_hv_drive)
 
-    # Drive must be visible to the caller (per viewer's token/unlocks)
-    await _validate_drive_access(cookie, body.drive)
+    # The body.drive must match the header-supplied drive context. We
+    # refuse rather than silently overwriting so a buggy client surfaces
+    # the mismatch.
+    if body.drive != drive:
+        raise HTTPException(
+            status_code=403,
+            detail="Vault drive does not match request drive context",
+        )
+
+    validate_relative_path(body.path)
+    await _validate_drive_access(cookie, drive)
 
     vault = UserVault(
         viewer_id=viewer_id,
         label=body.label.strip(),
-        drive=body.drive,
+        drive=drive,
         path=body.path.strip(),
     )
     db.add(vault)
@@ -105,13 +152,23 @@ async def create_vault(
         )
     db.refresh(vault)
 
-    # Auto-activate when this is the user's first Vault
-    state = db.query(UserVaultState).filter_by(viewer_id=viewer_id).first()
+    # Auto-activate when this is the user's first Vault in this drive
+    state = (
+        db.query(UserVaultState)
+        .filter_by(viewer_id=viewer_id, drive=drive)
+        .first()
+    )
     if state is None:
-        db.add(UserVaultState(viewer_id=viewer_id, active_vault_id=vault.id))
+        db.add(
+            UserVaultState(
+                viewer_id=viewer_id,
+                drive=drive,
+                active_vault_id=vault.id,
+            )
+        )
         db.commit()
 
-    return _vault_to_out(vault, _active_id_for(db, viewer_id))
+    return _vault_to_out(vault, _active_id_for(db, viewer_id, drive))
 
 
 @router.put("/{vault_id}", response_model=VaultOut)
@@ -120,12 +177,14 @@ async def update_vault(
     body: VaultUpdate,
     db: Annotated[Session, Depends(get_db)],
     viewer_id: Annotated[str, Depends(get_viewer_id)],
+    x_hv_drive: Annotated[str | None, Header(alias="X-HV-Drive")] = None,
 ):
-    vault = _get_owned_vault_or_404(db, vault_id, viewer_id)
+    drive = _require_drive(x_hv_drive)
+    vault = _get_owned_vault_in_drive_or_404(db, vault_id, viewer_id, drive)
     vault.label = body.label.strip()
     db.commit()
     db.refresh(vault)
-    return _vault_to_out(vault, _active_id_for(db, viewer_id))
+    return _vault_to_out(vault, _active_id_for(db, viewer_id, drive))
 
 
 @router.delete("/{vault_id}", status_code=204)
@@ -133,8 +192,10 @@ async def delete_vault(
     vault_id: int,
     db: Annotated[Session, Depends(get_db)],
     viewer_id: Annotated[str, Depends(get_viewer_id)],
+    x_hv_drive: Annotated[str | None, Header(alias="X-HV-Drive")] = None,
 ):
-    vault = _get_owned_vault_or_404(db, vault_id, viewer_id)
+    drive = _require_drive(x_hv_drive)
+    vault = _get_owned_vault_in_drive_or_404(db, vault_id, viewer_id, drive)
     db.delete(vault)  # CASCADE clears user_vault_state if this was active
     db.commit()
     return None
@@ -145,26 +206,25 @@ async def activate_vault(
     vault_id: int,
     db: Annotated[Session, Depends(get_db)],
     viewer_id: Annotated[str, Depends(get_viewer_id)],
+    x_hv_drive: Annotated[str | None, Header(alias="X-HV-Drive")] = None,
 ):
-    vault = _get_owned_vault_or_404(db, vault_id, viewer_id)
+    drive = _require_drive(x_hv_drive)
+    vault = _get_owned_vault_in_drive_or_404(db, vault_id, viewer_id, drive)
 
-    state = db.query(UserVaultState).filter_by(viewer_id=viewer_id).first()
+    state = (
+        db.query(UserVaultState)
+        .filter_by(viewer_id=viewer_id, drive=drive)
+        .first()
+    )
     if state is None:
-        db.add(UserVaultState(viewer_id=viewer_id, active_vault_id=vault.id))
+        db.add(
+            UserVaultState(
+                viewer_id=viewer_id,
+                drive=drive,
+                active_vault_id=vault.id,
+            )
+        )
     else:
         state.active_vault_id = vault.id
     db.commit()
     return _vault_to_out(vault, vault.id)
-
-
-def _get_owned_vault_or_404(
-    db: Session, vault_id: int, viewer_id: str
-) -> UserVault:
-    vault = (
-        db.query(UserVault)
-        .filter(UserVault.id == vault_id, UserVault.viewer_id == viewer_id)
-        .first()
-    )
-    if vault is None:
-        raise HTTPException(status_code=404, detail="Vault not found")
-    return vault

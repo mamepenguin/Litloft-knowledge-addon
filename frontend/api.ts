@@ -20,14 +20,21 @@ export interface VaultCreateBody {
 
 const KNOWLEDGE_BASE = "/api/addons/knowledge";
 
-async function request<T>(path: string, init?: RequestInit): Promise<T> {
+function driveHeaders(drive: string): Record<string, string> {
+  return { "X-HV-Drive": drive };
+}
+
+async function request<T>(
+  drive: string,
+  path: string,
+  init?: RequestInit,
+): Promise<T> {
+  const baseHeaders: Record<string, string> = { ...driveHeaders(drive) };
+  if (init?.body !== undefined) baseHeaders["Content-Type"] = "application/json";
   const res = await fetch(`${KNOWLEDGE_BASE}${path}`, {
     credentials: "include",
-    headers:
-      init?.body !== undefined
-        ? { "Content-Type": "application/json", ...(init?.headers ?? {}) }
-        : init?.headers,
     ...init,
+    headers: { ...baseHeaders, ...(init?.headers ?? {}) },
   });
   if (!res.ok) {
     const data = await res.json().catch(() => null);
@@ -37,30 +44,37 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   return res.json() as Promise<T>;
 }
 
-export function listVaults(): Promise<VaultListResponse> {
-  return request<VaultListResponse>("/vaults");
+export function listVaults(drive: string): Promise<VaultListResponse> {
+  return request<VaultListResponse>(drive, "/vaults");
 }
 
-export function createVault(body: VaultCreateBody): Promise<Vault> {
-  return request<Vault>("/vaults", {
+export function createVault(
+  drive: string,
+  body: VaultCreateBody,
+): Promise<Vault> {
+  return request<Vault>(drive, "/vaults", {
     method: "POST",
     body: JSON.stringify(body),
   });
 }
 
-export function updateVault(id: number, label: string): Promise<Vault> {
-  return request<Vault>(`/vaults/${id}`, {
+export function updateVault(
+  drive: string,
+  id: number,
+  label: string,
+): Promise<Vault> {
+  return request<Vault>(drive, `/vaults/${id}`, {
     method: "PUT",
     body: JSON.stringify({ label }),
   });
 }
 
-export function deleteVault(id: number): Promise<void> {
-  return request<void>(`/vaults/${id}`, { method: "DELETE" });
+export function deleteVault(drive: string, id: number): Promise<void> {
+  return request<void>(drive, `/vaults/${id}`, { method: "DELETE" });
 }
 
-export function activateVault(id: number): Promise<Vault> {
-  return request<Vault>(`/vaults/${id}/activate`, { method: "POST" });
+export function activateVault(drive: string, id: number): Promise<Vault> {
+  return request<Vault>(drive, `/vaults/${id}/activate`, { method: "POST" });
 }
 
 // ---- Core API (for file list inside a Vault folder) ----
@@ -112,6 +126,7 @@ export interface SearchResponse {
 }
 
 export async function searchVault(
+  drive: string,
   vaultId: number,
   query: string,
 ): Promise<SearchResponse> {
@@ -121,6 +136,7 @@ export async function searchVault(
   });
   const res = await fetch(`${KNOWLEDGE_BASE}/search?${qs}`, {
     credentials: "include",
+    headers: driveHeaders(drive),
   });
   if (!res.ok) {
     const data = await res.json().catch(() => null);

@@ -50,6 +50,7 @@ interface Contents {
 }
 
 interface Props {
+  drive: string;
   vaults: Vault[];
   active: Vault;
   selectedFileId: string | null;
@@ -88,6 +89,7 @@ function saveExpanded(vaultId: number, set: Set<string>): void {
 }
 
 export default function Sidebar({
+  drive,
   vaults,
   active,
   selectedFileId,
@@ -192,7 +194,7 @@ export default function Sidebar({
     setSearching(true);
     const handle = setTimeout(async () => {
       try {
-        const res = await searchVault(active.id, q);
+        const res = await searchVault(drive, active.id, q);
         setHits(res.results);
         setSearchTruncated(res.truncated);
       } catch {
@@ -203,7 +205,7 @@ export default function Sidebar({
       }
     }, 300);
     return () => clearTimeout(handle);
-  }, [query, active.id]);
+  }, [query, active.id, drive]);
 
   function toggleExpand(path: string): void {
     setExpanded((prev) => {
@@ -281,6 +283,7 @@ export default function Sidebar({
   return (
     <aside className="flex h-full w-72 flex-col border-r border-bg-border bg-bg-card">
       <VaultHeader
+        drive={drive}
         vaults={vaults}
         active={active}
         onSwitch={onSwitchVault}
@@ -663,11 +666,13 @@ function FolderInputRow({
 }
 
 function VaultHeader({
+  drive,
   vaults,
   active,
   onSwitch,
   onAddNew,
 }: {
+  drive: string;
   vaults: Vault[];
   active: Vault;
   onSwitch: (v: Vault) => void;
@@ -689,7 +694,7 @@ function VaultHeader({
   async function handlePick(v: Vault) {
     setOpen(false);
     if (v.id === active.id) return;
-    const updated = await activateVault(v.id);
+    const updated = await activateVault(drive, v.id);
     onSwitch(updated);
   }
 

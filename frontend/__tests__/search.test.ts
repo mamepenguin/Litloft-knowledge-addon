@@ -24,11 +24,17 @@ describe("searchVault", () => {
       results: [],
       truncated: false,
     });
-    await searchVault(1, "hello world");
-    const url = fetchMock.mock.calls[0][0] as string;
+    await searchVault("d", 1, "hello world");
+    const call = fetchMock.mock.calls[0];
+    const url = call[0] as string;
     expect(url.startsWith("/api/addons/knowledge/search?")).toBe(true);
     expect(url).toContain("vault_id=1");
     expect(url).toContain("q=hello+world");
+    expect(
+      ((call[1] as unknown as { headers: Record<string, string> }).headers)[
+        "X-HV-Drive"
+      ],
+    ).toBe("d");
   });
 
   it("returns the body on success", async () => {
@@ -40,13 +46,13 @@ describe("searchVault", () => {
       ],
       truncated: true,
     });
-    const res = await searchVault(2, "q");
+    const res = await searchVault("d", 2, "q");
     expect(res.truncated).toBe(true);
     expect(res.results[0].file_id).toBe("f1");
   });
 
   it("throws with server detail on error", async () => {
     mockFetch({ detail: "bad" }, false, 400);
-    await expect(searchVault(1, "x")).rejects.toThrow("bad");
+    await expect(searchVault("d", 1, "x")).rejects.toThrow("bad");
   });
 });

@@ -2,8 +2,8 @@
     "label": "Knowledge",
     "icon": "notebook-pen",
     "type": "external_service",
-    "scope": "global",
-    "href": "/addons/knowledge",
+    "scope": "drive",
+    "href": "/drive/{drive}/addons/knowledge",
     "slots": {
         "sidebar-sections": [
             {"id": "knowledge-vault-summary", "label": "Active Vault", "priority": 10}

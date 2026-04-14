@@ -1,40 +1,30 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { NotebookPen } from "lucide-react";
 import { useTranslations } from "next-intl";
-import { createVault, listDrives, type CoreDrive, type Vault } from "./api";
+import { createVault, type Vault } from "./api";
 
 interface Props {
+  drive: string;
   onCreated: (vault: Vault) => void;
   onCancel?: () => void;
 }
 
-export default function VaultSetup({ onCreated, onCancel }: Props) {
+export default function VaultSetup({ drive, onCreated, onCancel }: Props) {
   const t = useTranslations("knowledge");
-  const [drives, setDrives] = useState<CoreDrive[]>([]);
   const [label, setLabel] = useState("");
-  const [drive, setDrive] = useState("");
   const [path, setPath] = useState("Knowledge");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    listDrives()
-      .then((d) => {
-        setDrives(d);
-        if (d.length > 0) setDrive(d[0].name);
-      })
-      .catch((e: Error) => setError(e.message));
-  }, []);
-
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    if (!label.trim() || !drive) return;
+    if (!label.trim()) return;
     setSubmitting(true);
     setError(null);
     try {
-      const vault = await createVault({
+      const vault = await createVault(drive, {
         label: label.trim(),
         drive,
         path: path.trim(),
@@ -85,18 +75,12 @@ export default function VaultSetup({ onCreated, onCancel }: Props) {
             <span className="text-xs font-medium uppercase tracking-wide text-text-muted">
               {t("setup.driveField")}
             </span>
-            <select
-              value={drive}
-              onChange={(e) => setDrive(e.target.value)}
-              required
-              className={inputClass}
+            <div
+              className={`${inputClass} cursor-not-allowed bg-bg-elevated font-mono text-[13px]`}
+              aria-readonly="true"
             >
-              {drives.map((d) => (
-                <option key={d.name} value={d.name}>
-                  {d.name}
-                </option>
-              ))}
-            </select>
+              {drive}
+            </div>
           </label>
           <label className="flex flex-col gap-1.5">
             <span className="text-xs font-medium uppercase tracking-wide text-text-muted">
@@ -127,7 +111,7 @@ export default function VaultSetup({ onCreated, onCancel }: Props) {
             )}
             <button
               type="submit"
-              disabled={submitting || !label.trim() || !drive}
+              disabled={submitting || !label.trim()}
               className="flex-1 rounded-md bg-accent-cta px-4 py-2 text-sm font-medium text-white hover:bg-accent disabled:cursor-not-allowed disabled:opacity-50"
             >
               {submitting ? t("setup.creating") : t("setup.create")}

@@ -77,7 +77,7 @@ def test_create_clip_rejects_bad_scheme(
     r = client.post(
         "/clips",
         json={"url": "file:///etc/passwd", "vault_id": vault_id},
-        headers={"Cookie": viewer_cookie},
+        headers={"Cookie": viewer_cookie, "X-HV-Drive": "test-drive"},
     )
     assert r.status_code == 400
     assert "URL rejected" in r.json()["detail"]
@@ -91,7 +91,7 @@ def test_create_clip_rejects_docker_host(
     r = client.post(
         "/clips",
         json={"url": "http://backend:8000/", "vault_id": vault_id},
-        headers={"Cookie": viewer_cookie},
+        headers={"Cookie": viewer_cookie, "X-HV-Drive": "test-drive"},
     )
     assert r.status_code == 400
 
@@ -104,7 +104,7 @@ def test_create_clip_happy_path(
     r = client.post(
         "/clips",
         json={"url": "https://ok.example/post", "vault_id": vault_id},
-        headers={"Cookie": viewer_cookie},
+        headers={"Cookie": viewer_cookie, "X-HV-Drive": "test-drive"},
     )
     assert r.status_code == 202, r.text
     body = r.json()
@@ -135,9 +135,36 @@ def test_create_clip_vault_ownership(
     r = client.post(
         "/clips",
         json={"url": "https://ok.example/", "vault_id": vault_id},
-        headers={"Cookie": viewer_cookie},
+        headers={"Cookie": viewer_cookie, "X-HV-Drive": "test-drive"},
     )
     assert r.status_code == 404
+
+
+def test_create_clip_drive_mismatch_404(
+    client, knowledge_db, fake_clips_internal, fake_worker, viewer_cookie, stub_dns
+):
+    """Vault lives in test-drive; request arrives with X-HV-Drive=media."""
+    vid = nickname_to_viewer_id("alice")
+    vault_id = _seed_vault(knowledge_db, vid)
+    r = client.post(
+        "/clips",
+        json={"url": "https://ok.example/", "vault_id": vault_id},
+        headers={"Cookie": viewer_cookie, "X-HV-Drive": "media"},
+    )
+    assert r.status_code == 404
+
+
+def test_create_clip_missing_drive_header_400(
+    client, knowledge_db, fake_clips_internal, fake_worker, viewer_cookie
+):
+    vid = nickname_to_viewer_id("alice")
+    vault_id = _seed_vault(knowledge_db, vid)
+    r = client.post(
+        "/clips",
+        json={"url": "https://ok.example/", "vault_id": vault_id},
+        headers={"Cookie": viewer_cookie},
+    )
+    assert r.status_code == 400
 
 
 def test_pasted_html_skips_worker(
@@ -153,7 +180,7 @@ def test_pasted_html_skips_worker(
     r = client.post(
         "/clips/pasted",
         json={"url": "https://ok.example/", "vault_id": vault_id, "html": html},
-        headers={"Cookie": viewer_cookie},
+        headers={"Cookie": viewer_cookie, "X-HV-Drive": "test-drive"},
     )
     assert r.status_code == 201, r.text
     assert r.json()["status"] == "ready"
@@ -176,6 +203,6 @@ def test_pasted_html_rejects_bad_url(
     r = client.post(
         "/clips/pasted",
         json={"url": "javascript:alert(1)", "vault_id": vault_id, "html": "<p>hi</p>"},
-        headers={"Cookie": viewer_cookie},
+        headers={"Cookie": viewer_cookie, "X-HV-Drive": "test-drive"},
     )
     assert r.status_code == 400

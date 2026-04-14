@@ -36,9 +36,19 @@ _PARALLEL_FETCHES = 8
 _TEXT_MIMES = frozenset({"text/markdown", "text/plain"})
 
 
-def _get_vault_or_404(db: Session, vault_id: int, viewer_id: str) -> UserVault:
+def _require_drive(drive: str | None) -> str:
+    if not drive:
+        raise HTTPException(status_code=400, detail="Drive context required")
+    return drive
+
+
+def _get_vault_or_404(
+    db: Session, vault_id: int, viewer_id: str, drive: str
+) -> UserVault:
     vault = db.query(UserVault).filter(
-        UserVault.id == vault_id, UserVault.viewer_id == viewer_id
+        UserVault.id == vault_id,
+        UserVault.viewer_id == viewer_id,
+        UserVault.drive == drive,
     ).first()
     if vault is None:
         raise HTTPException(status_code=404, detail="Vault not found")
@@ -75,8 +85,10 @@ async def search_vault(
     db: Session = Depends(get_db),
     viewer_id: str = Depends(get_viewer_id),
     cookie: Annotated[str | None, Header(alias="Cookie")] = None,
+    x_hv_drive: Annotated[str | None, Header(alias="X-HV-Drive")] = None,
 ):
-    vault = _get_vault_or_404(db, vault_id, viewer_id)
+    drive = _require_drive(x_hv_drive)
+    vault = _get_vault_or_404(db, vault_id, viewer_id, drive)
 
     client = InternalClient(cookie_header=cookie)
     try:

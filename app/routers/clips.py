@@ -72,11 +72,19 @@ def _ready_content(url: str, article: ExtractedArticle) -> str:
     return fm + "\n" + article.markdown + "\n"
 
 
+def _require_drive(drive: str | None) -> str:
+    if not drive:
+        raise HTTPException(status_code=400, detail="Drive context required")
+    return drive
+
+
 def _get_vault_or_404(
-    db: Session, vault_id: int, viewer_id: str
+    db: Session, vault_id: int, viewer_id: str, drive: str
 ) -> UserVault:
     vault = db.query(UserVault).filter(
-        UserVault.id == vault_id, UserVault.viewer_id == viewer_id
+        UserVault.id == vault_id,
+        UserVault.viewer_id == viewer_id,
+        UserVault.drive == drive,
     ).first()
     if vault is None:
         raise HTTPException(status_code=404, detail="Vault not found")
@@ -115,7 +123,9 @@ async def create_clip(
     db: Annotated[Session, Depends(get_db)],
     viewer_id: Annotated[str, Depends(get_viewer_id)],
     cookie: Annotated[str | None, Header(alias="Cookie")] = None,
+    x_hv_drive: Annotated[str | None, Header(alias="X-HV-Drive")] = None,
 ):
+    drive = _require_drive(x_hv_drive)
     # Structural SSRF check. DNS-level checks also run in the worker,
     # but failing fast here keeps us from creating a placeholder for a
     # URL we'd never touch.
@@ -124,7 +134,7 @@ async def create_clip(
     except BlockedURL as e:
         raise HTTPException(status_code=400, detail=f"URL rejected: {e}")
 
-    vault = _get_vault_or_404(db, body.vault_id, viewer_id)
+    vault = _get_vault_or_404(db, body.vault_id, viewer_id, drive)
 
     client = InternalClient(cookie_header=cookie)
     created, etag = await _create_placeholder(client, vault, body.url)
@@ -162,7 +172,9 @@ async def create_clip_from_html(
     db: Annotated[Session, Depends(get_db)],
     viewer_id: Annotated[str, Depends(get_viewer_id)],
     cookie: Annotated[str | None, Header(alias="Cookie")] = None,
+    x_hv_drive: Annotated[str | None, Header(alias="X-HV-Drive")] = None,
 ):
+    drive = _require_drive(x_hv_drive)
     # URL is metadata only here — we still validate it structurally so
     # the frontmatter doesn't get a garbage string.
     try:
@@ -170,7 +182,7 @@ async def create_clip_from_html(
     except BlockedURL as e:
         raise HTTPException(status_code=400, detail=f"URL rejected: {e}")
 
-    vault = _get_vault_or_404(db, body.vault_id, viewer_id)
+    vault = _get_vault_or_404(db, body.vault_id, viewer_id, drive)
 
     # Sanitize and extract synchronously — no network involved.
     safe_html = sanitize_pasted_html(body.html)
