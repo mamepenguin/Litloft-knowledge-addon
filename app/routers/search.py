@@ -15,6 +15,7 @@ from __future__ import annotations
 import asyncio
 import logging
 from typing import Annotated
+from urllib.parse import unquote
 
 from fastapi import APIRouter, Depends, Header, HTTPException, Query
 from sqlalchemy.orm import Session
@@ -39,7 +40,9 @@ _TEXT_MIMES = frozenset({"text/markdown", "text/plain"})
 def _require_drive(drive: str | None) -> str:
     if not drive:
         raise HTTPException(status_code=400, detail="Drive context required")
-    return drive
+    # Frontend percent-encodes the header so non-ASCII drive names
+    # survive HTTP transit (header values are ISO-8859-1).
+    return unquote(drive)
 
 
 def _get_vault_or_404(

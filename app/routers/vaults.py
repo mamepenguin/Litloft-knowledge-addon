@@ -17,6 +17,7 @@ tests / internal callers).
 """
 import logging
 from typing import Annotated
+from urllib.parse import unquote
 
 from fastapi import APIRouter, Depends, Header, HTTPException
 from sqlalchemy.exc import IntegrityError
@@ -55,12 +56,18 @@ def _active_id_for(db: Session, viewer_id: str, drive: str) -> int | None:
 
 
 def _require_drive(drive: str | None) -> str:
-    """Reject requests that arrived without the drive context header."""
+    """Reject requests that arrived without the drive context header.
+
+    The header value is percent-encoded by the frontend so non-ASCII
+    drive names round-trip through HTTP (header values must be
+    ISO-8859-1). Decode here once so all downstream code sees the
+    canonical drive name.
+    """
     if not drive:
         raise HTTPException(
             status_code=400, detail="Drive context required"
         )
-    return drive
+    return unquote(drive)
 
 
 async def _validate_drive_access(cookie: str | None, drive: str) -> None:

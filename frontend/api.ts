@@ -21,7 +21,10 @@ export interface VaultCreateBody {
 const KNOWLEDGE_BASE = "/api/addons/knowledge";
 
 function driveHeaders(drive: string): Record<string, string> {
-  return { "X-HV-Drive": drive };
+  // HTTP header values must be ISO-8859-1. Drive names may contain
+  // non-ASCII characters (Japanese, etc.), so percent-encode the value
+  // and decode on the server side.
+  return { "X-HV-Drive": encodeURIComponent(drive) };
 }
 
 async function request<T>(

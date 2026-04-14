@@ -23,7 +23,7 @@ import hashlib
 import logging
 from datetime import datetime, timezone
 from typing import Annotated
-from urllib.parse import urlparse
+from urllib.parse import unquote, urlparse
 
 from fastapi import APIRouter, Cookie, Depends, Header, HTTPException
 from sqlalchemy.orm import Session
@@ -75,7 +75,9 @@ def _ready_content(url: str, article: ExtractedArticle) -> str:
 def _require_drive(drive: str | None) -> str:
     if not drive:
         raise HTTPException(status_code=400, detail="Drive context required")
-    return drive
+    # Frontend percent-encodes the header so non-ASCII drive names
+    # survive HTTP transit (header values are ISO-8859-1).
+    return unquote(drive)
 
 
 def _get_vault_or_404(
