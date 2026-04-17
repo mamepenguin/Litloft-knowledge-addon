@@ -121,6 +121,7 @@ describe("Sidebar tree", () => {
     });
     render(
       <Sidebar
+        drive="v"
         vaults={[vault]}
         active={vault}
         selectedFileId={null}
@@ -146,6 +147,7 @@ describe("Sidebar tree", () => {
     });
     render(
       <Sidebar
+        drive="v"
         vaults={[vault]}
         active={vault}
         selectedFileId={null}
@@ -185,6 +187,7 @@ describe("Sidebar tree", () => {
     });
     render(
       <Sidebar
+        drive="v"
         vaults={[vault]}
         active={vault}
         selectedFileId={null}
