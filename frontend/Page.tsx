@@ -5,6 +5,7 @@ import { useSearchParams, notFound } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { NotebookPen } from "lucide-react";
 import { useCurrentDrive } from "@/components/CurrentDriveProvider";
+import { useOverlaySidebar } from "@/components/SidebarProvider";
 import { listVaults, type CoreFileItem, type Vault } from "./api";
 import VaultSetup from "./VaultSetup";
 import Sidebar from "./Sidebar";
@@ -49,6 +50,7 @@ function saveLastFileId(vaultId: number, fileId: string | null): void {
 }
 
 export default function KnowledgePage() {
+  useOverlaySidebar();
   const t = useTranslations("knowledge");
   const drive = useCurrentDrive();
   const searchParams = useSearchParams();
