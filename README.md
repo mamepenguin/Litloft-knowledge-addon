@@ -38,6 +38,31 @@ Environment variables (defaults in parentheses):
 | `KNOWLEDGE_DATA_DIR` (`/knowledge-data`) | SQLite DB and temp storage |
 | `HOMEVAULT_INTERNAL_URL` (`http://backend:8000`) | Core Internal API base |
 | `KNOWLEDGE_USER_AGENT` (browser UA) | Override User-Agent for web clip fetch |
+| `KNOWLEDGE_WEBHOOK_SECRET` | Shared secret for lifecycle webhooks (see below) |
+| `NOTE_SCANNER_INTERVAL_SECONDS` (`3600`) | Frontmatter reconcile scan cadence |
+
+### Lifecycle webhook secret
+
+The `files.missing` / `files.recovered` / `files.purged` webhooks mutate
+`note_origin_sources` (the purge handler deletes rows). Without a shared
+secret, any process on the Docker network could forge events and drop
+data. Generate a secret and point both sides at it:
+
+```
+openssl rand -hex 32 > /dev/null  # example: copy into .env
+```
+
+Then in the core repo's `.env`:
+
+```
+KNOWLEDGE_WEBHOOK_SECRET=<generated-hex>
+```
+
+The `docker-compose.override.yml.example` snippet injects
+`KNOWLEDGE_WEBHOOK_SECRET` into both the backend and knowledge
+containers. In the core's `event-hooks.json`, each knowledge listener
+needs `"secret_env": "KNOWLEDGE_WEBHOOK_SECRET"` so the core attaches
+`X-Webhook-Secret` when dispatching.
 
 ## Status
 

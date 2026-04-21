@@ -1,10 +1,17 @@
 # Example snippet to merge into the main repo's docker-compose.override.yml
 # to enable the knowledge addon.
 #
+# Also set KNOWLEDGE_WEBHOOK_SECRET in .env (generate with
+# `openssl rand -hex 32`) so the core can sign lifecycle webhooks that
+# mutate note_origins / note_origin_sources. Without a secret any
+# process on the Docker network could forge "files.purged" events and
+# drop source rows.
+#
 #   services:
 #     backend:
 #       environment:
 #         - KNOWLEDGE_SERVICE_URL=http://knowledge:8200
+#         - KNOWLEDGE_WEBHOOK_SECRET=${KNOWLEDGE_WEBHOOK_SECRET:-}
 #
 #     knowledge:
 #       build: ./addons/knowledge
@@ -14,6 +21,7 @@
 #         - ./data/addons/knowledge:/knowledge-data
 #       environment:
 #         - HOMEVAULT_INTERNAL_URL=http://backend:8000
+#         - KNOWLEDGE_WEBHOOK_SECRET=${KNOWLEDGE_WEBHOOK_SECRET:-}
 #       depends_on:
 #         backend:
 #           condition: service_healthy
