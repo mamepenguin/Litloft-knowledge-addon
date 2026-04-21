@@ -47,6 +47,14 @@
       "description": "Open this note in the Markdown editor.",
       "openEditor": "Open editor"
     },
+    "activeSummary": {
+      "title": "Summary note",
+      "badge": "knowledge",
+      "description": "An approved summary note for this file lives in knowledge.",
+      "openEditor": "Edit in Knowledge",
+      "loading": "Loading...",
+      "loadFailed": "Failed to load the note"
+    },
     "editor": {
       "loading": "Loading...",
       "loadFailed": "Failed to load: {error}",

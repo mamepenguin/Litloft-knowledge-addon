@@ -15,7 +15,7 @@ from fastapi import FastAPI
 
 from app.database import init_schema
 from app.internal_client import InternalAPIError, InternalClient
-from app.routers import clips, search, vaults
+from app.routers import clips, distill, search, vaults
 from app.sanitize import build_frontmatter
 from app.services.extractor import ExtractedArticle
 from app.services.worker import ClipTask, ClipWorker
@@ -96,6 +96,7 @@ app = FastAPI(
 
 app.include_router(vaults.router)
 app.include_router(clips.router)
+app.include_router(distill.router)
 app.include_router(search.router)
 
 

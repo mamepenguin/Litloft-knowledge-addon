@@ -1,6 +1,6 @@
 """ORM models for the knowledge addon.
 
-Three tables:
+Five tables:
 - ``user_vaults``        — one row per (viewer_id, drive, path). Labels
                            are user-facing; drive+path is the source of
                            truth for where notes live.
@@ -14,11 +14,28 @@ Three tables:
 - ``clip_jobs``          — per-file webclip ingestion state. Used to
                            recover in-flight jobs after a restart and to
                            gate editing while a clip is fetching.
+- ``note_origins``       — per-note metadata mirrored from frontmatter.
+                           Populated by /distill and refreshed by the
+                           frontmatter scanner. The ``.md`` file itself
+                           is the source of truth; this table is a
+                           queryable cache.
+- ``note_origin_sources`` — many-to-many between notes and their source
+                           File rows in core. Normalised so the reverse
+                           lookup (``by_source_file``) is an index hit
+                           even when a note lists multiple sources
+                           (future multi-file summaries).
 """
 from datetime import datetime
 from typing import Optional
 
-from sqlalchemy import ForeignKey, Integer, String, UniqueConstraint, func
+from sqlalchemy import (
+    ForeignKey,
+    ForeignKeyConstraint,
+    Integer,
+    String,
+    UniqueConstraint,
+    func,
+)
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 
 
@@ -73,4 +90,74 @@ class ClipJob(Base):
         server_default=func.now(),
         onupdate=func.now(),
         nullable=False,
+    )
+
+
+class NoteOrigin(Base):
+    """Mirror of a Vault ``.md`` note's frontmatter.
+
+    ``(vault_id, note_path)`` is the PK so a rename or move invalidates
+    the row naturally. The frontmatter scanner refreshes ``last_synced_at``
+    whenever it reconciles the cache against file mtime.
+    """
+
+    __tablename__ = "note_origins"
+
+    vault_id: Mapped[int] = mapped_column(
+        ForeignKey("user_vaults.id", ondelete="CASCADE"),
+        primary_key=True,
+    )
+    note_path: Mapped[str] = mapped_column(String(4096), primary_key=True)
+    # Cached core ``File.id`` of this .md. ``file_id`` is stable across
+    # path renames in core, so storing it avoids a per-lookup Internal
+    # API hop. The scanner (Step C) refreshes this when the .md moves
+    # between Vault subfolders and updates note_path alongside.
+    note_file_id: Mapped[str] = mapped_column(String(12), nullable=False)
+    origin: Mapped[Optional[str]] = mapped_column(String(32), nullable=True)
+    origin_ref: Mapped[Optional[str]] = mapped_column(String(256), nullable=True)
+    approved_at: Mapped[Optional[datetime]] = mapped_column(nullable=True)
+    health: Mapped[str] = mapped_column(
+        String(16),
+        nullable=False,
+        default="healthy",
+    )
+    last_synced_at: Mapped[datetime] = mapped_column(
+        server_default=func.now(),
+        onupdate=func.now(),
+        nullable=False,
+    )
+
+    sources: Mapped[list["NoteOriginSource"]] = relationship(
+        "NoteOriginSource",
+        cascade="all, delete-orphan",
+        back_populates="origin_row",
+    )
+
+
+class NoteOriginSource(Base):
+    """Each row links one note to one source file (core ``File.id``).
+
+    Indexed on ``source_file_id`` for the reverse-lookup API. Current
+    detailed_summary promotion writes exactly one row per distill, but
+    future multi-file summaries can INSERT multiple rows per note.
+    """
+
+    __tablename__ = "note_origin_sources"
+    __table_args__ = (
+        ForeignKeyConstraint(
+            ["vault_id", "note_path"],
+            ["note_origins.vault_id", "note_origins.note_path"],
+            ondelete="CASCADE",
+        ),
+    )
+
+    vault_id: Mapped[int] = mapped_column(primary_key=True)
+    note_path: Mapped[str] = mapped_column(String(4096), primary_key=True)
+    source_file_id: Mapped[str] = mapped_column(
+        String(12), primary_key=True, index=True
+    )
+
+    origin_row: Mapped["NoteOrigin"] = relationship(
+        "NoteOrigin",
+        back_populates="sources",
     )

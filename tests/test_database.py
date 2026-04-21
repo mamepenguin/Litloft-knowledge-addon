@@ -20,7 +20,111 @@ def test_tables_exist(knowledge_db):
     import app.database as database
     insp = inspect(database.engine)
     names = set(insp.get_table_names())
-    assert {"user_vaults", "user_vault_state", "clip_jobs"} <= names
+    assert {
+        "user_vaults",
+        "user_vault_state",
+        "clip_jobs",
+        "note_origins",
+        "note_origin_sources",
+    } <= names
+
+
+def test_note_origin_source_cascade_on_origin_delete(knowledge_db):
+    """Deleting a NoteOrigin cascades to its NoteOriginSource rows."""
+    from app.models import NoteOrigin, NoteOriginSource, UserVault
+
+    Session = knowledge_db
+    s = Session()
+    v = UserVault(viewer_id="u1", label="A", drive="d1", path="Notes")
+    s.add(v)
+    s.commit()
+    origin = NoteOrigin(
+        vault_id=v.id,
+        note_path="AI-Drafts/foo-summary.md",
+        note_file_id="notefile01",
+        origin="detailed_summary",
+    )
+    s.add(origin)
+    s.commit()
+    s.add(
+        NoteOriginSource(
+            vault_id=v.id,
+            note_path="AI-Drafts/foo-summary.md",
+            source_file_id="srcfile1",
+        )
+    )
+    s.commit()
+    assert s.query(NoteOriginSource).count() == 1
+
+    s.delete(origin)
+    s.commit()
+    assert s.query(NoteOriginSource).count() == 0
+
+
+def test_note_origin_cascade_on_vault_delete(knowledge_db):
+    """Removing a Vault takes its note_origins (and nested sources) with it."""
+    from app.models import NoteOrigin, NoteOriginSource, UserVault
+
+    Session = knowledge_db
+    s = Session()
+    v = UserVault(viewer_id="u1", label="A", drive="d1", path="Notes")
+    s.add(v)
+    s.commit()
+    origin = NoteOrigin(
+        vault_id=v.id,
+        note_path="AI-Drafts/foo-summary.md",
+        note_file_id="notefile01",
+        origin="detailed_summary",
+    )
+    s.add(origin)
+    s.commit()
+    s.add(
+        NoteOriginSource(
+            vault_id=v.id,
+            note_path="AI-Drafts/foo-summary.md",
+            source_file_id="srcfile1",
+        )
+    )
+    s.commit()
+
+    s.delete(v)
+    s.commit()
+    assert s.query(NoteOrigin).count() == 0
+    assert s.query(NoteOriginSource).count() == 0
+
+
+def test_note_origin_source_reverse_lookup_index(knowledge_db):
+    """Multiple notes can share a source_file_id (future multi-file summaries)."""
+    from app.models import NoteOrigin, NoteOriginSource, UserVault
+
+    Session = knowledge_db
+    s = Session()
+    v = UserVault(viewer_id="u1", label="A", drive="d1", path="Notes")
+    s.add(v)
+    s.commit()
+    for idx, path in enumerate(("AI-Drafts/a.md", "AI-Drafts/b.md")):
+        s.add(
+            NoteOrigin(
+                vault_id=v.id,
+                note_path=path,
+                note_file_id=f"note000{idx:04d}",
+                origin="detailed_summary",
+            )
+        )
+    s.commit()
+    for path in ("AI-Drafts/a.md", "AI-Drafts/b.md"):
+        s.add(
+            NoteOriginSource(
+                vault_id=v.id,
+                note_path=path,
+                source_file_id="shared-src",
+            )
+        )
+    s.commit()
+
+    hits = s.query(NoteOriginSource).filter_by(source_file_id="shared-src").all()
+    assert len(hits) == 2
+    assert {h.note_path for h in hits} == {"AI-Drafts/a.md", "AI-Drafts/b.md"}
 
 
 def test_user_vault_state_pk_is_viewer_id_and_drive(knowledge_db):

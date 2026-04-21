@@ -10,6 +10,9 @@
         ],
         "file-detail-sections": [
             {"id": "knowledge-edit", "label": "Edit Note", "priority": 5}
+        ],
+        "active-summary-view": [
+            {"id": "knowledge-active-summary", "label": "Summary Note", "priority": 10}
         ]
     },
     "proxy": {
@@ -40,6 +43,16 @@
             {
                 "path": "/clips/pasted",
                 "methods": ["POST"],
+                "response_filter": null
+            },
+            {
+                "path": "/distill",
+                "methods": ["POST"],
+                "response_filter": null
+            },
+            {
+                "path": "/notes/by_source_file/{source_file_id}",
+                "methods": ["GET"],
                 "response_filter": null
             },
             {

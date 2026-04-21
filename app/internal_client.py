@@ -122,3 +122,47 @@ class InternalClient:
         if r.status_code != 200:
             raise InternalAPIError(r.status_code, r.text)
         return r.text
+
+    async def create_file_relation(
+        self,
+        file_id_a: str,
+        file_id_b: str,
+        kind: str = "related",
+        viewer_id: str | None = None,
+    ) -> dict:
+        """Register a relation between two files (same drive only).
+
+        Uses POST /api/internal/file_relations. 409 is swallowed by the
+        caller when the relation may already exist (re-promote scenario).
+        """
+        async with httpx.AsyncClient(timeout=10.0) as client:
+            r = await client.post(
+                f"{HOMEVAULT_INTERNAL_URL}/api/internal/file_relations",
+                headers={**self._headers(), "Content-Type": "application/json"},
+                json={
+                    "file_id_a": file_id_a,
+                    "file_id_b": file_id_b,
+                    "kind": kind,
+                    "viewer_id": viewer_id,
+                },
+            )
+        if r.status_code not in (201, 409):
+            raise InternalAPIError(r.status_code, r.text)
+        return r.json() if r.status_code == 201 else {}
+
+    async def set_file_active_summary(
+        self, file_id: str, summary_file_id: str
+    ) -> dict:
+        """UPSERT the active summary pointer for a file."""
+        async with httpx.AsyncClient(timeout=10.0) as client:
+            r = await client.post(
+                f"{HOMEVAULT_INTERNAL_URL}/api/internal/file_active_summary",
+                headers={**self._headers(), "Content-Type": "application/json"},
+                json={
+                    "file_id": file_id,
+                    "summary_file_id": summary_file_id,
+                },
+            )
+        if r.status_code != 200:
+            raise InternalAPIError(r.status_code, r.text)
+        return r.json()

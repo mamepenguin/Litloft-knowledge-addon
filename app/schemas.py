@@ -47,6 +47,45 @@ class ClipJobOut(BaseModel):
     status: str
 
 
+class DistillRequest(BaseModel):
+    """Promote a detailed_summary (or similar) into a Vault ``.md``.
+
+    ``folder`` is Vault-relative (e.g. ``"AI-Drafts/"``). ``filename``
+    omits the folder prefix. If a file with this name already exists,
+    the server appends ``-2``, ``-3``, … until it finds a free slot.
+    ``title`` becomes the first H1 of the note body; the raw
+    ``content`` is the markdown body (without frontmatter).
+    """
+
+    source_file_id: str = Field(min_length=1, max_length=64)
+    vault_id: int
+    folder: str = Field(default="AI-Drafts", max_length=512)
+    filename: str = Field(min_length=1, max_length=200)
+    title: str = Field(min_length=1, max_length=200)
+    content: str = Field(min_length=0, max_length=1 * 1024 * 1024)
+    origin: str = Field(default="detailed_summary", max_length=32)
+    origin_ref: str | None = Field(default=None, max_length=256)
+
+
+class DistillResponse(BaseModel):
+    note_file_id: str
+    note_path: str
+    vault_id: int
+
+
+class NoteOriginOut(BaseModel):
+    """Reverse-lookup entry: a Vault note whose frontmatter references a source."""
+
+    note_file_id: str
+    vault_id: int
+    drive: str
+    path: str
+    origin: str | None
+    origin_ref: str | None
+    approved_at: datetime | None
+    health: str
+
+
 class SearchHit(BaseModel):
     file_id: str
     filename: str
