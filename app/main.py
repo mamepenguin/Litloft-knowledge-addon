@@ -5,8 +5,10 @@ Routers loaded per phase:
   P5  clips (+ background worker for SSRF-safe fetch pipeline)
   P7  search (planned)
 """
+import asyncio
 import hashlib
 import logging
+import os
 from contextlib import asynccontextmanager
 from datetime import datetime, timezone
 from typing import Optional
@@ -18,11 +20,13 @@ from app.internal_client import InternalAPIError, InternalClient
 from app.routers import clips, distill, search, vaults, webhooks
 from app.sanitize import build_frontmatter
 from app.services.extractor import ExtractedArticle
+from app.services.note_scanner import scanner_loop
 from app.services.worker import ClipTask, ClipWorker
 
 logger = logging.getLogger(__name__)
 
 _worker: Optional[ClipWorker] = None
+_scanner_task: Optional[asyncio.Task] = None
 
 
 def get_worker() -> Optional[ClipWorker]:
@@ -73,16 +77,30 @@ async def lifespan(app: FastAPI):
     init_schema()
     logger.info("knowledge addon: schema initialized")
 
-    global _worker
+    global _worker, _scanner_task
     _worker = ClipWorker(on_done=_publish_clip, on_fail=_publish_fail)
     _worker.start()
     for task in _worker.reclaim_stale_jobs():
         await _worker.enqueue(task)
     logger.info("knowledge addon: worker started")
 
+    # ``NOTE_SCANNER_INTERVAL_SECONDS`` allows tests and operators to shorten
+    # the default 1h cadence. The loop performs one reconcile pass immediately
+    # on boot so note_origins catches up without waiting a full interval.
+    interval = int(os.environ.get("NOTE_SCANNER_INTERVAL_SECONDS", "3600"))
+    _scanner_task = asyncio.create_task(scanner_loop(interval_seconds=interval))
+    logger.info("knowledge addon: note scanner started (interval=%ds)", interval)
+
     try:
         yield
     finally:
+        if _scanner_task is not None:
+            _scanner_task.cancel()
+            try:
+                await _scanner_task
+            except (asyncio.CancelledError, Exception):  # noqa: BLE001
+                pass
+            _scanner_task = None
         if _worker is not None:
             await _worker.stop()
             _worker = None
