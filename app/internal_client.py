@@ -12,7 +12,7 @@ both cookies transparently.
 """
 import httpx
 
-from app.config import HOMEVAULT_INTERNAL_URL
+from app.config import CORE_INTERNAL_SECRET, HOMEVAULT_INTERNAL_URL
 
 
 class InternalAPIError(Exception):
@@ -118,6 +118,33 @@ class InternalClient:
             r = await client.get(
                 f"{HOMEVAULT_INTERNAL_URL}/api/files/{file_id}/stream",
                 headers=self._headers(),
+            )
+        if r.status_code != 200:
+            raise InternalAPIError(r.status_code, r.text)
+        return r.text
+
+    async def get_file_text_content(self, file_id: str) -> str:
+        """Fetch a file's text content via the gated internal endpoint.
+
+        Unlike ``get_file_content`` this path goes through
+        ``/api/internal/files/{id}/content``, which is Docker-internal
+        only and bypasses the ``hv_token`` drive-unlock check. The note
+        scanner runs without any user cookie and must still be able to
+        read ``.md`` files on password-protected drives — this is the
+        escape hatch for that case.
+
+        Auth: optional shared secret via ``X-Internal-Secret``. Matches
+        the ``KNOWLEDGE_WEBHOOK_SECRET`` pattern in reverse direction;
+        when unset on both sides the endpoint behaves like the other
+        unsecret internal routes (relies on Docker network isolation).
+        """
+        headers: dict[str, str] = {}
+        if CORE_INTERNAL_SECRET:
+            headers["X-Internal-Secret"] = CORE_INTERNAL_SECRET
+        async with httpx.AsyncClient(timeout=30.0) as client:
+            r = await client.get(
+                f"{HOMEVAULT_INTERNAL_URL}/api/internal/files/{file_id}/content",
+                headers=headers,
             )
         if r.status_code != 200:
             raise InternalAPIError(r.status_code, r.text)

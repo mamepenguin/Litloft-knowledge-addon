@@ -1,17 +1,28 @@
 # Example snippet to merge into the main repo's docker-compose.override.yml
 # to enable the knowledge addon.
 #
-# Also set KNOWLEDGE_WEBHOOK_SECRET in .env (generate with
-# `openssl rand -hex 32`) so the core can sign lifecycle webhooks that
-# mutate note_origins / note_origin_sources. Without a secret any
-# process on the Docker network could forge "files.purged" events and
-# drop source rows.
+# Two shared secrets are used:
+#
+# 1. KNOWLEDGE_WEBHOOK_SECRET (core → addon) — signs lifecycle webhooks
+#    that mutate note_origins / note_origin_sources. Without it any
+#    process on the Docker network could forge "files.purged" events and
+#    drop source rows.
+#
+# 2. CORE_INTERNAL_SECRET (addon → core) — gates the text-content read
+#    endpoint GET /api/internal/files/{id}/content, which the note
+#    scanner uses to reconcile Vault .md frontmatter even on
+#    password-protected drives (the scanner has no user cookie). Without
+#    it the Docker network boundary is the only layer of defence on
+#    content-reading.
+#
+# Generate each with `openssl rand -hex 32` and set them in .env.
 #
 #   services:
 #     backend:
 #       environment:
 #         - KNOWLEDGE_SERVICE_URL=http://knowledge:8200
 #         - KNOWLEDGE_WEBHOOK_SECRET=${KNOWLEDGE_WEBHOOK_SECRET:-}
+#         - CORE_INTERNAL_SECRET=${CORE_INTERNAL_SECRET:-}
 #
 #     knowledge:
 #       build: ./addons/knowledge
@@ -22,6 +33,7 @@
 #       environment:
 #         - HOMEVAULT_INTERNAL_URL=http://backend:8000
 #         - KNOWLEDGE_WEBHOOK_SECRET=${KNOWLEDGE_WEBHOOK_SECRET:-}
+#         - CORE_INTERNAL_SECRET=${CORE_INTERNAL_SECRET:-}
 #       depends_on:
 #         backend:
 #           condition: service_healthy

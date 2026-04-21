@@ -39,6 +39,7 @@ Environment variables (defaults in parentheses):
 | `HOMEVAULT_INTERNAL_URL` (`http://backend:8000`) | Core Internal API base |
 | `KNOWLEDGE_USER_AGENT` (browser UA) | Override User-Agent for web clip fetch |
 | `KNOWLEDGE_WEBHOOK_SECRET` | Shared secret for lifecycle webhooks (see below) |
+| `CORE_INTERNAL_SECRET` | Shared secret for content reads from core (see below) |
 | `NOTE_SCANNER_INTERVAL_SECONDS` (`3600`) | Frontmatter reconcile scan cadence |
 
 ### Lifecycle webhook secret
@@ -63,6 +64,32 @@ The `docker-compose.override.yml.example` snippet injects
 containers. In the core's `event-hooks.json`, each knowledge listener
 needs `"secret_env": "KNOWLEDGE_WEBHOOK_SECRET"` so the core attaches
 `X-Webhook-Secret` when dispatching.
+
+### Core internal content secret
+
+The note scanner periodically re-parses frontmatter of Vault `.md`
+files to keep `note_origins` in sync with external edits (a user
+opening the note in Obsidian and changing `source_file_ids` etc.). It
+runs without a user cookie, so it cannot use the cookie-gated
+`/api/files/{id}/stream` route — ``.md`` on password-protected drives
+would always 403.
+
+`GET /api/internal/files/{id}/content` is the escape hatch: a
+Docker-internal, text-only, size-capped endpoint that skips drive
+unlock checks. Because it reads file contents unconditionally, it is
+gated by `CORE_INTERNAL_SECRET` (shared between core and the knowledge
+addon). Set the same generated secret on both sides:
+
+```
+CORE_INTERNAL_SECRET=<generated-hex>
+```
+
+If left unset, the gate no-ops (matching the dev-friendly default of
+`KNOWLEDGE_WEBHOOK_SECRET`). Protected-drive scans still work while
+unset; the secret is the production defence in depth so a misrouted
+``/api/internal/*`` path cannot exfiltrate text files. 403/404 from
+this endpoint are reported in the scanner's `protected_errors`
+counter, separate from generic `errors`.
 
 ## Status
 

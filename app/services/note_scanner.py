@@ -41,6 +41,12 @@ class ReconcileStats:
     scanned: int
     updated: int
     errors: int
+    # 403/404 from core's gated content endpoint — separated from
+    # ``errors`` so genuine faults stay visible. Protected-drive reads
+    # fail here when ``CORE_INTERNAL_SECRET`` is unset (or misaligned)
+    # and the scanner has no cookie; webhook-driven health reconcile
+    # still works because that path uses the non-gated bulk-state route.
+    protected_errors: int = 0
 
 
 def _assume_utc(dt: datetime) -> datetime:
@@ -126,8 +132,19 @@ def _apply_frontmatter(
 
 async def _reconcile_one(
     client: InternalClient, note_info: tuple[int, str, str, datetime | None]
-) -> tuple[bool, bool]:
-    """Return (updated, errored). Called outside any DB session."""
+) -> tuple[bool, bool, bool]:
+    """Return ``(updated, errored, protected)``.
+
+    - ``updated``: frontmatter was re-applied to ``note_origins``.
+    - ``errored``: genuine failure worth investigating (network, 5xx,
+      malformed response). Increments ``errors``.
+    - ``protected``: core returned 403/404 from the gated content
+      endpoint — a configuration signal, not a code bug. Increments
+      ``protected_errors`` so it stays visible without drowning real
+      issues. A 403 here typically means ``CORE_INTERNAL_SECRET`` is
+      misaligned; 404 here means the row vanished between get_file and
+      the content call (webhook racing the scanner).
+    """
     vault_id, note_path, note_file_id, last_synced_at = note_info
 
     try:
@@ -137,19 +154,19 @@ async def _reconcile_one(
             # The .md disappeared from core's active index. Purged/missing
             # webhooks already handle the corresponding relation cleanup;
             # leave this pass alone rather than racing them.
-            return False, False
+            return False, False, False
         logger.warning(
             "note scan: get_file failed vault=%s path=%s: %s",
             vault_id,
             note_path,
             exc,
         )
-        return False, True
+        return False, True, False
 
     updated_at = _parse_iso(info.get("updated_at"))
     if updated_at is None:
         # Core returned no timestamp — nothing we can compare. Skip.
-        return False, False
+        return False, False, False
 
     # Both timestamps are UTC by construction. SQLite strips tzinfo on
     # store, and core's DateTime column is tz-naive — so either side
@@ -159,18 +176,26 @@ async def _reconcile_one(
     if last_synced_at is not None:
         baseline = _assume_utc(last_synced_at)
         if updated_at <= baseline:
-            return False, False
+            return False, False, False
 
     try:
-        content = await client.get_file_content(note_file_id)
+        content = await client.get_file_text_content(note_file_id)
     except InternalAPIError as exc:
+        if exc.status_code in (403, 404):
+            logger.warning(
+                "note scan: content denied vault=%s path=%s status=%d (check CORE_INTERNAL_SECRET)",
+                vault_id,
+                note_path,
+                exc.status_code,
+            )
+            return False, False, True
         logger.warning(
             "note scan: content fetch failed vault=%s path=%s: %s",
             vault_id,
             note_path,
             exc,
         )
-        return False, True
+        return False, True, False
 
     parsed = parse_frontmatter(content)
 
@@ -185,9 +210,9 @@ async def _reconcile_one(
         )
         if note is None:
             # Raced with a purge/delete between the list and this update.
-            return False, False
+            return False, False, False
         _apply_frontmatter(session, note, parsed.metadata)
-    return True, False
+    return True, False, False
 
 
 async def reconcile_once(
@@ -214,14 +239,22 @@ async def reconcile_once(
 
     updated = 0
     errors = 0
+    protected_errors = 0
     for info in notes:
-        did_update, errored = await _reconcile_one(client, info)
+        did_update, errored, protected = await _reconcile_one(client, info)
         if did_update:
             updated += 1
         if errored:
             errors += 1
+        if protected:
+            protected_errors += 1
 
-    return ReconcileStats(scanned=len(notes), updated=updated, errors=errors)
+    return ReconcileStats(
+        scanned=len(notes),
+        updated=updated,
+        errors=errors,
+        protected_errors=protected_errors,
+    )
 
 
 async def scanner_loop(
@@ -237,10 +270,11 @@ async def scanner_loop(
         try:
             stats = await reconcile_once()
             logger.info(
-                "note scanner: scanned=%d updated=%d errors=%d",
+                "note scanner: scanned=%d updated=%d errors=%d protected_errors=%d",
                 stats.scanned,
                 stats.updated,
                 stats.errors,
+                stats.protected_errors,
             )
         except asyncio.CancelledError:
             raise

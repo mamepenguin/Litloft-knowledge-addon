@@ -77,10 +77,12 @@ class _FakeClient:
         file_info: dict[str, dict] | None = None,
         file_content: dict[str, str] | None = None,
         raise_on_info: dict[str, int] | None = None,
+        raise_on_content: dict[str, int] | None = None,
     ) -> None:
         self._info = file_info or {}
         self._content = file_content or {}
         self._info_errors = raise_on_info or {}
+        self._content_errors = raise_on_content or {}
         self.content_calls: list[str] = []
 
     async def get_file(self, file_id: str) -> dict:
@@ -92,8 +94,12 @@ class _FakeClient:
             raise InternalAPIError(404, "not found")
         return self._info[file_id]
 
-    async def get_file_content(self, file_id: str) -> str:
+    async def get_file_text_content(self, file_id: str) -> str:
+        from app.internal_client import InternalAPIError
+
         self.content_calls.append(file_id)
+        if file_id in self._content_errors:
+            raise InternalAPIError(self._content_errors[file_id], "forced")
         return self._content.get(file_id, "")
 
 
@@ -432,6 +438,116 @@ async def test_malformed_frontmatter_still_updates_timestamp(knowledge_db):
         .count()
     )
     assert count == 0
+
+
+@pytest.mark.anyio
+async def test_content_403_counts_as_protected_error(knowledge_db):
+    """Gated content endpoint denying us (misaligned CORE_INTERNAL_SECRET,
+    or unset-on-one-side) must not pollute the generic ``errors`` counter.
+    The scanner logs a hint and moves on; operators see
+    ``protected_errors`` in the per-iteration summary.
+    """
+    session = knowledge_db()
+    vault = _seed_vault(session)
+    past = datetime.now(UTC) - timedelta(hours=2)
+    _seed_note(
+        session,
+        vault,
+        note_file_id="nForbid00001",
+        source_ids=["a"],
+        last_synced_at=past,
+    )
+    session.close()
+
+    client = _FakeClient(
+        file_info={
+            "nForbid00001": {
+                "id": "nForbid00001",
+                "drive": "protected-drive",
+                "filename": "n.md",
+                "file_type": "document",
+                "folder_path": "",
+                "updated_at": _iso(datetime.now(UTC)),
+            }
+        },
+        raise_on_content={"nForbid00001": 403},
+    )
+    stats = await note_scanner.reconcile_once(client)
+
+    assert stats.scanned == 1
+    assert stats.updated == 0
+    assert stats.errors == 0
+    assert stats.protected_errors == 1
+
+
+@pytest.mark.anyio
+async def test_content_404_counts_as_protected_error(knowledge_db):
+    """404 on the content path — the row vanished between get_file and
+    the content call — is also a protected_error (benign race), not an
+    error proper.
+    """
+    session = knowledge_db()
+    vault = _seed_vault(session)
+    past = datetime.now(UTC) - timedelta(hours=2)
+    _seed_note(
+        session,
+        vault,
+        note_file_id="nVanish00001",
+        last_synced_at=past,
+    )
+    session.close()
+
+    client = _FakeClient(
+        file_info={
+            "nVanish00001": {
+                "id": "nVanish00001",
+                "drive": "test-drive",
+                "filename": "n.md",
+                "file_type": "document",
+                "folder_path": "",
+                "updated_at": _iso(datetime.now(UTC)),
+            }
+        },
+        raise_on_content={"nVanish00001": 404},
+    )
+    stats = await note_scanner.reconcile_once(client)
+
+    assert stats.errors == 0
+    assert stats.protected_errors == 1
+
+
+@pytest.mark.anyio
+async def test_content_5xx_counts_as_error(knowledge_db):
+    """A 5xx from the content endpoint is still a real error — the
+    generic ``errors`` counter is what oncall should be watching."""
+    session = knowledge_db()
+    vault = _seed_vault(session)
+    past = datetime.now(UTC) - timedelta(hours=2)
+    _seed_note(
+        session,
+        vault,
+        note_file_id="nBoom0000001",
+        last_synced_at=past,
+    )
+    session.close()
+
+    client = _FakeClient(
+        file_info={
+            "nBoom0000001": {
+                "id": "nBoom0000001",
+                "drive": "test-drive",
+                "filename": "n.md",
+                "file_type": "document",
+                "folder_path": "",
+                "updated_at": _iso(datetime.now(UTC)),
+            }
+        },
+        raise_on_content={"nBoom0000001": 502},
+    )
+    stats = await note_scanner.reconcile_once(client)
+
+    assert stats.errors == 1
+    assert stats.protected_errors == 0
 
 
 @pytest.fixture()
