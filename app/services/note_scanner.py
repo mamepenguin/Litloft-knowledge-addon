@@ -43,6 +43,16 @@ class ReconcileStats:
     errors: int
 
 
+def _assume_utc(dt: datetime) -> datetime:
+    """Treat a naive datetime as UTC; pass an aware datetime through.
+
+    The core's SQLite rows are tz-naive (DateTime column stores tz-naive
+    values) while our in-process timestamps and parsed ISO strings are
+    tz-aware. Normalise both sides so comparisons don't raise.
+    """
+    return dt if dt.tzinfo else dt.replace(tzinfo=UTC)
+
+
 def _parse_iso(ts: str | None) -> datetime | None:
     if not ts:
         return None
@@ -141,14 +151,13 @@ async def _reconcile_one(
         # Core returned no timestamp — nothing we can compare. Skip.
         return False, False
 
+    # Both timestamps are UTC by construction. SQLite strips tzinfo on
+    # store, and core's DateTime column is tz-naive — so either side
+    # can arrive tz-naive even when the other is tz-aware. Normalise
+    # both before comparison to avoid TypeError.
+    updated_at = _assume_utc(updated_at)
     if last_synced_at is not None:
-        # Both timestamps are UTC. `last_synced_at` comes from the DB
-        # (tz-naive on SQLite) so normalise before comparison.
-        baseline = (
-            last_synced_at
-            if last_synced_at.tzinfo
-            else last_synced_at.replace(tzinfo=UTC)
-        )
+        baseline = _assume_utc(last_synced_at)
         if updated_at <= baseline:
             return False, False
 
