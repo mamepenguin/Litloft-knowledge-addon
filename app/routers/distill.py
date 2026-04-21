@@ -255,6 +255,16 @@ async def distill(
     )
     db.commit()
 
+    await client.emit_addon_event(
+        "knowledge.distilled.created",
+        {
+            "vault_id": vault.id,
+            "note_file_id": note_file_id,
+            "source_file_id": body.source_file_id,
+        },
+        drive=drive,
+    )
+
     return DistillResponse(
         note_file_id=note_file_id,
         note_path=note_rel_path,

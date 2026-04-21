@@ -166,3 +166,28 @@ class InternalClient:
         if r.status_code != 200:
             raise InternalAPIError(r.status_code, r.text)
         return r.json()
+
+    async def emit_addon_event(
+        self,
+        event: str,
+        data: dict,
+        drive: str | None = None,
+    ) -> None:
+        """Forward a WebSocket event to connected clients.
+
+        The core ``/api/internal/addon-events`` endpoint relays the
+        payload to its WS broadcaster. Failures are swallowed — the
+        event is a UX refinement, not a correctness requirement.
+        """
+        payload: dict[str, object] = {"event": event, "data": data}
+        if drive is not None:
+            payload["drive"] = drive
+        try:
+            async with httpx.AsyncClient(timeout=3.0) as client:
+                await client.post(
+                    f"{HOMEVAULT_INTERNAL_URL}/api/internal/addon-events",
+                    headers={**self._headers(), "Content-Type": "application/json"},
+                    json=payload,
+                )
+        except httpx.HTTPError:
+            return

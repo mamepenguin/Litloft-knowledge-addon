@@ -121,6 +121,13 @@ class FakeInternalClient:
         )
         return {"file_id": file_id, "summary_file_id": summary_file_id}
 
+    captured_addon_events: list[dict] = []
+
+    async def emit_addon_event(self, event, data, drive=None):
+        FakeInternalClient.captured_addon_events.append(
+            {"event": event, "data": data, "drive": drive}
+        )
+
 
 @pytest.fixture()
 def fake_internal(monkeypatch):
@@ -136,6 +143,7 @@ def fake_internal(monkeypatch):
     FakeInternalClient.captured_active_summaries = []
     FakeInternalClient.captured_text_writes = []
     FakeInternalClient.file_info_override = {}
+    FakeInternalClient.captured_addon_events = []
     monkeypatch.setattr(vaults, "InternalClient", FakeInternalClient)
     monkeypatch.setattr(distill, "InternalClient", FakeInternalClient)
     yield FakeInternalClient

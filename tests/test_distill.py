@@ -67,6 +67,28 @@ class TestDistillHappyPath:
             {"file_id": "src1", "summary_file_id": body["note_file_id"]}
         ]
 
+    def test_emits_distilled_created_ws_event(
+        self, client, fake_internal, alice_vault, viewer_cookie
+    ):
+        res = client.post(
+            "/distill",
+            json=_distill_payload(vault_id=alice_vault.id),
+            headers={"Cookie": viewer_cookie, "X-HV-Drive": "test-drive"},
+        )
+        assert res.status_code == 201, res.text
+        note_file_id = res.json()["note_file_id"]
+
+        events = fake_internal.captured_addon_events
+        assert len(events) == 1
+        evt = events[0]
+        assert evt["event"] == "knowledge.distilled.created"
+        assert evt["drive"] == "test-drive"
+        assert evt["data"] == {
+            "vault_id": alice_vault.id,
+            "note_file_id": note_file_id,
+            "source_file_id": "src1",
+        }
+
     def test_frontmatter_contains_required_fields(
         self, client, fake_internal, alice_vault, viewer_cookie
     ):
