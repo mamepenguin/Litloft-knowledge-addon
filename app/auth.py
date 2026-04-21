@@ -11,8 +11,11 @@ what makes per-user Vault scoping join correctly with the core's
 watch-history-style identifiers, should we ever cross-reference.
 """
 import hashlib
+import os
 
-from fastapi import Cookie, HTTPException
+from fastapi import Cookie, Header, HTTPException
+
+_WEBHOOK_SECRET = os.environ.get("KNOWLEDGE_WEBHOOK_SECRET", "")
 
 
 def nickname_to_viewer_id(nickname: str) -> str:
@@ -41,3 +44,18 @@ def get_viewer_id(
             detail="Profile (nickname) not set — knowledge requires a profile",
         )
     return vid
+
+
+async def verify_webhook_secret(
+    x_webhook_secret: str = Header(default=""),
+) -> None:
+    """Gate webhook endpoints behind the shared-secret header.
+
+    When ``KNOWLEDGE_WEBHOOK_SECRET`` is unset the gate is a no-op, which
+    matches the intelligence addon's lenient default for development
+    environments. In production deployments the core should set the same
+    secret in its ``event-hooks.json`` listener entry so that only the
+    core process can trigger these endpoints.
+    """
+    if _WEBHOOK_SECRET and x_webhook_secret != _WEBHOOK_SECRET:
+        raise HTTPException(status_code=403, detail="Invalid webhook secret")

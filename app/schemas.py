@@ -98,3 +98,28 @@ class SearchResponse(BaseModel):
     vault_id: int
     results: list[SearchHit]
     truncated: bool
+
+
+class WebhookFilesMissing(BaseModel):
+    """Files became missing on disk (still safe in core DB)."""
+
+    file_ids: list[str] = Field(default_factory=list)
+
+
+class WebhookFilesRecovered(BaseModel):
+    """Previously missing files reappeared."""
+
+    file_ids: list[str] = Field(default_factory=list)
+
+
+class WebhookFilesPurged(BaseModel):
+    """Files permanently deleted by the user (no coming back)."""
+
+    file_ids: list[str] = Field(default_factory=list)
+
+
+class WebhookAck(BaseModel):
+    """Trivial response body for webhook handlers."""
+
+    status: str = "ok"
+    notes_touched: int = 0

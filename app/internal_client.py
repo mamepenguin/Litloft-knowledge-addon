@@ -167,6 +167,33 @@ class InternalClient:
             raise InternalAPIError(r.status_code, r.text)
         return r.json()
 
+    async def fetch_bulk_state(self, file_ids: list[str]) -> dict:
+        """Bulk-resolve lifecycle state (active / missing / trash) for
+        each ``file_id``.
+
+        Returns the full JSON envelope::
+
+            {
+              "statuses": [{"id", "drive", "state"}, ...],
+              "not_found": [...]
+            }
+
+        ``not_found`` IDs have been physically purged. Called from the
+        lifecycle webhook handlers to reconcile ``note_origins.health``.
+        No cookie is needed — Internal API is service-to-service.
+        """
+        if not file_ids:
+            return {"statuses": [], "not_found": []}
+        async with httpx.AsyncClient(timeout=10.0) as client:
+            r = await client.post(
+                f"{HOMEVAULT_INTERNAL_URL}/api/internal/files/bulk-state",
+                headers={"Content-Type": "application/json"},
+                json={"file_ids": file_ids},
+            )
+        if r.status_code != 200:
+            raise InternalAPIError(r.status_code, r.text)
+        return r.json()
+
     async def emit_addon_event(
         self,
         event: str,
