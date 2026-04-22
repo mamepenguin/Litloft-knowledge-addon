@@ -281,7 +281,7 @@ export default function Sidebar({
   const rootLoading = loadingPaths.has(rootPath) && !rootContents;
 
   return (
-    <aside className="flex h-full w-72 flex-col border-r border-bg-border bg-bg-card">
+    <aside className="flex h-full w-full flex-col border-r border-bg-border bg-bg-card">
       <VaultHeader
         drive={drive}
         vaults={vaults}

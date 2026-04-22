@@ -13,6 +13,8 @@ import {
   Columns,
   Eye,
   Loader2,
+  PanelLeft,
+  PanelLeftClose,
   Pencil,
 } from "lucide-react";
 import { useTranslations } from "next-intl";
@@ -33,6 +35,8 @@ interface Props {
   filename: string;
   onBack: () => void;
   onRenamed?: (newFilename: string) => void;
+  sidebarHidden?: boolean;
+  onToggleSidebar?: () => void;
 }
 
 type SaveState =
@@ -46,8 +50,16 @@ type ViewMode = "edit" | "split" | "preview";
 
 const AUTOSAVE_DEBOUNCE_MS = 2000;
 
-export default function Editor({ fileId, filename, onBack, onRenamed }: Props) {
+export default function Editor({
+  fileId,
+  filename,
+  onBack,
+  onRenamed,
+  sidebarHidden,
+  onToggleSidebar,
+}: Props) {
   const t = useTranslations("knowledge.editor");
+  const tSide = useTranslations("knowledge.sidebar");
   const [content, setContent] = useState<string | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [saveState, setSaveState] = useState<SaveState>({ kind: "idle" });
@@ -188,6 +200,18 @@ export default function Editor({ fileId, filename, onBack, onRenamed }: Props) {
         >
           <ArrowLeft size={16} />
         </button>
+        {onToggleSidebar && (
+          <button
+            type="button"
+            onClick={onToggleSidebar}
+            className="hidden h-8 w-8 items-center justify-center rounded-md text-text-muted hover:bg-bg-elevated hover:text-text-primary md:inline-flex"
+            aria-label={sidebarHidden ? tSide("show") : tSide("hide")}
+            aria-pressed={sidebarHidden}
+            title={sidebarHidden ? tSide("show") : tSide("hide")}
+          >
+            {sidebarHidden ? <PanelLeft size={16} /> : <PanelLeftClose size={16} />}
+          </button>
+        )}
         <div className="min-w-0 flex-1">
           <TitleField
             fileId={fileId}
