@@ -3,8 +3,15 @@
     "title": "Knowledge",
     "loading": "Loading...",
     "empty": {
-      "title": "Select a note",
-      "description": "Pick a note from the sidebar, or create a new one to start writing."
+      "eyebrow": "Knowledge vault",
+      "title": "Pick a note to start reading",
+      "description": "Pick a note from the sidebar, or create a new one to start writing.",
+      "recentHeading": "Recently edited",
+      "recentEmpty": "No notes yet.",
+      "statsNotes": "{count} notes",
+      "statsEmpty": "Empty vault",
+      "shortcutSearch": "Search",
+      "vaultLabel": "Vault"
     },
     "setup": {
       "title": "Create a Vault",
@@ -40,7 +47,10 @@
       "truncated": "Too many results — try a more specific query."
     },
     "sidebar": {
-      "activePrefix": "Active: {label}"
+      "activePrefix": "Active: {label}",
+      "clipAction": "Web clip",
+      "clipBadge": "{count} fetching",
+      "helpAction": "Clip help"
     },
     "editSection": {
       "title": "Knowledge",
@@ -54,6 +64,47 @@
       "openEditor": "Edit in Knowledge",
       "loading": "Loading...",
       "loadFailed": "Failed to load the note"
+    },
+    "clip": {
+      "title": "Web clip",
+      "formLabel": "Clip from a URL",
+      "urlPlaceholder": "https://example.com/article",
+      "subfolderLabel": "Save to subfolder",
+      "rootFolder": "No subfolder",
+      "submit": "Clip",
+      "duplicate": {
+        "title": "A clip for this URL already exists",
+        "description": "This URL has already been clipped. What would you like to do?",
+        "openExisting": "Open existing",
+        "createNew": "Create new",
+        "cancel": "Cancel"
+      },
+      "status": {
+        "fetching": "Fetching",
+        "failed": "Failed",
+        "ready": "Ready"
+      },
+      "toast": {
+        "ready": "Clip ready: {title}",
+        "failed": "Clip failed: {error}"
+      },
+      "paste": {
+        "title": "Paste HTML to retry",
+        "description": "Server-side fetch failed. You can paste the page's HTML to convert it manually.",
+        "placeholder": "Paste HTML here…",
+        "submit": "Convert and save",
+        "submitting": "Converting…"
+      },
+      "bookmarklet": {
+        "title": "Bookmarklet",
+        "description": "Drag this link to your browser's bookmark bar. One click clips the current page into HomeVault.",
+        "dragLabel": "Clip to HomeVault"
+      },
+      "modalTitle": "Web clip",
+      "modalClose": "Close",
+      "recentHeading": "Recent clips",
+      "helpModalTitle": "About clipping",
+      "helpDescription": "Use the Clip button in the sidebar to send a URL, or drag the bookmarklet below to clip the page you're currently viewing."
     },
     "editor": {
       "loading": "Loading...",

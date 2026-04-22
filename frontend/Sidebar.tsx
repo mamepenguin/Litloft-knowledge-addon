@@ -13,10 +13,12 @@ import {
   ChevronDown,
   ChevronRight,
   ChevronsUpDown,
+  CircleHelp,
   FilePlus,
   FileText,
   Folder,
   FolderPlus,
+  Link2,
   Plus,
   Search,
   X,
@@ -55,9 +57,12 @@ interface Props {
   active: Vault;
   selectedFileId: string | null;
   reloadKey?: number;
+  fetchingClipsCount?: number;
   onSwitchVault: (v: Vault) => void;
   onAddVault: () => void;
   onSelectFile: (f: CoreFileItem) => void;
+  onOpenClip: () => void;
+  onOpenClipHelp: () => void;
 }
 
 function expandedStorageKey(vaultId: number): string {
@@ -94,12 +99,16 @@ export default function Sidebar({
   active,
   selectedFileId,
   reloadKey = 0,
+  fetchingClipsCount = 0,
   onSwitchVault,
   onAddVault,
   onSelectFile,
+  onOpenClip,
+  onOpenClipHelp,
 }: Props) {
   const tFile = useTranslations("knowledge.fileList");
   const tSearch = useTranslations("knowledge.search");
+  const tSidebar = useTranslations("knowledge.sidebar");
 
   const rootPath = active.path;
 
@@ -120,6 +129,29 @@ export default function Sidebar({
   } | null>(null);
   const [creating, setCreating] = useState(false);
   const folderInputRef = useRef<HTMLInputElement | null>(null);
+  const searchInputRef = useRef<HTMLInputElement | null>(null);
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== "/" || e.metaKey || e.ctrlKey || e.altKey) return;
+      const target = e.target as HTMLElement | null;
+      if (!target) return;
+      const tag = target.tagName;
+      if (
+        tag === "INPUT" ||
+        tag === "TEXTAREA" ||
+        tag === "SELECT" ||
+        target.isContentEditable
+      ) {
+        return;
+      }
+      e.preventDefault();
+      searchInputRef.current?.focus();
+      searchInputRef.current?.select();
+    };
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, []);
 
   useEffect(() => {
     saveExpanded(active.id, expanded);
@@ -290,6 +322,35 @@ export default function Sidebar({
         onAddNew={onAddVault}
       />
 
+      <div className="flex items-center gap-1 border-b border-bg-border px-2 py-1.5">
+        <button
+          type="button"
+          onClick={onOpenClip}
+          className="relative flex flex-1 items-center gap-2 rounded-md px-2.5 py-1.5 text-sm font-medium text-text-primary hover:bg-bg-elevated"
+        >
+          <Link2 size={14} className="text-accent" strokeWidth={1.8} />
+          <span>{tSidebar("clipAction")}</span>
+          {fetchingClipsCount > 0 && (
+            <span
+              className="ml-auto inline-flex min-w-[18px] items-center justify-center rounded-full bg-accent-amber/20 px-1.5 py-0.5 text-[10px] font-semibold text-accent-amber"
+              title={tSidebar("clipBadge", { count: fetchingClipsCount })}
+              aria-label={tSidebar("clipBadge", { count: fetchingClipsCount })}
+            >
+              {fetchingClipsCount}
+            </span>
+          )}
+        </button>
+        <button
+          type="button"
+          onClick={onOpenClipHelp}
+          title={tSidebar("helpAction")}
+          aria-label={tSidebar("helpAction")}
+          className="flex h-8 w-8 items-center justify-center rounded-md text-text-muted hover:bg-bg-elevated hover:text-text-primary"
+        >
+          <CircleHelp size={14} />
+        </button>
+      </div>
+
       <div className="border-b border-bg-border px-3 py-2">
         <div className="relative">
           <Search
@@ -297,6 +358,7 @@ export default function Sidebar({
             className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-text-muted"
           />
           <input
+            ref={searchInputRef}
             type="search"
             value={query}
             onChange={(e) => setQuery(e.target.value)}

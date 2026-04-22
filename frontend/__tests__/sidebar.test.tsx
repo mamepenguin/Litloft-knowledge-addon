@@ -128,6 +128,8 @@ describe("Sidebar tree", () => {
         onSwitchVault={noop}
         onAddVault={noop}
         onSelectFile={noop}
+        onOpenClip={noop}
+        onOpenClipHelp={noop}
       />,
     );
     expect(await screen.findByText("sub")).toBeTruthy();
@@ -154,6 +156,8 @@ describe("Sidebar tree", () => {
         onSwitchVault={noop}
         onAddVault={noop}
         onSelectFile={noop}
+        onOpenClip={noop}
+        onOpenClipHelp={noop}
       />,
     );
     const folderBtn = await screen.findByText("sub");
@@ -194,6 +198,8 @@ describe("Sidebar tree", () => {
         onSwitchVault={noop}
         onAddVault={noop}
         onSelectFile={noop}
+        onOpenClip={noop}
+        onOpenClipHelp={noop}
       />,
     );
     // Child renders without any user interaction — proving prefetch on restore.
