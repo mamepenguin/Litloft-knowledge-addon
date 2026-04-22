@@ -16,6 +16,7 @@ import {
   PanelLeft,
   PanelLeftClose,
   Pencil,
+  Trash2,
 } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { MarkdownPreview } from "@/components/MarkdownPreview";
@@ -35,6 +36,7 @@ interface Props {
   filename: string;
   onBack: () => void;
   onRenamed?: (newFilename: string) => void;
+  onDelete?: () => void;
   sidebarHidden?: boolean;
   onToggleSidebar?: () => void;
 }
@@ -55,6 +57,7 @@ export default function Editor({
   filename,
   onBack,
   onRenamed,
+  onDelete,
   sidebarHidden,
   onToggleSidebar,
 }: Props) {
@@ -171,6 +174,17 @@ export default function Editor({
     }
   }
 
+  function handleDelete() {
+    if (saveTimerRef.current) {
+      clearTimeout(saveTimerRef.current);
+      saveTimerRef.current = null;
+    }
+    if (contentRef.current !== null) {
+      lastSavedRef.current = contentRef.current;
+    }
+    onDelete?.();
+  }
+
   if (loadError) {
     return (
       <div className="flex flex-1 items-center justify-center p-6 text-sm text-red-400">
@@ -221,6 +235,17 @@ export default function Editor({
         </div>
         <SaveIndicator state={saveState} />
         <ViewModeToggle mode={viewMode} onChange={setViewMode} />
+        {onDelete && (
+          <button
+            type="button"
+            onClick={handleDelete}
+            aria-label={t("delete")}
+            title={t("delete")}
+            className="flex h-8 w-8 items-center justify-center rounded-md text-text-muted transition-colors hover:bg-red-500/10 hover:text-red-400"
+          >
+            <Trash2 size={14} />
+          </button>
+        )}
       </header>
 
       {viewMode !== "preview" && <EditorToolbar onAction={handleToolbar} />}

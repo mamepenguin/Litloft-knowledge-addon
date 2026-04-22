@@ -277,6 +277,28 @@ export async function createTextFile(
   return res.json();
 }
 
+export async function trashFile(fileId: string): Promise<void> {
+  const res = await fetch(`/api/files/${encodeURIComponent(fileId)}`, {
+    method: "DELETE",
+    credentials: "include",
+  });
+  if (!res.ok) {
+    const data = await res.json().catch(() => null);
+    throw new Error(data?.detail ?? `Error: ${res.status}`);
+  }
+}
+
+export async function restoreFile(fileId: string): Promise<void> {
+  const res = await fetch(
+    `/api/files/${encodeURIComponent(fileId)}/restore`,
+    { method: "POST", credentials: "include" },
+  );
+  if (!res.ok) {
+    const data = await res.json().catch(() => null);
+    throw new Error(data?.detail ?? `Error: ${res.status}`);
+  }
+}
+
 export async function renameFile(
   fileId: string,
   newFilename: string,

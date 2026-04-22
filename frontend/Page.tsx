@@ -3,11 +3,14 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useSearchParams, notFound } from "next/navigation";
 import { useTranslations } from "next-intl";
+import { AlertCircle, X } from "lucide-react";
 import { useCurrentDrive } from "@/components/CurrentDriveProvider";
 import { useOverlaySidebar } from "@/components/SidebarProvider";
 import { useWebSocket } from "@/hooks/useWebSocket";
 import {
   listVaults,
+  restoreFile,
+  trashFile,
   type ClipJob,
   type CoreFileItem,
   type Vault,
@@ -112,6 +115,11 @@ export default function KnowledgePage() {
     url: string;
     subfolder: string;
   } | null>(null);
+  const [deleteNotice, setDeleteNotice] = useState<
+    | { status: "ok"; file: CoreFileItem }
+    | { status: "error"; message: string; file: CoreFileItem }
+    | null
+  >(null);
 
   // Clip modal state. `clipInit` is seeded once from bookmarklet query
   // params and cleared on close/submit so re-opening the modal does not
@@ -182,6 +190,56 @@ export default function KnowledgePage() {
       return next;
     });
   }, []);
+
+  const handleDelete = useCallback(
+    async (file: CoreFileItem) => {
+      // Optimistic: switch out of the editor immediately. Even on API
+      // failure the file still exists in the sidebar, so the user can
+      // re-open it by clicking — no need to force-reopen.
+      setMode({ kind: "list" });
+      setActiveId((prev) => {
+        if (prev !== null) saveLastFileId(prev, null);
+        return prev;
+      });
+      setReloadKey((k) => k + 1);
+      try {
+        await trashFile(file.id);
+        setDeleteNotice({ status: "ok", file });
+      } catch (e) {
+        setReloadKey((k) => k + 1);
+        setDeleteNotice({
+          status: "error",
+          message: (e as Error).message,
+          file,
+        });
+      }
+    },
+    [],
+  );
+
+  const handleUndoDelete = useCallback(async () => {
+    if (!deleteNotice || deleteNotice.status !== "ok") return;
+    const file = deleteNotice.file;
+    try {
+      await restoreFile(file.id);
+      setDeleteNotice(null);
+      setMode({ kind: "edit", file });
+      setReloadKey((k) => k + 1);
+    } catch (e) {
+      setDeleteNotice({
+        status: "error",
+        message: (e as Error).message,
+        file,
+      });
+    }
+  }, [deleteNotice]);
+
+  useEffect(() => {
+    if (!deleteNotice) return;
+    const delay = deleteNotice.status === "error" ? 8000 : 5000;
+    const handle = setTimeout(() => setDeleteNotice(null), delay);
+    return () => clearTimeout(handle);
+  }, [deleteNotice]);
 
   if (drive === null) {
     notFound();
@@ -350,6 +408,7 @@ export default function KnowledgePage() {
               });
               setReloadKey((k) => k + 1);
             }}
+            onDelete={() => handleDelete(selectedFile)}
           />
         ) : active ? (
           <EmptyState
@@ -398,6 +457,44 @@ export default function KnowledgePage() {
           }}
           onClose={() => setDuplicateMatch(null)}
         />
+      )}
+      {deleteNotice && (
+        <div
+          role="status"
+          className="pointer-events-none fixed inset-x-0 bottom-6 z-50 flex justify-center px-4"
+        >
+          <div className="pointer-events-auto flex max-w-md items-center gap-3 rounded-xl border border-bg-border bg-bg-card px-4 py-3 shadow-lg animate-fade-in-scale">
+            {deleteNotice.status === "ok" ? (
+              <>
+                <span className="min-w-0 flex-1 truncate text-sm text-text-primary">
+                  {t("toast.deleted", { name: deleteNotice.file.filename })}
+                </span>
+                <button
+                  type="button"
+                  onClick={handleUndoDelete}
+                  className="shrink-0 rounded-md bg-accent px-3 py-1.5 text-xs font-medium text-white transition-colors hover:bg-accent-hover"
+                >
+                  {t("toast.undo")}
+                </button>
+              </>
+            ) : (
+              <>
+                <AlertCircle size={16} className="shrink-0 text-red-400" />
+                <span className="min-w-0 flex-1 text-sm text-red-400">
+                  {t("toast.error", { error: deleteNotice.message })}
+                </span>
+              </>
+            )}
+            <button
+              type="button"
+              onClick={() => setDeleteNotice(null)}
+              aria-label={t("toast.dismiss")}
+              className="shrink-0 rounded-md p-1 text-text-muted hover:bg-bg-elevated hover:text-text-primary"
+            >
+              <X size={14} />
+            </button>
+          </div>
+        </div>
       )}
       {pasteRetry && active && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 px-4">

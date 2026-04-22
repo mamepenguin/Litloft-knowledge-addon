@@ -106,10 +106,17 @@
       "helpModalTitle": "About clipping",
       "helpDescription": "Use the Clip button in the sidebar to send a URL, or drag the bookmarklet below to clip the page you're currently viewing."
     },
+    "toast": {
+      "deleted": "Moved \"{name}\" to trash",
+      "undo": "Undo",
+      "dismiss": "Dismiss",
+      "error": "Delete failed: {error}"
+    },
     "editor": {
       "loading": "Loading...",
       "loadFailed": "Failed to load: {error}",
       "back": "Back to list",
+      "delete": "Move to trash",
       "editArea": "Markdown editor",
       "placeholder": "Start writing here…",
       "title": {
