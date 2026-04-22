@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { useSearchParams, notFound } from "next/navigation";
 import { useTranslations } from "next-intl";
-import { NotebookPen, PanelLeft, PanelLeftClose } from "lucide-react";
+import { NotebookPen } from "lucide-react";
 import { useCurrentDrive } from "@/components/CurrentDriveProvider";
 import { useOverlaySidebar } from "@/components/SidebarProvider";
 import { listVaults, type CoreFileItem, type Vault } from "./api";
@@ -174,12 +174,15 @@ export default function KnowledgePage() {
   const selectedFile = mode.kind === "edit" ? mode.file : null;
 
   // Sidebar wrapper:
-  //   - desktop: shown unless user toggled hidden (sidebarHidden)
+  //   - desktop: shown unless user toggled hidden (sidebarHidden). But when no
+  //     note is selected the EmptyState has no actionable content, so force
+  //     the sidebar visible as the only navigational affordance.
   //   - mobile: mutually exclusive with main — shown only when no file is selected
+  const effectiveSidebarHidden = sidebarHidden && selectedFile !== null;
   const sidebarWrapperClass = [
     "h-full w-full flex-col md:w-72",
     selectedFile ? "hidden" : "flex",
-    sidebarHidden ? "md:hidden" : "md:flex",
+    effectiveSidebarHidden ? "md:hidden" : "md:flex",
   ].join(" ");
 
   // Main wrapper:
@@ -232,10 +235,7 @@ export default function KnowledgePage() {
             }}
           />
         ) : (
-          <EmptyState
-            sidebarHidden={sidebarHidden}
-            onToggleSidebar={toggleSidebar}
-          />
+          <EmptyState />
         )}
       </main>
       {/* Mobile layout never exposes the sidebar toggle directly on this page
@@ -249,37 +249,16 @@ export default function KnowledgePage() {
   );
 }
 
-function EmptyState({
-  sidebarHidden,
-  onToggleSidebar,
-}: {
-  sidebarHidden: boolean;
-  onToggleSidebar: () => void;
-}) {
+function EmptyState() {
   const t = useTranslations("knowledge.empty");
-  const tSide = useTranslations("knowledge.sidebar");
   return (
-    <div className="flex min-h-0 flex-1 flex-col">
-      <div className="hidden items-center gap-3 border-b border-bg-border px-4 py-2.5 md:flex">
-        <button
-          type="button"
-          onClick={onToggleSidebar}
-          className="flex h-8 w-8 items-center justify-center rounded-md text-text-muted hover:bg-bg-elevated hover:text-text-primary"
-          aria-label={sidebarHidden ? tSide("show") : tSide("hide")}
-          aria-pressed={sidebarHidden}
-          title={sidebarHidden ? tSide("show") : tSide("hide")}
-        >
-          {sidebarHidden ? <PanelLeft size={16} /> : <PanelLeftClose size={16} />}
-        </button>
+    <div className="flex flex-1 flex-col items-center justify-center gap-4 px-6 text-center">
+      <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-bg-elevated text-text-muted">
+        <NotebookPen size={28} strokeWidth={1.6} />
       </div>
-      <div className="flex flex-1 flex-col items-center justify-center gap-4 px-6 text-center">
-        <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-bg-elevated text-text-muted">
-          <NotebookPen size={28} strokeWidth={1.6} />
-        </div>
-        <div>
-          <h2 className="text-lg font-semibold text-text-primary">{t("title")}</h2>
-          <p className="mt-1 max-w-sm text-sm text-text-muted">{t("description")}</p>
-        </div>
+      <div>
+        <h2 className="text-lg font-semibold text-text-primary">{t("title")}</h2>
+        <p className="mt-1 max-w-sm text-sm text-text-muted">{t("description")}</p>
       </div>
     </div>
   );

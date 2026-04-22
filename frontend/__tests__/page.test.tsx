@@ -84,6 +84,14 @@ function defaultHandler(url: string) {
   if (url.match(/\/api\/addons\/knowledge\/files\?/)) {
     return { ok: true, status: 200, body: { data: [fileA], total: 1 } };
   }
+  if (url.match(/\/api\/files\/[^/]+\/stream$/)) {
+    return {
+      ok: true,
+      status: 200,
+      body: "# hello",
+      headers: { etag: '"abc123"' },
+    };
+  }
   if (url.match(/\/api\/files\/[^/]+$/)) {
     return { ok: true, status: 200, body: fileA };
   }
@@ -130,7 +138,9 @@ describe("KnowledgePage sidebar toggle & mobile layout", () => {
     });
   });
 
-  it("persists sidebar-hidden state to localStorage", async () => {
+  it("persists sidebar-hidden state to localStorage via editor toggle", async () => {
+    // Toggle lives in Editor header now, so a file must be selected.
+    _searchParam = "file-a";
     stubFetch(defaultHandler);
     render(<Page />);
 
@@ -142,17 +152,18 @@ describe("KnowledgePage sidebar toggle & mobile layout", () => {
     });
   });
 
-  it("restores sidebar-hidden state from localStorage", async () => {
+  it("restores sidebar-hidden state from localStorage (with file open)", async () => {
     window.localStorage.setItem("knowledge:sidebarHidden", "1");
+    _searchParam = "file-a";
     stubFetch(defaultHandler);
     render(<Page />);
 
-    // When hidden, the "show" button should be visible instead of "hide"
     await screen.findByLabelText("show");
   });
 
-  it("applies md:hidden to sidebar wrapper when hidden on desktop", async () => {
+  it("applies md:hidden to sidebar wrapper when hidden AND a file is selected", async () => {
     window.localStorage.setItem("knowledge:sidebarHidden", "1");
+    _searchParam = "file-a";
     stubFetch(defaultHandler);
     const { container } = render(<Page />);
 
@@ -160,6 +171,23 @@ describe("KnowledgePage sidebar toggle & mobile layout", () => {
       const wrapper = container.querySelector("[data-testid='knowledge-sidebar-wrapper']");
       expect(wrapper).toBeTruthy();
       expect(wrapper!.className).toContain("md:hidden");
+    });
+  });
+
+  it("fallback: forces sidebar visible when no file is selected even if sidebarHidden=1", async () => {
+    // A persisted "hidden" preference must NOT collapse the sidebar while
+    // the EmptyState is showing — otherwise the user is stranded with no
+    // way to navigate.
+    window.localStorage.setItem("knowledge:sidebarHidden", "1");
+    stubFetch(defaultHandler);
+    const { container } = render(<Page />);
+
+    await waitFor(() => {
+      const wrapper = container.querySelector("[data-testid='knowledge-sidebar-wrapper']");
+      expect(wrapper).toBeTruthy();
+      // No file selected: effectiveSidebarHidden=false → md:flex, not md:hidden
+      expect(wrapper!.className).toContain("md:flex");
+      expect(wrapper!.className).not.toContain("md:hidden");
     });
   });
 
@@ -211,6 +239,7 @@ describe("KnowledgePage sidebar toggle & mobile layout", () => {
   });
 
   it("toggle button has aria-pressed reflecting sidebarHidden state", async () => {
+    _searchParam = "file-a";
     stubFetch(defaultHandler);
     render(<Page />);
 
