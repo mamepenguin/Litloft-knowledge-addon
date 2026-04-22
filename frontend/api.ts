@@ -112,6 +112,54 @@ export async function listDrives(): Promise<CoreDrive[]> {
   return res.json();
 }
 
+// ---- Webclip ingestion ----
+
+export interface ClipJob {
+  job_id: number;
+  file_id: string;
+  status: "fetching" | "ready" | "failed";
+}
+
+export interface ClipCreateBody {
+  url: string;
+  vault_id: number;
+  subfolder?: string | null;
+  title?: string | null;
+}
+
+export function createClip(
+  drive: string,
+  body: ClipCreateBody,
+): Promise<ClipJob> {
+  return request<ClipJob>(drive, "/clips", {
+    method: "POST",
+    body: JSON.stringify(body),
+  });
+}
+
+export interface ClipPastedBody extends ClipCreateBody {
+  html: string;
+}
+
+export function createClipFromHtml(
+  drive: string,
+  body: ClipPastedBody,
+): Promise<ClipJob> {
+  return request<ClipJob>(drive, "/clips/pasted", {
+    method: "POST",
+    body: JSON.stringify(body),
+  });
+}
+
+export async function findClipsByUrl(
+  drive: string,
+  vaultId: number,
+  url: string,
+): Promise<ClipJob[]> {
+  const qs = new URLSearchParams({ vault_id: String(vaultId), url });
+  return request<ClipJob[]>(drive, `/clips?${qs}`);
+}
+
 // ---- Vault-scoped search ----
 
 export interface SearchHit {
@@ -150,12 +198,14 @@ export async function searchVault(
 
 // ---- Text file editing (core API) ----
 
-export async function computeTextEtag(text: string): Promise<string> {
-  const bytes = new TextEncoder().encode(text);
-  const hash = await crypto.subtle.digest("SHA-256", bytes);
-  return Array.from(new Uint8Array(hash))
-    .map((b) => b.toString(16).padStart(2, "0"))
-    .join("");
+function parseEtagHeader(res: Response): string {
+  const headerEtag = res.headers.get("etag");
+  if (!headerEtag) {
+    throw new Error(
+      "サーバーから ETag が返されませんでした。テキストファイルの編集ができません。",
+    );
+  }
+  return headerEtag.replace(/^W\//, "").replace(/^"|"$/g, "");
 }
 
 export interface LoadedTextFile {
@@ -169,10 +219,7 @@ export async function getFileContent(fileId: string): Promise<LoadedTextFile> {
   });
   if (!res.ok) throw new Error(`Error: ${res.status}`);
   const content = await res.text();
-  const headerEtag = res.headers.get("etag");
-  const etag = headerEtag
-    ? headerEtag.replace(/^W\//, "").replace(/^"|"$/g, "")
-    : await computeTextEtag(content);
+  const etag = parseEtagHeader(res);
   return { content, etag };
 }
 
@@ -202,11 +249,7 @@ export async function putFileContent(
     const data = await res.json().catch(() => null);
     throw new Error(data?.detail ?? `Error: ${res.status}`);
   }
-  const headerEtag = res.headers.get("etag");
-  if (headerEtag) {
-    return headerEtag.replace(/^W\//, "").replace(/^"|"$/g, "");
-  }
-  return computeTextEtag(content);
+  return parseEtagHeader(res);
 }
 
 export interface CreateTextFileBody {

@@ -84,6 +84,24 @@ class InternalClient:
             raise InternalAPIError(r.status_code, r.text)
         return r.json()
 
+    async def rename_file(self, file_id: str, new_filename: str) -> dict:
+        """Rename a file via core PUT /api/files/{id}/rename.
+
+        Goes through the authenticated route because rename validates
+        drive access. When the worker reclaims a stale job the original
+        cookie is gone — the caller should swallow 401/403 and treat
+        rename as a nice-to-have.
+        """
+        async with httpx.AsyncClient(timeout=10.0) as client:
+            r = await client.put(
+                f"{HOMEVAULT_INTERNAL_URL}/api/files/{file_id}/rename",
+                headers={**self._headers(), "Content-Type": "application/json"},
+                json={"new_filename": new_filename},
+            )
+        if r.status_code != 200:
+            raise InternalAPIError(r.status_code, r.text)
+        return r.json()
+
     async def list_drive_files(
         self, drive: str, path: str, *, limit: int = 500
     ) -> list[dict]:

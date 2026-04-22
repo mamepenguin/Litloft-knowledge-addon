@@ -48,7 +48,12 @@ async def test_worker_happy_path(monkeypatch, session_factory):
         return FetchResult(url, "text/html", b"<html><body>hi</body></html>")
 
     def fake_extract(html, url=None):
-        return ExtractedArticle(title="t", markdown="hi")
+        # Body must clear the worker's empty-body threshold (~100 bytes);
+        # padding with real sentence text keeps the fixture realistic.
+        return ExtractedArticle(
+            title="t",
+            markdown="This is the article body. " * 10,
+        )
 
     monkeypatch.setattr(worker_module, "fetch_html", fake_fetch)
     monkeypatch.setattr(worker_module, "extract_article", fake_extract)

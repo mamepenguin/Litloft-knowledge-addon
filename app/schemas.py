@@ -33,12 +33,23 @@ class VaultListResponse(BaseModel):
 class ClipCreate(BaseModel):
     url: str = Field(min_length=1, max_length=4000)
     vault_id: int
+    # Vault-relative subfolder to place the clip under (e.g. "clips/2026").
+    # Empty/None means Vault root. The core validates the drive+path
+    # combination; we just pass it through after structural checks.
+    subfolder: str | None = Field(default=None, max_length=2000)
+    # Optional page title hint. When the frontend has it (bookmarklet
+    # ?title= prefill, manual entry, etc.) the placeholder lands with a
+    # readable name instead of a timestamped stub. The real title from
+    # the fetched article takes over on rename after extraction.
+    title: str | None = Field(default=None, max_length=400)
 
 
 class ClipPasted(BaseModel):
     url: str = Field(min_length=1, max_length=4000)
     vault_id: int
     html: str = Field(min_length=1, max_length=5 * 1024 * 1024)
+    subfolder: str | None = Field(default=None, max_length=2000)
+    title: str | None = Field(default=None, max_length=400)
 
 
 class ClipJobOut(BaseModel):

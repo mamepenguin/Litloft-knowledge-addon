@@ -18,7 +18,7 @@ from fastapi import FastAPI
 from app.database import init_schema
 from app.internal_client import InternalAPIError, InternalClient
 from app.routers import clips, distill, search, vaults, webhooks
-from app.sanitize import build_frontmatter
+from app.sanitize import build_frontmatter, slugify_filename
 from app.services.extractor import ExtractedArticle
 from app.services.note_scanner import scanner_loop
 from app.services.worker import ClipTask, ClipWorker
@@ -36,11 +36,20 @@ def get_worker() -> Optional[ClipWorker]:
 
 
 async def _publish_clip(task: ClipTask, article: ExtractedArticle) -> None:
-    """Write the ready Markdown back to the core.
+    """Write the ready Markdown back to core, rename by title, emit WS.
 
-    WS emission is stubbed until the core exposes an addon event bus;
-    for now we log and leave the file in place so the UI can pick it up
-    on next refresh.
+    Three steps, each independently best-effort:
+
+    1. PUT the ``status: ready`` Markdown over the placeholder with an
+       ``If-Match`` guarded against mid-fetch edits. A 412 here means the
+       user (or scanner) touched the file mid-fetch — we leave the
+       placeholder in place rather than overwrite.
+    2. Rename the file to a title-derived slug. Failure is swallowed
+       because the content write already succeeded and the user can
+       rename manually.
+    3. Broadcast ``knowledge.clip.ready`` via the core's WS bridge so
+       open UIs refresh the file list. Scoped to the owning drive so
+       protected-drive clips don't leak to other viewers.
     """
     client = InternalClient(cookie_header=task.cookie_header)
     try:
@@ -66,10 +75,48 @@ async def _publish_clip(task: ClipTask, article: ExtractedArticle) -> None:
         # 412 here means user (or scanner) touched the file mid-fetch.
         # We don't overwrite — the fetching placeholder stays as-is.
         logger.warning("publish clip failed file_id=%s: %s", task.file_id, e)
+        return
+
+    if article.title:
+        new_filename = slugify_filename(article.title, fallback_hint="clip")
+        try:
+            await client.rename_file(task.file_id, new_filename)
+        except InternalAPIError as e:
+            # Rename is a nice-to-have; 409 (filename collision) and 401
+            # (reclaimed job without cookie) both fall here.
+            logger.info(
+                "rename-on-title skipped file_id=%s: %s", task.file_id, e
+            )
+
+    if task.drive:
+        await client.emit_addon_event(
+            "knowledge.clip.ready",
+            {
+                "job_id": task.job_id,
+                "file_id": task.file_id,
+                "viewer_id": task.viewer_id,
+                "url": task.url,
+                "title": article.title,
+            },
+            drive=task.drive,
+        )
 
 
 async def _publish_fail(task: ClipTask, reason: str) -> None:
     logger.warning("clip fail file_id=%s reason=%s", task.file_id, reason)
+    if task.drive:
+        client = InternalClient(cookie_header=task.cookie_header)
+        await client.emit_addon_event(
+            "knowledge.clip.failed",
+            {
+                "job_id": task.job_id,
+                "file_id": task.file_id,
+                "viewer_id": task.viewer_id,
+                "url": task.url,
+                "error": reason,
+            },
+            drive=task.drive,
+        )
 
 
 @asynccontextmanager

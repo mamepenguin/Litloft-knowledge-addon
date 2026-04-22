@@ -8,5 +8,6 @@ lxml==5.3.1
 lxml_html_clean==0.4.1
 bleach==6.2.0
 markdownify==1.0.0
+trafilatura==1.12.2
 PyYAML==6.0.2
 python-slugify==8.0.4

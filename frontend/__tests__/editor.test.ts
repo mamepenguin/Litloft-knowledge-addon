@@ -1,7 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   ConflictError,
-  computeTextEtag,
   createTextFile,
   getFileContent,
   putFileContent,
@@ -37,22 +36,6 @@ function mockFetch(
   return fetchMock as unknown as MockFetch;
 }
 
-describe("computeTextEtag", () => {
-  it("matches SHA-256 hex of UTF-8 bytes (empty string)", async () => {
-    const etag = await computeTextEtag("");
-    expect(etag).toBe(
-      "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
-    );
-  });
-
-  it("matches known SHA-256 for 'abc'", async () => {
-    const etag = await computeTextEtag("abc");
-    expect(etag).toBe(
-      "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad",
-    );
-  });
-});
-
 describe("getFileContent", () => {
   beforeEach(() => vi.unstubAllGlobals());
   afterEach(() => vi.restoreAllMocks());
@@ -66,12 +49,9 @@ describe("getFileContent", () => {
     expect(res.etag).toBe("abc123");
   });
 
-  it("falls back to client-side SHA-256 if no ETag header", async () => {
+  it("throws when ETag header is missing", async () => {
     mockFetch([{ ok: true, text: "abc" }]);
-    const res = await getFileContent("f1");
-    expect(res.etag).toBe(
-      "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad",
-    );
+    await expect(getFileContent("f1")).rejects.toThrow(/ETag/);
   });
 
   it("strips weak-etag prefix and quotes", async () => {
@@ -105,12 +85,9 @@ describe("putFileContent", () => {
     );
   });
 
-  it("computes etag locally when server omits ETag header", async () => {
+  it("throws when server omits ETag header", async () => {
     mockFetch([{ ok: true, headers: {} }]);
-    const newEtag = await putFileContent("f1", "abc", "x");
-    expect(newEtag).toBe(
-      "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad",
-    );
+    await expect(putFileContent("f1", "abc", "x")).rejects.toThrow(/ETag/);
   });
 });
 

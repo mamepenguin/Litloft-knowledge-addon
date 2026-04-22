@@ -37,7 +37,7 @@
             },
             {
                 "path": "/clips",
-                "methods": ["POST"],
+                "methods": ["GET", "POST"],
                 "response_filter": null
             },
             {

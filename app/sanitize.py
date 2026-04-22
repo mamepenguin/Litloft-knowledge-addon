@@ -32,11 +32,26 @@ def build_frontmatter(data: dict[str, Any]) -> str:
 def slugify_filename(title: str | None, fallback_hint: str = "clip") -> str:
     """Return a safe ``.md`` filename from a page title.
 
-    Never returns a path — only a single component. Guaranteed to pass
-    ``safepath.validate_filename`` for the core side.
+    ``allow_unicode=True`` keeps CJK / accented characters intact, which
+    matters because ``python-slugify`` otherwise strips them to the
+    empty string and every non-Latin title would collapse onto the
+    timestamp fallback. The slugify pass still removes path separators,
+    control chars, and OS-reserved symbols, so the result is safe to
+    hand to ``safepath.validate_filename`` on the core side.
+
+    Never returns a path — only a single component.
     """
     raw = (title or "").strip()
-    slug = slugify(raw, max_length=_MAX_FILENAME_LEN, word_boundary=True) if raw else ""
+    slug = (
+        slugify(
+            raw,
+            max_length=_MAX_FILENAME_LEN,
+            word_boundary=True,
+            allow_unicode=True,
+        )
+        if raw
+        else ""
+    )
     if not slug:
         ts = datetime.now(timezone.utc).strftime("%Y%m%d-%H%M%S")
         slug = f"{fallback_hint}-{ts}"

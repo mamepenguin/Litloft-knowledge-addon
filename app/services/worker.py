@@ -38,6 +38,13 @@ from app.models import ClipJob
 from app.services.extractor import ExtractedArticle, extract_article
 from app.services.fetcher import BlockedURL, FetchError, fetch_html
 
+# Minimum post-extraction body size before we consider the clip a real
+# success. Below this the job is marked failed — the UI then offers the
+# paste-HTML retry instead of writing a frontmatter-only .md.
+# Kept in sync with extractor._MIN_BODY_BYTES but duplicated here so
+# tests can tune it without reaching into extractor internals.
+_MIN_EXTRACTED_BODY_BYTES = 100
+
 logger = logging.getLogger(__name__)
 
 _LEASE_DURATION = timedelta(minutes=10)
@@ -52,6 +59,11 @@ class ClipTask:
     viewer_id: str
     url: str
     cookie_header: str
+    # Drive owning the target file. Required so WS notifications can be
+    # access-filtered at the core. Empty string allowed for jobs reclaimed
+    # after a restart — the worker still completes the fetch, but skips
+    # publishing a WS event (the user's UI will reconcile via polling).
+    drive: str = ""
 
 
 # Hooks: module-level so tests can swap and main.py can wire to WS.
@@ -179,6 +191,14 @@ class ClipWorker:
                 article = extract_article(result.body.decode("utf-8", errors="replace"), task.url)
             except Exception as e:  # extractor failures are not transient
                 await self._fail(task, f"extract: {e}", permanent=True)
+                return
+
+            # Empty result = both trafilatura and readability came up
+            # short. Failing here (instead of writing an empty .md)
+            # surfaces the paste-HTML retry UI so the user can recover
+            # SPA / auth-walled pages manually.
+            if len(article.markdown.strip().encode("utf-8")) < _MIN_EXTRACTED_BODY_BYTES:
+                await self._fail(task, "extract: empty article body", permanent=True)
                 return
 
             self._mark_ready(task.job_id)
