@@ -97,8 +97,8 @@
       },
       "bookmarklet": {
         "title": "ブックマークレット",
-        "description": "このリンクをブラウザのブックマークバーにドラッグしてください。閲覧中のページをワンクリックで HomeVault にクリップできます。",
-        "dragLabel": "HomeVault にクリップ"
+        "description": "このリンクをブラウザのブックマークバーにドラッグしてください。閲覧中のページをワンクリックで Litloft にクリップできます。",
+        "dragLabel": "Litloft にクリップ"
       },
       "modalTitle": "Web クリップ",
       "modalClose": "閉じる",

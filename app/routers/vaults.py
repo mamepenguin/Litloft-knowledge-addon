@@ -10,7 +10,7 @@ viewer_id still comes from the ``hv_viewer`` cookie. Active-vault state
 is keyed by ``(viewer_id, drive)`` so each drive remembers its own
 active Vault independently.
 
-Drive accessibility on create is validated via the HomeVault Internal
+Drive accessibility on create is validated via the Litloft Internal
 API (defense in depth — the proxy already enforces drive access before
 forwarding, but we re-check for requests that bypass the proxy in
 tests / internal callers).

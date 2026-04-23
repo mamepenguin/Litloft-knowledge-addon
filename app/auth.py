@@ -5,7 +5,7 @@ The knowledge addon does not run its own authentication — it trusts the
 empty cookie means the user hasn't set a profile yet and must be shown
 the "please set a nickname" bootstrap UI before they can use Vaults.
 
-Hash algorithm mirrors HomeVault core's ``nickname_to_viewer_id`` so that
+Hash algorithm mirrors Litloft core's ``nickname_to_viewer_id`` so that
 the same person gets the same viewer_id across core and addon — this is
 what makes per-user Vault scoping join correctly with the core's
 watch-history-style identifiers, should we ever cross-reference.

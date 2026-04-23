@@ -1,4 +1,4 @@
-"""Thin HTTP client over HomeVault core's Internal API.
+"""Thin HTTP client over Litloft core's Internal API.
 
 Used by the knowledge addon to discover which drives the current user
 can access (so we can validate Vault registrations) and to perform the

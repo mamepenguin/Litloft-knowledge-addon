@@ -97,8 +97,8 @@
       },
       "bookmarklet": {
         "title": "Bookmarklet",
-        "description": "Drag this link to your browser's bookmark bar. One click clips the current page into HomeVault.",
-        "dragLabel": "Clip to HomeVault"
+        "description": "Drag this link to your browser's bookmark bar. One click clips the current page into Litloft.",
+        "dragLabel": "Clip to Litloft"
       },
       "modalTitle": "Web clip",
       "modalClose": "Close",
