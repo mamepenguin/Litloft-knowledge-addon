@@ -9,16 +9,19 @@ import {
   type RefObject,
 } from "react";
 import {
+  ArrowUpDown,
   Check,
   ChevronDown,
   ChevronRight,
   ChevronsUpDown,
   CircleHelp,
-  FilePlus,
   FileText,
+  FilePlus,
   Folder,
   FolderPlus,
   Link2,
+  MoreHorizontal,
+  Pin,
   Plus,
   Search,
   X,
@@ -28,14 +31,33 @@ import {
   activateVault,
   createFolder,
   createTextFile,
+  deleteFolderApi,
   listVaultFiles,
   listVaultFolders,
+  moveFile,
+  moveFolder,
+  renameFile,
+  renameFolderApi,
   searchVault,
+  trashFile,
   type CoreFileItem,
   type CoreFolderItem,
   type SearchHit,
   type Vault,
 } from "./api";
+import ContextMenu, { type ContextAction } from "./ContextMenu";
+import MoveDialog from "./MoveDialog";
+import TagPanel from "./TagPanel";
+import {
+  useContextMenu,
+  type ContextTarget,
+} from "./hooks/useContextMenu";
+import { sortFiles, useSortMode } from "./hooks/useSortMode";
+import {
+  loadPinsCollapsed,
+  savePinsCollapsed,
+  type PinnedNote,
+} from "./hooks/usePins";
 
 function untitledFilename(): string {
   const d = new Date();
@@ -51,18 +73,41 @@ interface Contents {
   files: CoreFileItem[];
 }
 
+type DraggedItem =
+  | { kind: "file"; item: CoreFileItem }
+  | { kind: "folder"; item: CoreFolderItem };
+
+function isAncestorOrSelf(targetPath: string, dragged: DraggedItem): boolean {
+  if (dragged.kind !== "folder") return false;
+  return (
+    targetPath === dragged.item.path ||
+    targetPath.startsWith(dragged.item.path + "/")
+  );
+}
+
 interface Props {
   drive: string;
   vaults: Vault[];
   active: Vault;
   selectedFileId: string | null;
+  selectedFolderPath?: string | null;
   reloadKey?: number;
   fetchingClipsCount?: number;
   onSwitchVault: (v: Vault) => void;
   onAddVault: () => void;
   onSelectFile: (f: CoreFileItem) => void;
+  onOpenFolder?: (path: string, name: string) => void;
   onOpenClip: () => void;
   onOpenClipHelp: () => void;
+  // Pins
+  pins?: PinnedNote[];
+  onPin?: (file: CoreFileItem) => void;
+  onUnpin?: (fileId: string) => void;
+  isPinned?: (fileId: string) => boolean;
+  onPinReorder?: (from: number, to: number) => void;
+  // Delete notifications
+  onRequestDelete?: (file: CoreFileItem) => void;
+  onRequestDeleteFolder?: (folder: CoreFolderItem) => void;
 }
 
 function expandedStorageKey(vaultId: number): string {
@@ -98,17 +143,28 @@ export default function Sidebar({
   vaults,
   active,
   selectedFileId,
+  selectedFolderPath,
   reloadKey = 0,
   fetchingClipsCount = 0,
   onSwitchVault,
   onAddVault,
   onSelectFile,
+  onOpenFolder,
   onOpenClip,
   onOpenClipHelp,
+  pins = [],
+  onPin,
+  onUnpin,
+  isPinned,
+  onPinReorder,
+  onRequestDelete,
+  onRequestDeleteFolder,
 }: Props) {
   const tFile = useTranslations("knowledge.fileList");
   const tSearch = useTranslations("knowledge.search");
   const tSidebar = useTranslations("knowledge.sidebar");
+  const tPins = useTranslations("knowledge.pins");
+  const tRename = useTranslations("knowledge.rename");
 
   const rootPath = active.path;
 
@@ -130,6 +186,38 @@ export default function Sidebar({
   const [creating, setCreating] = useState(false);
   const folderInputRef = useRef<HTMLInputElement | null>(null);
   const searchInputRef = useRef<HTMLInputElement | null>(null);
+
+  // D&D state
+  const [draggedItem, setDraggedItem] = useState<DraggedItem | null>(null);
+  const [dropTargetPath, setDropTargetPath] = useState<string | null>(null);
+  const [moving, setMoving] = useState(false);
+
+  // Context menu
+  const { contextMenu, openContextMenu, closeContextMenu } = useContextMenu();
+
+  // Rename state
+  const [renamingId, setRenamingId] = useState<string | null>(null); // file id or folder path
+
+  // Sort
+  const { sortMode, cycleSortMode } = useSortMode(active.id);
+
+  // Move dialog
+  const [moveTarget, setMoveTarget] = useState<ContextTarget | null>(null);
+
+  // Tag panel
+  const [tagTarget, setTagTarget] = useState<{
+    fileId: string;
+    x: number;
+    y: number;
+  } | null>(null);
+
+  // Pins section collapsed
+  const [pinsCollapsed, setPinsCollapsed] = useState(() =>
+    loadPinsCollapsed(active.id),
+  );
+
+  // Pin DnD
+  const [draggedPinIndex, setDraggedPinIndex] = useState<number | null>(null);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -199,10 +287,6 @@ export default function Sidebar({
     [active.drive],
   );
 
-  // On vault switch or external reload signal: reset caches, rehydrate
-  // expanded state from localStorage, and prefetch contents for the root
-  // plus every persisted-expanded folder (otherwise restored folders look
-  // empty on first paint).
   useEffect(() => {
     const persisted = loadExpanded(active.id, rootPath);
     setExpanded(persisted);
@@ -308,6 +392,191 @@ export default function Sidebar({
     }
   }
 
+  // D&D handlers
+  async function handleDrop(dragged: DraggedItem, targetFolderPath: string): Promise<void> {
+    setMoving(true);
+    try {
+      if (dragged.kind === "file") {
+        if (dragged.item.folder_path === targetFolderPath) return;
+        await moveFile(dragged.item.id, active.drive, targetFolderPath);
+        await Promise.all([
+          loadPath(dragged.item.folder_path),
+          loadPath(targetFolderPath),
+        ]);
+      } else {
+        const parentOfDragged = dragged.item.path.includes("/")
+          ? dragged.item.path.split("/").slice(0, -1).join("/")
+          : rootPath;
+        if (parentOfDragged === targetFolderPath) return;
+        await moveFolder(active.drive, dragged.item.path, targetFolderPath);
+        await Promise.all([
+          loadPath(parentOfDragged),
+          loadPath(targetFolderPath),
+        ]);
+      }
+    } catch {
+      // errors are visible via reload failure
+    } finally {
+      setMoving(false);
+      setDraggedItem(null);
+    }
+  }
+
+  // Context menu action handler
+  async function handleContextAction(action: ContextAction, target: ContextTarget): Promise<void> {
+    if (target.kind === "file") {
+      const file = target.item;
+      switch (action.type) {
+        case "open":
+          onSelectFile(file);
+          break;
+        case "openNewTab":
+          window.open(`/drive/${encodeURIComponent(drive)}?edit=${file.id}`, "_blank");
+          break;
+        case "rename":
+          setRenamingId(file.id);
+          break;
+        case "move":
+          setMoveTarget(target);
+          break;
+        case "pin":
+          onPin?.(file);
+          break;
+        case "unpin":
+          onUnpin?.(file.id);
+          break;
+        case "tags":
+          // Tag panel position comes from contextMenu state which is already set
+          if (contextMenu) {
+            setTagTarget({ fileId: file.id, x: contextMenu.x + 200, y: contextMenu.y });
+          }
+          break;
+        case "trash":
+          if (onRequestDelete) {
+            onRequestDelete(file);
+          } else {
+            try {
+              await trashFile(file.id);
+              onUnpin?.(file.id);
+              await loadPath(file.folder_path);
+            } catch {
+              // swallow
+            }
+          }
+          break;
+      }
+    } else {
+      const folder = target.item;
+      switch (action.type) {
+        case "openFolder":
+          onOpenFolder?.(folder.path, folder.name);
+          break;
+        case "newNoteHere":
+          await createNoteIn(folder.path);
+          break;
+        case "newFolderHere":
+          setPendingFolder({ parent: folder.path });
+          ensureExpanded(folder.path);
+          break;
+        case "rename":
+          setRenamingId(folder.path);
+          break;
+        case "move":
+          setMoveTarget(target);
+          break;
+        case "deleteFolder":
+          if (folder.file_count === 0) {
+            if (onRequestDeleteFolder) {
+              onRequestDeleteFolder(folder);
+            } else {
+              try {
+                const parentPath = folder.path.includes("/")
+                  ? folder.path.split("/").slice(0, -1).join("/")
+                  : rootPath;
+                await deleteFolderApi(active.drive, folder.path);
+                await loadPath(parentPath);
+              } catch {
+                // swallow
+              }
+            }
+          }
+          break;
+      }
+    }
+  }
+
+  // Inline rename handlers
+  async function commitRenameFile(id: string, newName: string, currentFolderPath: string): Promise<void> {
+    const trimmed = newName.trim();
+    if (!trimmed) {
+      setRenamingId(null);
+      return;
+    }
+    const finalName = trimmed.endsWith(".md") ? trimmed : `${trimmed}.md`;
+    try {
+      await renameFile(id, finalName);
+      await loadPath(currentFolderPath);
+    } catch {
+      // swallow rename error
+    } finally {
+      setRenamingId(null);
+    }
+  }
+
+  async function commitRenameFolder(path: string, newName: string): Promise<void> {
+    const trimmed = newName.trim();
+    if (!trimmed) {
+      setRenamingId(null);
+      return;
+    }
+    const parentPath = path.includes("/")
+      ? path.split("/").slice(0, -1).join("/")
+      : rootPath;
+    try {
+      await renameFolderApi(active.drive, path, trimmed);
+      await loadPath(parentPath);
+    } catch {
+      // swallow rename error
+    } finally {
+      setRenamingId(null);
+    }
+  }
+
+  // Move dialog handler
+  async function handleMoveConfirm(targetPath: string): Promise<void> {
+    if (!moveTarget) return;
+    setMoveTarget(null);
+    if (moveTarget.kind === "file") {
+      const file = moveTarget.item;
+      try {
+        await moveFile(file.id, active.drive, targetPath);
+        await Promise.all([loadPath(file.folder_path), loadPath(targetPath)]);
+      } catch {
+        // swallow
+      }
+    } else {
+      const folder = moveTarget.item;
+      const parentPath = folder.path.includes("/")
+        ? folder.path.split("/").slice(0, -1).join("/")
+        : rootPath;
+      try {
+        await moveFolder(active.drive, folder.path, targetPath);
+        await Promise.all([loadPath(parentPath), loadPath(targetPath)]);
+      } catch {
+        // swallow
+      }
+    }
+  }
+
+  // Toggle pins collapsed
+  function togglePinsCollapsed() {
+    setPinsCollapsed((prev) => {
+      const next = !prev;
+      savePinsCollapsed(active.id, next);
+      return next;
+    });
+  }
+
   const showSearch = query.trim().length > 0;
   const rootContents = contents.get(rootPath);
   const rootLoading = loadingPaths.has(rootPath) && !rootContents;
@@ -408,6 +677,130 @@ export default function Sidebar({
           </div>
         ) : (
           <div className="p-2">
+            {/* Pins section */}
+            {pins.length > 0 && (
+              <div className="mb-1">
+                <button
+                  type="button"
+                  onClick={togglePinsCollapsed}
+                  className="flex w-full items-center gap-1 rounded-md px-2 py-1 text-left text-xs font-semibold uppercase tracking-wide text-text-muted hover:bg-bg-elevated"
+                >
+                  <Pin size={11} className="flex-shrink-0" />
+                  <span className="flex-1">{tPins("section")}</span>
+                  {pinsCollapsed ? (
+                    <ChevronRight size={12} />
+                  ) : (
+                    <ChevronDown size={12} />
+                  )}
+                </button>
+                {!pinsCollapsed && (
+                  <ul className="flex flex-col">
+                    {pins.map((pin, idx) => {
+                      const isActive = pin.id === selectedFileId;
+                      return (
+                        <li
+                          key={pin.id}
+                          draggable
+                          data-pin-index={idx}
+                          onDragStart={() => setDraggedPinIndex(idx)}
+                          onDragEnd={() => setDraggedPinIndex(null)}
+                          onDragOver={(e) => {
+                            if (draggedPinIndex === null) return;
+                            e.preventDefault();
+                          }}
+                          onDrop={(e) => {
+                            e.preventDefault();
+                            if (draggedPinIndex === null) return;
+                            onPinReorder?.(draggedPinIndex, idx);
+                            setDraggedPinIndex(null);
+                          }}
+                          className={draggedPinIndex === idx ? "opacity-40" : ""}
+                        >
+                          <button
+                            type="button"
+                            onClick={() =>
+                              onSelectFile({
+                                id: pin.id,
+                                filename: pin.filename,
+                                title: pin.title,
+                                drive: active.drive,
+                                folder_path: rootPath,
+                                file_type: "document",
+                                mime_type: "text/markdown",
+                                thumbnail_url: "",
+                                file_size: 0,
+                                created_at: "",
+                                updated_at: "",
+                              })
+                            }
+                            onContextMenu={(e) =>
+                              openContextMenu(e, {
+                                kind: "file",
+                                item: {
+                                  id: pin.id,
+                                  filename: pin.filename,
+                                  title: pin.title,
+                                  drive: active.drive,
+                                  folder_path: rootPath,
+                                  file_type: "document",
+                                  mime_type: "text/markdown",
+                                  thumbnail_url: "",
+                                  file_size: 0,
+                                  created_at: "",
+                                  updated_at: "",
+                                },
+                              })
+                            }
+                            className={`flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left transition-colors ${
+                              isActive
+                                ? "bg-accent/15 text-text-primary"
+                                : "text-text-primary hover:bg-bg-elevated"
+                            }`}
+                          >
+                            <FileText
+                              size={13}
+                              className={isActive ? "text-accent" : "text-text-muted"}
+                            />
+                            <span className="flex-1 truncate text-sm">
+                              {pin.title || pin.filename.replace(/\.md$/i, "")}
+                            </span>
+                          </button>
+                        </li>
+                      );
+                    })}
+                  </ul>
+                )}
+                <div className="my-1 border-t border-bg-border" />
+              </div>
+            )}
+
+            {/* Sort button row */}
+            {!showSearch && (
+              <div className="mb-1 flex items-center justify-end">
+                <button
+                  type="button"
+                  onClick={cycleSortMode}
+                  className="flex items-center gap-1 rounded px-1.5 py-0.5 text-xs text-text-muted hover:bg-bg-elevated hover:text-text-primary"
+                  title={
+                    sortMode === "updated_desc"
+                      ? "更新日順"
+                      : sortMode === "created_desc"
+                        ? "作成日順"
+                        : "名前順"
+                  }
+                >
+                  <ArrowUpDown size={11} />
+                  <span>
+                    {sortMode === "updated_desc"
+                      ? "更新日"
+                      : sortMode === "created_desc"
+                        ? "作成日"
+                        : "名前"}
+                  </span>
+                </button>
+              </div>
+            )}
+
             {rootContents &&
             rootContents.folders.length === 0 &&
             rootContents.files.length === 0 &&
@@ -418,6 +811,7 @@ export default function Sidebar({
             ) : (
               <FolderBody
                 parentPath={rootPath}
+                rootPath={rootPath}
                 contents={contents}
                 loadingPaths={loadingPaths}
                 errors={errors}
@@ -428,12 +822,25 @@ export default function Sidebar({
                 creating={creating}
                 folderInputRef={folderInputRef}
                 selectedFileId={selectedFileId}
+                selectedFolderPath={selectedFolderPath ?? null}
                 onSelectFile={onSelectFile}
                 onToggle={toggleExpand}
                 onCreateNote={createNoteIn}
-                onStartCreateFolder={(parent) =>
-                  setPendingFolder({ parent })
-                }
+                onStartCreateFolder={(parent) => setPendingFolder({ parent })}
+                onOpenFolder={onOpenFolder}
+                onContextMenu={openContextMenu}
+                draggedItem={draggedItem}
+                dropTargetPath={dropTargetPath}
+                onDragStart={setDraggedItem}
+                onDragEnd={() => setDraggedItem(null)}
+                onDragOver={setDropTargetPath}
+                onDrop={handleDrop}
+                moving={moving}
+                renamingId={renamingId}
+                onCommitRenameFile={commitRenameFile}
+                onCommitRenameFolder={commitRenameFolder}
+                onCancelRename={() => setRenamingId(null)}
+                sortMode={sortMode}
                 depth={0}
               />
             )}
@@ -464,12 +871,58 @@ export default function Sidebar({
           </button>
         </div>
       )}
+
+      {/* Context Menu */}
+      {contextMenu && (
+        <ContextMenu
+          menu={contextMenu}
+          isPinned={
+            contextMenu.target.kind === "file"
+              ? (isPinned?.(contextMenu.target.item.id) ?? false)
+              : false
+          }
+          onAction={handleContextAction}
+          onClose={closeContextMenu}
+        />
+      )}
+
+      {/* Move Dialog */}
+      {moveTarget && (
+        <MoveDialog
+          drive={active.drive}
+          rootPath={rootPath}
+          currentPath={
+            moveTarget.kind === "file"
+              ? moveTarget.item.folder_path
+              : (() => {
+                  const p = moveTarget.item.path;
+                  return p.includes("/") ? p.split("/").slice(0, -1).join("/") : rootPath;
+                })()
+          }
+          excludePath={moveTarget.kind === "folder" ? moveTarget.item.path : undefined}
+          onConfirm={handleMoveConfirm}
+          onClose={() => setMoveTarget(null)}
+        />
+      )}
+
+      {/* Tag Panel */}
+      {tagTarget && (
+        <TagPanel
+          fileId={tagTarget.fileId}
+          drive={active.drive}
+          x={tagTarget.x}
+          y={tagTarget.y}
+          onClose={() => setTagTarget(null)}
+        />
+      )}
+
     </aside>
   );
 }
 
 interface FolderBodyProps {
   parentPath: string;
+  rootPath: string;
   contents: Map<string, Contents>;
   loadingPaths: Set<string>;
   errors: Map<string, string>;
@@ -480,10 +933,25 @@ interface FolderBodyProps {
   creating: boolean;
   folderInputRef: RefObject<HTMLInputElement | null>;
   selectedFileId: string | null;
+  selectedFolderPath: string | null;
   onSelectFile: (f: CoreFileItem) => void;
   onToggle: (path: string) => void;
   onCreateNote: (parent: string) => void;
   onStartCreateFolder: (parent: string) => void;
+  onOpenFolder?: (path: string, name: string) => void;
+  onContextMenu: (e: React.MouseEvent, target: ContextTarget) => void;
+  draggedItem: DraggedItem | null;
+  dropTargetPath: string | null;
+  onDragStart: (item: DraggedItem) => void;
+  onDragEnd: () => void;
+  onDragOver: (path: string | null) => void;
+  onDrop: (item: DraggedItem, targetPath: string) => Promise<void>;
+  moving: boolean;
+  renamingId: string | null;
+  onCommitRenameFile: (id: string, newName: string, folderPath: string) => Promise<void>;
+  onCommitRenameFolder: (path: string, newName: string) => Promise<void>;
+  onCancelRename: () => void;
+  sortMode: import("./hooks/useSortMode").SortMode;
   depth: number;
 }
 
@@ -500,10 +968,25 @@ function FolderBody(props: FolderBodyProps) {
     creating,
     folderInputRef,
     selectedFileId,
+    selectedFolderPath,
     onSelectFile,
     onToggle,
     onCreateNote,
     onStartCreateFolder,
+    onOpenFolder,
+    onContextMenu,
+    draggedItem,
+    dropTargetPath,
+    onDragStart,
+    onDragEnd,
+    onDragOver,
+    onDrop,
+    moving,
+    renamingId,
+    onCommitRenameFile,
+    onCommitRenameFolder,
+    onCancelRename,
+    sortMode,
     depth,
   } = props;
   const tFile = useTranslations("knowledge.fileList");
@@ -516,15 +999,8 @@ function FolderBody(props: FolderBodyProps) {
     [c],
   );
   const sortedFiles = useMemo(
-    () =>
-      c
-        ? [...c.files].sort((a, b) => {
-            const at = a.updated_at || a.created_at || "";
-            const bt = b.updated_at || b.created_at || "";
-            return bt.localeCompare(at);
-          })
-        : [],
-    [c],
+    () => (c ? sortFiles(c.files, sortMode) : []),
+    [c, sortMode],
   );
 
   const isPendingHere =
@@ -567,9 +1043,33 @@ function FolderBody(props: FolderBodyProps) {
           folder={f}
           depth={depth}
           expanded={expanded.has(f.path)}
+          isSelected={selectedFolderPath === f.path}
+          isDropTarget={dropTargetPath === f.path}
+          isDragging={draggedItem?.kind === "folder" && draggedItem.item.path === f.path}
+          isRenaming={renamingId === f.path}
           onToggle={() => onToggle(f.path)}
+          onOpenFolder={() => onOpenFolder?.(f.path, f.name)}
           onCreateNote={() => onCreateNote(f.path)}
           onStartCreateFolder={() => onStartCreateFolder(f.path)}
+          onContextMenu={(e) => onContextMenu(e, { kind: "folder", item: f })}
+          onDragStart={() => onDragStart({ kind: "folder", item: f })}
+          onDragEnd={onDragEnd}
+          onDragOver={(e) => {
+            if (!draggedItem) return;
+            if (isAncestorOrSelf(f.path, draggedItem)) return;
+            e.preventDefault();
+            onDragOver(f.path);
+          }}
+          onDragLeave={() => onDragOver(null)}
+          onDrop={async (e) => {
+            e.preventDefault();
+            onDragOver(null);
+            if (!draggedItem) return;
+            if (isAncestorOrSelf(f.path, draggedItem)) return;
+            await onDrop(draggedItem, f.path);
+          }}
+          onCommitRename={(newName) => onCommitRenameFolder(f.path, newName)}
+          onCancelRename={onCancelRename}
           childContent={
             expanded.has(f.path) ? (
               <FolderBody
@@ -583,27 +1083,67 @@ function FolderBody(props: FolderBodyProps) {
       ))}
       {sortedFiles.map((f) => {
         const isActive = f.id === selectedFileId;
+        const isDragging =
+          draggedItem?.kind === "file" && draggedItem.item.id === f.id;
+        const isRenaming = renamingId === f.id;
         return (
-          <li key={f.id} style={{ paddingLeft: `${depth * 12}px` }}>
-            <button
-              type="button"
-              onClick={() => onSelectFile(f)}
-              className={`flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left transition-colors ${
-                isActive
-                  ? "bg-accent/15 text-text-primary"
-                  : "text-text-primary hover:bg-bg-elevated"
-              }`}
-            >
-              <span className="flex h-4 w-4 flex-shrink-0 items-center justify-center">
-                <FileText
-                  size={14}
-                  className={isActive ? "text-accent" : "text-text-muted"}
-                />
-              </span>
-              <span className="flex-1 truncate text-sm">
-                {f.title || f.filename.replace(/\.md$/i, "")}
-              </span>
-            </button>
+          <li
+            key={f.id}
+            style={{ paddingLeft: `${depth * 12}px` }}
+            draggable={!isRenaming}
+            onDragStart={() => !isRenaming && onDragStart({ kind: "file", item: f })}
+            onDragEnd={onDragEnd}
+            className={[
+              "group",
+              isDragging || moving ? "opacity-40" : "",
+            ].join(" ")}
+          >
+            {isRenaming ? (
+              <InlineRenameInput
+                defaultValue={f.title || f.filename.replace(/\.md$/i, "")}
+                onCommit={(newName) =>
+                  onCommitRenameFile(f.id, newName, f.folder_path)
+                }
+                onCancel={onCancelRename}
+              />
+            ) : (
+              <button
+                type="button"
+                onClick={() => onSelectFile(f)}
+                onContextMenu={(e) =>
+                  onContextMenu(e, { kind: "file", item: f })
+                }
+                onDoubleClick={() => {
+                  // double-click to rename
+                }}
+                className={`flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left transition-colors ${
+                  isActive
+                    ? "bg-accent/15 text-text-primary"
+                    : "text-text-primary hover:bg-bg-elevated"
+                }`}
+              >
+                <span className="flex h-4 w-4 flex-shrink-0 items-center justify-center">
+                  <FileText
+                    size={14}
+                    className={isActive ? "text-accent" : "text-text-muted"}
+                  />
+                </span>
+                <span className="flex-1 truncate text-sm">
+                  {f.title || f.filename.replace(/\.md$/i, "")}
+                </span>
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onContextMenu(e, { kind: "file", item: f });
+                  }}
+                  aria-label="More options"
+                  className="flex h-5 w-5 flex-shrink-0 items-center justify-center rounded text-text-muted opacity-0 transition-opacity group-hover:opacity-100 hover:bg-bg-card hover:text-text-primary"
+                >
+                  <MoreHorizontal size={12} />
+                </button>
+              </button>
+            )}
           </li>
         );
       })}
@@ -615,44 +1155,106 @@ function FolderRow({
   folder,
   depth,
   expanded,
+  isSelected,
+  isDropTarget,
+  isDragging,
+  isRenaming,
   onToggle,
+  onOpenFolder,
   onCreateNote,
   onStartCreateFolder,
+  onContextMenu,
+  onDragStart,
+  onDragEnd,
+  onDragOver,
+  onDragLeave,
+  onDrop,
+  onCommitRename,
+  onCancelRename,
   childContent,
 }: {
   folder: CoreFolderItem;
   depth: number;
   expanded: boolean;
+  isSelected: boolean;
+  isDropTarget: boolean;
+  isDragging: boolean;
+  isRenaming: boolean;
   onToggle: () => void;
+  onOpenFolder: () => void;
   onCreateNote: () => void;
   onStartCreateFolder: () => void;
+  onContextMenu: (e: React.MouseEvent) => void;
+  onDragStart: () => void;
+  onDragEnd: () => void;
+  onDragOver: (e: React.DragEvent) => void;
+  onDragLeave: () => void;
+  onDrop: (e: React.DragEvent) => Promise<void>;
+  onCommitRename: (newName: string) => void;
+  onCancelRename: () => void;
   childContent: React.ReactNode;
 }) {
   const tFile = useTranslations("knowledge.fileList");
   return (
-    <li>
+    <li className={isDragging ? "opacity-40" : ""}>
       <div
-        className="group flex items-center gap-1 rounded-md pr-1 hover:bg-bg-elevated"
+        className={[
+          "group flex items-center gap-1 rounded-md pr-1",
+          isDropTarget
+            ? "ring-2 ring-accent bg-accent/10"
+            : isSelected
+              ? "bg-bg-elevated"
+              : "hover:bg-bg-elevated",
+        ].join(" ")}
         style={{ paddingLeft: `${depth * 12}px` }}
+        draggable
+        onDragStart={onDragStart}
+        onDragEnd={onDragEnd}
+        onDragOver={onDragOver}
+        onDragLeave={onDragLeave}
+        onDrop={(e) => void onDrop(e)}
+        onContextMenu={onContextMenu}
       >
+        {/* Chevron button: expand/collapse only */}
         <button
           type="button"
           onClick={onToggle}
           aria-expanded={expanded}
-          className="flex flex-1 items-center gap-1 overflow-hidden py-1.5 text-left"
+          aria-label={expanded ? "折りたたむ" : "展開する"}
+          className="flex h-7 w-6 flex-shrink-0 items-center justify-center text-text-muted hover:text-text-primary"
         >
-          <span className="flex h-4 w-4 flex-shrink-0 items-center justify-center text-text-muted">
-            {expanded ? (
-              <ChevronDown size={14} />
-            ) : (
-              <ChevronRight size={14} />
-            )}
-          </span>
-          <Folder size={14} className="flex-shrink-0 text-accent" />
-          <span className="flex-1 truncate text-sm text-text-primary">
-            {folder.name}
-          </span>
+          {expanded ? (
+            <ChevronDown size={14} />
+          ) : (
+            <ChevronRight size={14} />
+          )}
         </button>
+
+        {/* Folder name button: opens FolderView */}
+        {isRenaming ? (
+          <InlineRenameInput
+            defaultValue={folder.name}
+            onCommit={onCommitRename}
+            onCancel={onCancelRename}
+          />
+        ) : (
+          <button
+            type="button"
+            onClick={onOpenFolder}
+            onContextMenu={onContextMenu}
+            className={`flex flex-1 items-center gap-1.5 overflow-hidden rounded-md px-1 py-1.5 text-left transition-colors ${
+              isSelected ? "font-medium text-text-primary" : "text-text-primary"
+            }`}
+          >
+            <Folder
+              size={14}
+              className={`flex-shrink-0 ${isSelected ? "text-accent" : "text-accent/70"}`}
+            />
+            <span className="flex-1 truncate text-sm">{folder.name}</span>
+          </button>
+        )}
+
+        {/* Hover action buttons */}
         <div className="flex items-center gap-0.5 opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100">
           <button
             type="button"
@@ -678,10 +1280,62 @@ function FolderRow({
           >
             <FolderPlus size={12} />
           </button>
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              onContextMenu(e);
+            }}
+            aria-label="More options"
+            className="flex h-6 w-6 items-center justify-center rounded text-text-muted hover:bg-bg-card hover:text-text-primary"
+          >
+            <MoreHorizontal size={12} />
+          </button>
         </div>
       </div>
       {childContent}
     </li>
+  );
+}
+
+function InlineRenameInput({
+  defaultValue,
+  onCommit,
+  onCancel,
+}: {
+  defaultValue: string;
+  onCommit: (newName: string) => void;
+  onCancel: () => void;
+}) {
+  const [value, setValue] = useState(defaultValue);
+  const inputRef = useRef<HTMLInputElement | null>(null);
+
+  useEffect(() => {
+    inputRef.current?.focus();
+    inputRef.current?.select();
+  }, []);
+
+  return (
+    <input
+      ref={inputRef}
+      type="text"
+      value={value}
+      onChange={(e) => setValue(e.target.value)}
+      onBlur={() => {
+        if (value.trim()) onCommit(value);
+        else onCancel();
+      }}
+      onKeyDown={(e) => {
+        if (e.key === "Enter") {
+          e.preventDefault();
+          if (value.trim()) onCommit(value);
+          else onCancel();
+        } else if (e.key === "Escape") {
+          onCancel();
+        }
+      }}
+      className="flex-1 rounded bg-bg-primary px-1 py-0.5 text-sm text-text-primary focus:outline-none focus:ring-1 focus:ring-accent"
+    />
   );
 }
 

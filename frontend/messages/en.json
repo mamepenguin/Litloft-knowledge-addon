@@ -112,6 +112,54 @@
       "dismiss": "Dismiss",
       "error": "Delete failed: {error}"
     },
+    "contextMenu": {
+      "open": "Open",
+      "openNewTab": "Open in new tab",
+      "rename": "Rename",
+      "move": "Move to...",
+      "pin": "Pin",
+      "unpin": "Unpin",
+      "tags": "Manage tags...",
+      "trash": "Move to trash",
+      "newNoteHere": "New note here",
+      "newFolderHere": "New folder here",
+      "deleteFolder": "Delete folder",
+      "deleteFolderNotEmpty": "Folder is not empty"
+    },
+    "pins": {
+      "section": "Pinned",
+      "empty": "Pinned notes will appear here"
+    },
+    "folderView": {
+      "back": "Back",
+      "newNote": "New note",
+      "emptyFolder": "Nothing in this folder yet",
+      "subfolders": "Subfolders",
+      "notes": "Notes",
+      "sortUpdated": "Updated",
+      "sortCreated": "Created",
+      "sortName": "Name",
+      "loading": "Loading..."
+    },
+    "tags": {
+      "manage": "Manage tags",
+      "addPlaceholder": "Add a tag...",
+      "add": "Add",
+      "loading": "Loading...",
+      "empty": "No tags"
+    },
+    "move": {
+      "title": "Move to",
+      "confirm": "Move",
+      "cancel": "Cancel",
+      "currentLocation": "(current location)",
+      "loading": "Loading..."
+    },
+    "rename": {
+      "placeholder": "New name...",
+      "confirm": "Confirm",
+      "cancel": "Cancel"
+    },
     "editor": {
       "loading": "Loading...",
       "loadFailed": "Failed to load: {error}",

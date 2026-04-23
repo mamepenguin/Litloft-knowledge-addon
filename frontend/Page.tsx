@@ -8,13 +8,17 @@ import { useCurrentDrive } from "@/components/CurrentDriveProvider";
 import { useOverlaySidebar } from "@/components/SidebarProvider";
 import { useWebSocket } from "@/hooks/useWebSocket";
 import {
+  deleteFolderApi,
   listVaults,
   restoreFile,
   trashFile,
   type ClipJob,
   type CoreFileItem,
+  type CoreFolderItem,
   type Vault,
 } from "./api";
+import FolderView from "./FolderView";
+import { usePins } from "./hooks/usePins";
 import VaultSetup from "./VaultSetup";
 import Sidebar from "./Sidebar";
 import Editor from "./Editor";
@@ -51,6 +55,7 @@ type Mode =
   | { kind: "setup" }
   | { kind: "addNew" }
   | { kind: "list" }
+  | { kind: "folder"; path: string; name: string }
   | { kind: "edit"; file: CoreFileItem };
 
 async function fetchFileMeta(fileId: string): Promise<CoreFileItem | null> {
@@ -102,6 +107,9 @@ export default function KnowledgePage() {
   const [activeId, setActiveId] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [reloadKey, setReloadKey] = useState(0);
+
+  // Pins — initialized with 0, updated once activeId is known
+  const pins = usePins(activeId ?? 0);
   const [sidebarHidden, setSidebarHidden] = useState<boolean>(() =>
     loadSidebarHidden(),
   );
@@ -202,6 +210,7 @@ export default function KnowledgePage() {
         return prev;
       });
       setReloadKey((k) => k + 1);
+      pins.unpin(file.id);
       try {
         await trashFile(file.id);
         setDeleteNotice({ status: "ok", file });
@@ -214,7 +223,20 @@ export default function KnowledgePage() {
         });
       }
     },
-    [],
+    [pins],
+  );
+
+  const handleDeleteFolder = useCallback(
+    async (folder: CoreFolderItem) => {
+      if (!drive) return;
+      try {
+        await deleteFolderApi(drive, folder.path);
+        setReloadKey((k) => k + 1);
+      } catch {
+        // swallow — sidebar will re-fetch and show folder still there
+      }
+    },
+    [drive],
   );
 
   const handleUndoDelete = useCallback(async () => {
@@ -324,6 +346,7 @@ export default function KnowledgePage() {
 
   const active = vaults.find((v) => v.id === activeId) ?? vaults[0];
   const selectedFile = mode.kind === "edit" ? mode.file : null;
+  const folderMode = mode.kind === "folder" ? mode : null;
 
   const registerJob = (job: ClipJob, url: string, subfolder: string) => {
     setRecentJobs((prev) => {
@@ -353,16 +376,17 @@ export default function KnowledgePage() {
     }
   };
 
-  const effectiveSidebarHidden = sidebarHidden && selectedFile !== null;
+  const hasMainContent = selectedFile !== null || folderMode !== null;
+  const effectiveSidebarHidden = sidebarHidden && hasMainContent;
   const sidebarWrapperClass = [
     "h-full w-full flex-col md:w-72",
-    selectedFile ? "hidden" : "flex",
+    hasMainContent ? "hidden" : "flex",
     effectiveSidebarHidden ? "md:hidden" : "md:flex",
   ].join(" ");
 
   const mainWrapperClass = [
     "min-w-0 flex-1 flex-col md:flex",
-    selectedFile ? "flex" : "hidden",
+    hasMainContent ? "flex" : "hidden",
   ].join(" ");
 
   return (
@@ -377,6 +401,7 @@ export default function KnowledgePage() {
             vaults={vaults}
             active={active}
             selectedFileId={selectedFile?.id ?? null}
+            selectedFolderPath={folderMode?.path ?? null}
             reloadKey={reloadKey}
             fetchingClipsCount={fetchingClipsCount}
             onSwitchVault={(v) => {
@@ -385,8 +410,16 @@ export default function KnowledgePage() {
             }}
             onAddVault={() => setMode({ kind: "addNew" })}
             onSelectFile={(f) => setMode({ kind: "edit", file: f })}
+            onOpenFolder={(path, name) => setMode({ kind: "folder", path, name })}
             onOpenClip={() => setClipOpen(true)}
             onOpenClipHelp={() => setHelpOpen(true)}
+            pins={pins.pins}
+            onPin={pins.pin}
+            onUnpin={pins.unpin}
+            isPinned={pins.isPinned}
+            onPinReorder={pins.reorder}
+            onRequestDelete={handleDelete}
+            onRequestDeleteFolder={handleDeleteFolder}
           />
         </div>
       )}
@@ -406,9 +439,23 @@ export default function KnowledgePage() {
                 kind: "edit",
                 file: { ...selectedFile, filename: newFilename },
               });
+              pins.updatePinTitle(selectedFile.id, newFilename, selectedFile.title);
               setReloadKey((k) => k + 1);
             }}
             onDelete={() => handleDelete(selectedFile)}
+          />
+        ) : folderMode && active ? (
+          <FolderView
+            drive={drive}
+            vault={active}
+            path={folderMode.path}
+            name={folderMode.name}
+            sidebarHidden={sidebarHidden}
+            onToggleSidebar={toggleSidebar}
+            onBack={() => setMode({ kind: "list" })}
+            onSelectFile={(f) => setMode({ kind: "edit", file: f })}
+            onSelectFolder={(path, name) => setMode({ kind: "folder", path, name })}
+            onReload={() => setReloadKey((k) => k + 1)}
           />
         ) : active ? (
           <EmptyState

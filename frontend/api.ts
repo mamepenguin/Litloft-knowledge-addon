@@ -380,3 +380,124 @@ export async function listVaultFiles(
   if (!res.ok) throw new Error(`Error: ${res.status}`);
   return res.json();
 }
+
+// ---- File move ----
+
+export async function moveFile(
+  fileId: string,
+  drive: string,
+  targetFolderPath: string,
+): Promise<CoreFileItem> {
+  const res = await fetch(
+    `/api/files/${encodeURIComponent(fileId)}/move`,
+    {
+      method: "PUT",
+      credentials: "include",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ target_drive: drive, target_folder_path: targetFolderPath }),
+    },
+  );
+  if (!res.ok) {
+    const data = await res.json().catch(() => null);
+    throw new Error(data?.detail ?? `Error: ${res.status}`);
+  }
+  return res.json();
+}
+
+// ---- Folder operations ----
+
+export async function moveFolder(
+  drive: string,
+  path: string,
+  targetPath: string,
+): Promise<CoreFolderItem> {
+  const res = await fetch(
+    `/api/drives/${encodeURIComponent(drive)}/folders/move`,
+    {
+      method: "PUT",
+      credentials: "include",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ path, target_path: targetPath }),
+    },
+  );
+  if (!res.ok) {
+    const data = await res.json().catch(() => null);
+    throw new Error(data?.detail ?? `Error: ${res.status}`);
+  }
+  return res.json();
+}
+
+export async function renameFolderApi(
+  drive: string,
+  path: string,
+  newName: string,
+): Promise<CoreFolderItem> {
+  const res = await fetch(
+    `/api/drives/${encodeURIComponent(drive)}/folders`,
+    {
+      method: "PUT",
+      credentials: "include",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ path, new_name: newName }),
+    },
+  );
+  if (!res.ok) {
+    const data = await res.json().catch(() => null);
+    throw new Error(data?.detail ?? `Error: ${res.status}`);
+  }
+  return res.json();
+}
+
+export async function deleteFolderApi(drive: string, path: string): Promise<void> {
+  const qs = new URLSearchParams({ path });
+  const res = await fetch(
+    `/api/drives/${encodeURIComponent(drive)}/folders?${qs}`,
+    { method: "DELETE", credentials: "include" },
+  );
+  if (!res.ok) {
+    const data = await res.json().catch(() => null);
+    throw new Error(data?.detail ?? `Error: ${res.status}`);
+  }
+}
+
+// ---- Tags ----
+
+export async function getFileTags(fileId: string): Promise<string[]> {
+  const res = await fetch(
+    `/api/files/${encodeURIComponent(fileId)}`,
+    { credentials: "include" },
+  );
+  if (!res.ok) throw new Error(`Error: ${res.status}`);
+  const data = await res.json();
+  return (data.tags as string[] | null) ?? [];
+}
+
+export async function updateFileTags(fileId: string, tags: string[]): Promise<void> {
+  const res = await fetch(
+    `/api/files/${encodeURIComponent(fileId)}/tags`,
+    {
+      method: "PUT",
+      credentials: "include",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ tags }),
+    },
+  );
+  if (!res.ok) {
+    const data = await res.json().catch(() => null);
+    throw new Error(data?.detail ?? `Error: ${res.status}`);
+  }
+}
+
+export interface DriveTagItem {
+  name: string;
+  count: number;
+}
+
+export async function listDriveTags(drive: string): Promise<DriveTagItem[]> {
+  const res = await fetch(
+    `/api/drives/${encodeURIComponent(drive)}/tags`,
+    { credentials: "include" },
+  );
+  if (!res.ok) throw new Error(`Error: ${res.status}`);
+  return res.json();
+}

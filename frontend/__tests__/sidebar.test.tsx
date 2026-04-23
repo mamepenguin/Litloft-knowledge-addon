@@ -160,18 +160,21 @@ describe("Sidebar tree", () => {
         onOpenClipHelp={noop}
       />,
     );
-    const folderBtn = await screen.findByText("sub");
+    // Wait for folder to appear, then find the chevron toggle button
+    await screen.findByText("sub");
+    const chevronBtn = screen.getByLabelText("展開する");
     // Before expand: child not visible, and sub path not fetched.
     expect(screen.queryByText("child")).toBeNull();
     expect(calls.some((u) => u.includes("path=sub"))).toBe(false);
 
-    fireEvent.click(folderBtn);
+    fireEvent.click(chevronBtn);
 
     expect(await screen.findByText("child")).toBeTruthy();
     expect(calls.some((u) => u.includes("path=sub"))).toBe(true);
 
     // Collapse: child hidden again.
-    fireEvent.click(folderBtn);
+    const collapseBtn = screen.getByLabelText("折りたたむ");
+    fireEvent.click(collapseBtn);
     await waitFor(() => {
       expect(screen.queryByText("child")).toBeNull();
     });
