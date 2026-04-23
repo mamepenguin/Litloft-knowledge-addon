@@ -17,7 +17,7 @@ const EDITABLE_MIMES = new Set(["text/markdown", "text/plain"]);
  * File-detail slot: deep-links to the knowledge editor when the file
  * is a text note the editor can handle. Hidden otherwise.
  */
-export default function KnowledgeEditSection({ fileId }: { fileId: string }) {
+export default function KnowledgeEditSection({ fileId, drive }: { fileId: string; drive: string }) {
   const t = useTranslations("knowledge.editSection");
   const [file, setFile] = useState<FileMeta | null | undefined>(undefined);
 
@@ -39,7 +39,7 @@ export default function KnowledgeEditSection({ fileId }: { fileId: string }) {
   if (file === undefined || file === null) return null;
   if (!EDITABLE_MIMES.has(file.mime_type)) return null;
 
-  const href = `/addons/knowledge?edit=${encodeURIComponent(file.id)}`;
+  const href = `/drive/${encodeURIComponent(drive)}/addons/knowledge?edit=${encodeURIComponent(file.id)}`;
 
   return (
     <section className="rounded-xl border border-bg-border bg-bg-card p-4">

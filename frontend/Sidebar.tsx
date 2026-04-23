@@ -431,7 +431,7 @@ export default function Sidebar({
           onSelectFile(file);
           break;
         case "openNewTab":
-          window.open(`/drive/${encodeURIComponent(drive)}?edit=${file.id}`, "_blank");
+          window.open(`/drive/${encodeURIComponent(drive)}/addons/knowledge?edit=${file.id}`, "_blank");
           break;
         case "rename":
           setRenamingId(file.id);
