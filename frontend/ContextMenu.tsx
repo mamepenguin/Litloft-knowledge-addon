@@ -41,7 +41,7 @@ export default function ContextMenu({ menu, isPinned, onAction, onClose }: Props
     <div
       data-context-menu
       style={{ top: menu.y, left: menu.x }}
-      className="fixed z-50 min-w-[180px] overflow-hidden rounded-lg border border-bg-border bg-bg-elevated shadow-xl animate-fade-in-scale"
+      className="fixed z-50 min-w-[180px] overflow-hidden rounded-2xl border border-bg-border bg-bg-card shadow-xl animate-fade-in-scale"
       role="menu"
       aria-label="Context menu"
     >
@@ -157,12 +157,12 @@ function MenuItem({
       disabled={disabled}
       title={title}
       className={[
-        "flex w-full items-center gap-2 px-3 py-1.5 text-sm transition-colors",
+        "flex w-full items-center gap-2.5 px-3 py-2 text-sm transition-colors",
         disabled
           ? "cursor-not-allowed text-text-muted opacity-50"
           : danger
-            ? "text-red-400 hover:bg-red-500/10"
-            : "text-text-primary hover:bg-bg-primary/60",
+            ? "text-danger hover:bg-accent/10"
+            : "text-text-muted hover:bg-bg-elevated hover:text-text-primary",
       ].join(" ")}
     >
       {icon && (
