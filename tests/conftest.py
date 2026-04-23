@@ -1,7 +1,7 @@
 """Shared fixtures for knowledge addon tests.
 
 Each test gets its own SQLite DB in a tmp dir, swapped in via monkeypatch
-on the ``app.database`` module. The core's HomeVault Internal API is not
+on the ``app.database`` module. The core's Litloft Internal API is not
 contacted in unit tests — callers of ``InternalClient`` are stubbed at
 their call sites as needed.
 """
@@ -153,4 +153,4 @@ def fake_internal(monkeypatch):
 def viewer_cookie():
     """Cookie header corresponding to a nickname of 'alice'. Tests that
     need a specific viewer_id import ``nickname_to_viewer_id`` directly."""
-    return "hv_viewer=alice"
+    return "lit_viewer=alice"

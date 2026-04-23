@@ -154,8 +154,8 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(
-    title="HomeVault Knowledge Addon",
-    description="Notes and web clips — personal knowledge hub for HomeVault",
+    title="Litloft Knowledge Addon",
+    description="Notes and web clips — personal knowledge hub for Litloft",
     lifespan=lifespan,
 )
 

@@ -77,7 +77,7 @@ def test_search_returns_matches(client, knowledge_db, fake_search_internal, view
     }
     r = client.get(
         f"/search?vault_id={vault_id}&q=needle",
-        headers={"Cookie": viewer_cookie, "X-HV-Drive": "test-drive"},
+        headers={"Cookie": viewer_cookie, "X-Lit-Drive": "test-drive"},
     )
     assert r.status_code == 200, r.text
     body = r.json()
@@ -100,7 +100,7 @@ def test_search_case_insensitive(client, knowledge_db, fake_search_internal, vie
     SearchableFake.contents = {"f1": "Some Content Here"}
     r = client.get(
         f"/search?vault_id={vault_id}&q=content",
-        headers={"Cookie": viewer_cookie, "X-HV-Drive": "test-drive"},
+        headers={"Cookie": viewer_cookie, "X-Lit-Drive": "test-drive"},
     )
     assert r.status_code == 200
     assert len(r.json()["results"]) == 1
@@ -111,7 +111,7 @@ def test_search_other_users_vault_404(client, knowledge_db, fake_search_internal
     vault_id = _seed_vault(knowledge_db, bob)
     r = client.get(
         f"/search?vault_id={vault_id}&q=anything",
-        headers={"Cookie": viewer_cookie, "X-HV-Drive": "test-drive"},
+        headers={"Cookie": viewer_cookie, "X-Lit-Drive": "test-drive"},
     )
     assert r.status_code == 404
 
@@ -121,7 +121,7 @@ def test_search_missing_query_param(client, knowledge_db, fake_search_internal, 
     vault_id = _seed_vault(knowledge_db, vid)
     r = client.get(
         f"/search?vault_id={vault_id}",
-        headers={"Cookie": viewer_cookie, "X-HV-Drive": "test-drive"},
+        headers={"Cookie": viewer_cookie, "X-Lit-Drive": "test-drive"},
     )
     assert r.status_code == 422  # pydantic validation
 
@@ -141,12 +141,12 @@ def test_search_missing_drive_header_400(
 def test_search_drive_mismatch_404(
     client, knowledge_db, fake_search_internal, viewer_cookie
 ):
-    """Vault is in test-drive; request with X-HV-Drive=media."""
+    """Vault is in test-drive; request with X-Lit-Drive=media."""
     vid = nickname_to_viewer_id("alice")
     vault_id = _seed_vault(knowledge_db, vid)
     r = client.get(
         f"/search?vault_id={vault_id}&q=anything",
-        headers={"Cookie": viewer_cookie, "X-HV-Drive": "media"},
+        headers={"Cookie": viewer_cookie, "X-Lit-Drive": "media"},
     )
     assert r.status_code == 404
 
@@ -161,7 +161,7 @@ def test_search_skips_non_text_files(client, knowledge_db, fake_search_internal,
     SearchableFake.contents = {"f1": "contains needle"}
     r = client.get(
         f"/search?vault_id={vault_id}&q=needle",
-        headers={"Cookie": viewer_cookie, "X-HV-Drive": "test-drive"},
+        headers={"Cookie": viewer_cookie, "X-Lit-Drive": "test-drive"},
     )
     assert r.status_code == 200
     assert r.json()["results"] == []

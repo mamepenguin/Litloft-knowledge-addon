@@ -1,11 +1,11 @@
 """Viewer identification for knowledge.
 
 The knowledge addon does not run its own authentication — it trusts the
-``hv_viewer`` cookie forwarded by the Generic Addon Proxy. A null or
+``lit_viewer`` cookie forwarded by the Generic Addon Proxy. A null or
 empty cookie means the user hasn't set a profile yet and must be shown
 the "please set a nickname" bootstrap UI before they can use Vaults.
 
-Hash algorithm mirrors HomeVault core's ``nickname_to_viewer_id`` so that
+Hash algorithm mirrors Litloft core's ``nickname_to_viewer_id`` so that
 the same person gets the same viewer_id across core and addon — this is
 what makes per-user Vault scoping join correctly with the core's
 watch-history-style identifiers, should we ever cross-reference.
@@ -23,21 +23,21 @@ def nickname_to_viewer_id(nickname: str) -> str:
 
 
 def get_optional_viewer_id(
-    hv_viewer: str | None = Cookie(default=None),
+    lit_viewer: str | None = Cookie(default=None),
 ) -> str | None:
-    if not hv_viewer or not hv_viewer.strip():
+    if not lit_viewer or not lit_viewer.strip():
         return None
-    trimmed = hv_viewer.strip()
+    trimmed = lit_viewer.strip()
     if len(trimmed) > 50:
         return None
     return nickname_to_viewer_id(trimmed)
 
 
 def get_viewer_id(
-    hv_viewer: str | None = Cookie(default=None),
+    lit_viewer: str | None = Cookie(default=None),
 ) -> str:
     """Require a valid viewer_id; raise 401 otherwise."""
-    vid = get_optional_viewer_id(hv_viewer)
+    vid = get_optional_viewer_id(lit_viewer)
     if vid is None:
         raise HTTPException(
             status_code=401,

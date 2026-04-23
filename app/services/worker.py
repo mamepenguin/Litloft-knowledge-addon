@@ -17,7 +17,7 @@ What this module does *not* own:
 
 - File I/O to the user's drive: that goes through the core's
   ``PUT /content`` + ``POST /rename`` endpoints via ``InternalClient``.
-- WebSocket emission: the HomeVault core owns the WS pipe. For now we
+- WebSocket emission: the Litloft core owns the WS pipe. For now we
   leave the event publishing to a future wiring step; the worker just
   calls a pluggable ``on_done`` / ``on_fail`` hook.
 """

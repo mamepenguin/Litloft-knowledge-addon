@@ -1,16 +1,16 @@
-# HomeVault Knowledge Addon
+# Litloft Knowledge Addon
 
-Notes and web clips for HomeVault. Stores `.md` files on any drive using
+Notes and web clips for Litloft. Stores `.md` files on any drive using
 the Obsidian Vault concept: each user configures one or more "root
 folders" (Vaults) and the addon shows those like a personal notes app.
 
-This is a HomeVault addon and does not run standalone. It depends on the
-core HomeVault backend for file storage, access control, and drive
+This is a Litloft addon and does not run standalone. It depends on the
+core Litloft backend for file storage, access control, and drive
 lookup via the Internal API.
 
 ## Quick start
 
-1. Clone this repository into the HomeVault project's `addons/` dir:
+1. Clone this repository into the Litloft project's `addons/` dir:
 
    ```
    cd path/to/video_share/addons
@@ -18,7 +18,7 @@ lookup via the Internal API.
    ```
 
 2. Merge `docker-compose.override.yml.example` snippet into your
-   HomeVault `docker-compose.override.yml`.
+   Litloft `docker-compose.override.yml`.
 
 3. Rebuild and restart:
 
@@ -26,7 +26,7 @@ lookup via the Internal API.
    docker compose up -d --build
    ```
 
-4. Open HomeVault. A "Knowledge" entry appears in the sidebar once the
+4. Open Litloft. A "Knowledge" entry appears in the sidebar once the
    container is healthy.
 
 ## Configuration

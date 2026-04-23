@@ -1,6 +1,6 @@
 """SQLite-backed storage for Vault registrations and webclip job state.
 
-knowledge owns its own DB — it never writes to the HomeVault core DB. The
+knowledge owns its own DB — it never writes to the Litloft core DB. The
 schema is managed by ``init_schema()`` (CREATE IF NOT EXISTS) called from
 the FastAPI lifespan; there is no migration framework because the schema
 is small and additive.

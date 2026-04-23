@@ -32,7 +32,7 @@ describe("searchVault", () => {
     expect(url).toContain("q=hello+world");
     expect(
       ((call[1] as unknown as { headers: Record<string, string> }).headers)[
-        "X-HV-Drive"
+        "X-Lit-Drive"
       ],
     ).toBe("d");
   });

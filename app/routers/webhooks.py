@@ -1,4 +1,4 @@
-"""Webhook endpoints for HomeVault core lifecycle events.
+"""Webhook endpoints for Litloft core lifecycle events.
 
 The core process sends ``files.missing``, ``files.recovered``, and
 ``files.purged`` events via ``event-hooks.json``. We respond by

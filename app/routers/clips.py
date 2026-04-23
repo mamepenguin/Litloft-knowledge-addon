@@ -168,7 +168,7 @@ async def search_clips(
     viewer_id: Annotated[str, Depends(get_viewer_id)],
     url: Annotated[str, Query(min_length=1, max_length=4000)],
     vault_id: Annotated[int, Query()],
-    x_hv_drive: Annotated[str | None, Header(alias="X-HV-Drive")] = None,
+    x_hv_drive: Annotated[str | None, Header(alias="X-Lit-Drive")] = None,
 ):
     """Look up existing ClipJobs for a URL within a Vault.
 
@@ -199,7 +199,7 @@ async def create_clip(
     db: Annotated[Session, Depends(get_db)],
     viewer_id: Annotated[str, Depends(get_viewer_id)],
     cookie: Annotated[str | None, Header(alias="Cookie")] = None,
-    x_hv_drive: Annotated[str | None, Header(alias="X-HV-Drive")] = None,
+    x_hv_drive: Annotated[str | None, Header(alias="X-Lit-Drive")] = None,
 ):
     drive = _require_drive(x_hv_drive)
     # Structural SSRF check. DNS-level checks also run in the worker,
@@ -251,7 +251,7 @@ async def create_clip_from_html(
     db: Annotated[Session, Depends(get_db)],
     viewer_id: Annotated[str, Depends(get_viewer_id)],
     cookie: Annotated[str | None, Header(alias="Cookie")] = None,
-    x_hv_drive: Annotated[str | None, Header(alias="X-HV-Drive")] = None,
+    x_hv_drive: Annotated[str | None, Header(alias="X-Lit-Drive")] = None,
 ):
     drive = _require_drive(x_hv_drive)
     # URL is metadata only here — we still validate it structurally so
