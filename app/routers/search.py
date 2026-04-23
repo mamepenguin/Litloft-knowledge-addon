@@ -88,7 +88,7 @@ async def search_vault(
     db: Session = Depends(get_db),
     viewer_id: str = Depends(get_viewer_id),
     cookie: Annotated[str | None, Header(alias="Cookie")] = None,
-    x_hv_drive: Annotated[str | None, Header(alias="X-HV-Drive")] = None,
+    x_hv_drive: Annotated[str | None, Header(alias="X-Lit-Drive")] = None,
 ):
     drive = _require_drive(x_hv_drive)
     vault = _get_vault_or_404(db, vault_id, viewer_id, drive)

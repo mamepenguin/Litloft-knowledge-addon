@@ -1,12 +1,12 @@
 """Vault CRUD endpoints — drive-scoped.
 
-Every request carries drive context via the ``X-HV-Drive`` header, set
+Every request carries drive context via the ``X-Lit-Drive`` header, set
 by the core addon_proxy when the request arrives through
 ``/drive/{drive}/addons/knowledge/...``. We treat the header as the
 authoritative drive: Vault listing, activation, and mutations are
 filtered to that drive.
 
-viewer_id still comes from the ``hv_viewer`` cookie. Active-vault state
+viewer_id still comes from the ``lit_viewer`` cookie. Active-vault state
 is keyed by ``(viewer_id, drive)`` so each drive remembers its own
 active Vault independently.
 
@@ -104,7 +104,7 @@ def _get_owned_vault_in_drive_or_404(
 async def list_vaults(
     db: Annotated[Session, Depends(get_db)],
     viewer_id: Annotated[str, Depends(get_viewer_id)],
-    x_hv_drive: Annotated[str | None, Header(alias="X-HV-Drive")] = None,
+    x_hv_drive: Annotated[str | None, Header(alias="X-Lit-Drive")] = None,
 ):
     drive = _require_drive(x_hv_drive)
     vaults = (
@@ -126,7 +126,7 @@ async def create_vault(
     db: Annotated[Session, Depends(get_db)],
     viewer_id: Annotated[str, Depends(get_viewer_id)],
     cookie: Annotated[str | None, Header(alias="Cookie")] = None,
-    x_hv_drive: Annotated[str | None, Header(alias="X-HV-Drive")] = None,
+    x_hv_drive: Annotated[str | None, Header(alias="X-Lit-Drive")] = None,
 ):
     drive = _require_drive(x_hv_drive)
 
@@ -184,7 +184,7 @@ async def update_vault(
     body: VaultUpdate,
     db: Annotated[Session, Depends(get_db)],
     viewer_id: Annotated[str, Depends(get_viewer_id)],
-    x_hv_drive: Annotated[str | None, Header(alias="X-HV-Drive")] = None,
+    x_hv_drive: Annotated[str | None, Header(alias="X-Lit-Drive")] = None,
 ):
     drive = _require_drive(x_hv_drive)
     vault = _get_owned_vault_in_drive_or_404(db, vault_id, viewer_id, drive)
@@ -199,7 +199,7 @@ async def delete_vault(
     vault_id: int,
     db: Annotated[Session, Depends(get_db)],
     viewer_id: Annotated[str, Depends(get_viewer_id)],
-    x_hv_drive: Annotated[str | None, Header(alias="X-HV-Drive")] = None,
+    x_hv_drive: Annotated[str | None, Header(alias="X-Lit-Drive")] = None,
 ):
     drive = _require_drive(x_hv_drive)
     vault = _get_owned_vault_in_drive_or_404(db, vault_id, viewer_id, drive)
@@ -213,7 +213,7 @@ async def activate_vault(
     vault_id: int,
     db: Annotated[Session, Depends(get_db)],
     viewer_id: Annotated[str, Depends(get_viewer_id)],
-    x_hv_drive: Annotated[str | None, Header(alias="X-HV-Drive")] = None,
+    x_hv_drive: Annotated[str | None, Header(alias="X-Lit-Drive")] = None,
 ):
     drive = _require_drive(x_hv_drive)
     vault = _get_owned_vault_in_drive_or_404(db, vault_id, viewer_id, drive)

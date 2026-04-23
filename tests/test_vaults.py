@@ -1,12 +1,12 @@
 """Tests for /vaults CRUD (drive-scoped).
 
 Contract:
-- Every request must carry ``X-HV-Drive`` (400 otherwise)
-- Every write requires a valid hv_viewer cookie (401 otherwise)
+- Every request must carry ``X-Lit-Drive`` (400 otherwise)
+- Every write requires a valid lit_viewer cookie (401 otherwise)
 - Every route is scoped to ``(viewer_id, drive)``
 - Clients cannot supply viewer_id in body or query (it is never read from
   the request payload — only from the cookie)
-- ``body.drive`` must match the ``X-HV-Drive`` header (403 on mismatch)
+- ``body.drive`` must match the ``X-Lit-Drive`` header (403 on mismatch)
 - Vault creation validates that the target drive is accessible via the
   core's Internal API
 - Active Vault state is per-(viewer_id, drive): switching drives does
@@ -18,9 +18,9 @@ from app.auth import nickname_to_viewer_id
 def _hdr(
     nickname: str = "alice", drive: str | None = "test-drive"
 ) -> dict[str, str]:
-    h: dict[str, str] = {"Cookie": f"hv_viewer={nickname}"}
+    h: dict[str, str] = {"Cookie": f"lit_viewer={nickname}"}
     if drive is not None:
-        h["X-HV-Drive"] = drive
+        h["X-Lit-Drive"] = drive
     return h
 
 
@@ -31,11 +31,11 @@ class TestListVaults:
         assert r.json() == {"vaults": [], "active_vault_id": None}
 
     def test_401_without_cookie(self, client, fake_internal):
-        r = client.get("/vaults", headers={"X-HV-Drive": "test-drive"})
+        r = client.get("/vaults", headers={"X-Lit-Drive": "test-drive"})
         assert r.status_code == 401
 
     def test_400_without_drive_header(self, client, fake_internal):
-        r = client.get("/vaults", headers={"Cookie": "hv_viewer=alice"})
+        r = client.get("/vaults", headers={"Cookie": "lit_viewer=alice"})
         assert r.status_code == 400
 
 
@@ -138,7 +138,7 @@ class TestCreateVault:
     def test_401_without_cookie(self, client, fake_internal):
         r = client.post(
             "/vaults",
-            headers={"X-HV-Drive": "test-drive"},
+            headers={"X-Lit-Drive": "test-drive"},
             json={"label": "x", "drive": "test-drive", "path": ""},
         )
         assert r.status_code == 401

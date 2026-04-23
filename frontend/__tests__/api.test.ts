@@ -44,7 +44,7 @@ describe("knowledge/api", () => {
     const call = fetchMock.mock.calls[0];
     expect(call[0]).toBe("/api/addons/knowledge/vaults");
     expect(call[1].credentials).toBe("include");
-    expect(call[1].headers["X-HV-Drive"]).toBe("test-drive");
+    expect(call[1].headers["X-Lit-Drive"]).toBe("test-drive");
   });
 
   it("createVault POSTs JSON body", async () => {
@@ -68,7 +68,7 @@ describe("knowledge/api", () => {
     expect(call[1].method).toBe("POST");
     expect(JSON.parse(call[1].body)).toEqual({ label: "L", drive: "D", path: "P" });
     expect(call[1].headers["Content-Type"]).toBe("application/json");
-    expect(call[1].headers["X-HV-Drive"]).toBe("D");
+    expect(call[1].headers["X-Lit-Drive"]).toBe("D");
   });
 
   it("updateVault sends PUT with label", async () => {

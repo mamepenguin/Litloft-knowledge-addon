@@ -146,7 +146,7 @@ async def distill(
     db: Annotated[Session, Depends(get_db)],
     viewer_id: Annotated[str, Depends(get_viewer_id)],
     cookie: Annotated[str | None, Header(alias="Cookie")] = None,
-    x_hv_drive: Annotated[str | None, Header(alias="X-HV-Drive")] = None,
+    x_hv_drive: Annotated[str | None, Header(alias="X-Lit-Drive")] = None,
 ) -> DistillResponse:
     drive = _require_drive(x_hv_drive)
     vault = _get_vault_or_404(db, body.vault_id, viewer_id, drive)
@@ -280,7 +280,7 @@ async def notes_by_source_file(
     source_file_id: str,
     db: Annotated[Session, Depends(get_db)],
     viewer_id: Annotated[str, Depends(get_viewer_id)],
-    x_hv_drive: Annotated[str | None, Header(alias="X-HV-Drive")] = None,
+    x_hv_drive: Annotated[str | None, Header(alias="X-Lit-Drive")] = None,
 ) -> list[NoteOriginOut]:
     """Return every Vault note that references ``source_file_id``.
 

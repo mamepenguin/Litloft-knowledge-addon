@@ -153,4 +153,4 @@ def fake_internal(monkeypatch):
 def viewer_cookie():
     """Cookie header corresponding to a nickname of 'alice'. Tests that
     need a specific viewer_id import ``nickname_to_viewer_id`` directly."""
-    return "hv_viewer=alice"
+    return "lit_viewer=alice"

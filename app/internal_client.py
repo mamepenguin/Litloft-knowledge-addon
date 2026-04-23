@@ -6,8 +6,8 @@ core-side file operations we don't duplicate ourselves
 (``POST /api/drives/{drive}/files``, ``PUT /api/files/{id}/content``).
 
 The caller's Cookie string is passed through as the authorization
-context: the core already understands ``hv_token`` (drive unlocks) and
-``hv_viewer`` (profile identity), and the Generic Addon Proxy forwards
+context: the core already understands ``lit_token`` (drive unlocks) and
+``lit_viewer`` (profile identity), and the Generic Addon Proxy forwards
 both cookies transparently.
 """
 import httpx
@@ -146,7 +146,7 @@ class InternalClient:
 
         Unlike ``get_file_content`` this path goes through
         ``/api/internal/files/{id}/content``, which is Docker-internal
-        only and bypasses the ``hv_token`` drive-unlock check. The note
+        only and bypasses the ``lit_token`` drive-unlock check. The note
         scanner runs without any user cookie and must still be able to
         read ``.md`` files on password-protected drives — this is the
         escape hatch for that case.
