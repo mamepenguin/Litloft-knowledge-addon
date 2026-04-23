@@ -676,7 +676,28 @@ export default function Sidebar({
             {tFile("loading")}
           </div>
         ) : (
-          <div className="p-2">
+          <div
+            className={[
+              "p-2 rounded-md",
+              dropTargetPath === rootPath
+                ? "ring-2 ring-inset ring-accent bg-accent/5"
+                : "",
+            ].join(" ")}
+            onDragOver={(e) => {
+              if (!draggedItem) return;
+              e.preventDefault();
+              setDropTargetPath(rootPath);
+            }}
+            onDragLeave={() => {
+              setDropTargetPath(null);
+            }}
+            onDrop={async (e) => {
+              e.preventDefault();
+              setDropTargetPath(null);
+              if (!draggedItem) return;
+              await handleDrop(draggedItem, rootPath);
+            }}
+          >
             {/* Pins section */}
             {pins.length > 0 && (
               <div className="mb-1">
@@ -832,7 +853,7 @@ export default function Sidebar({
                 draggedItem={draggedItem}
                 dropTargetPath={dropTargetPath}
                 onDragStart={setDraggedItem}
-                onDragEnd={() => setDraggedItem(null)}
+                onDragEnd={() => { setDraggedItem(null); setDropTargetPath(null); }}
                 onDragOver={setDropTargetPath}
                 onDrop={handleDrop}
                 moving={moving}
@@ -1058,11 +1079,13 @@ function FolderBody(props: FolderBodyProps) {
             if (!draggedItem) return;
             if (isAncestorOrSelf(f.path, draggedItem)) return;
             e.preventDefault();
+            e.stopPropagation();
             onDragOver(f.path);
           }}
           onDragLeave={() => onDragOver(null)}
           onDrop={async (e) => {
             e.preventDefault();
+            e.stopPropagation();
             onDragOver(null);
             if (!draggedItem) return;
             if (isAncestorOrSelf(f.path, draggedItem)) return;
