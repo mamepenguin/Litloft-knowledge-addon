@@ -34,6 +34,13 @@ import EditorToolbar, {
 interface Props {
   fileId: string;
   filename: string;
+  /**
+   * The drive this note lives on. Needed for drive-scoped tag
+   * autocomplete in the preview pane's Properties Panel. Knowledge
+   * notes are always ``.md`` so ``mime_type`` is implied and does
+   * not need to be plumbed.
+   */
+  drive: string;
   onBack: () => void;
   onRenamed?: (newFilename: string) => void;
   onDelete?: () => void;
@@ -55,6 +62,7 @@ const AUTOSAVE_DEBOUNCE_MS = 2000;
 export default function Editor({
   fileId,
   filename,
+  drive,
   onBack,
   onRenamed,
   onDelete,
@@ -272,7 +280,17 @@ export default function Editor({
         />
         <div className={`h-full overflow-auto bg-bg-primary px-8 py-6 ${viewMode === "edit" ? "hidden" : ""}`}>
           <div className="mx-auto max-w-3xl">
-            <MarkdownPreview source={content} className="h-full" />
+            <MarkdownPreview
+              source={content}
+              className="h-full"
+              editable={{
+                id: fileId,
+                mime_type: "text/markdown",
+                filename,
+                drive,
+              }}
+              onSourceChange={setContent}
+            />
           </div>
         </div>
       </div>

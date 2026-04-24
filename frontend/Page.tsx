@@ -431,6 +431,7 @@ export default function KnowledgePage() {
           <Editor
             fileId={selectedFile.id}
             filename={selectedFile.filename}
+            drive={selectedFile.drive}
             sidebarHidden={sidebarHidden}
             onToggleSidebar={toggleSidebar}
             onBack={() => setMode({ kind: "list" })}
