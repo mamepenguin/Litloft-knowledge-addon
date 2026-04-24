@@ -9,14 +9,25 @@ Access control is provided by the host addon proxy's ``file_access``
 pre_check (manifest.json route entry). The proxy verifies the viewer
 has drive access to ``file_id`` before forwarding the request, so this
 handler can trust the caller is authorised.
+
+**Deployment assumption**: this route MUST stay behind ``addon_proxy``.
+The knowledge container is ``expose``-only (docker-compose) so direct
+8200 access is blocked at the Docker-network boundary. If that ever
+changes (``ports:`` mapping added by mistake), the handler has no
+defence-in-depth drive check — the pre_check at the proxy is the
+*sole* authorisation layer. Keep the container internal.
+
+**Rate limiting**: not enforced here. The primary rate control is the
+frontend's 2s debounce on chip edits (spec §D7). Home-LAN threat model
+makes a per-viewer bucket over-engineering; revisit if the addon is
+ever exposed externally.
 """
 from __future__ import annotations
 
 import logging
 from datetime import UTC, datetime
-from typing import Annotated
 
-from fastapi import APIRouter, HTTPException, Header
+from fastapi import APIRouter, HTTPException
 from sqlalchemy.orm import Session
 
 from app.database import session_scope
@@ -31,10 +42,7 @@ router = APIRouter(tags=["tags"])
 
 
 @router.post("/resync-tags/{file_id}")
-async def resync_tags(
-    file_id: str,
-    cookie: Annotated[str | None, Header(alias="Cookie")] = None,
-) -> dict:
+async def resync_tags(file_id: str) -> dict:
     """Re-parse a ``.md``'s frontmatter and push its ``tags:`` to core.
 
     Returns ``{"file_id": ..., "tags": [...]}`` on success. The returned
@@ -50,8 +58,13 @@ async def resync_tags(
     - 502 if core rejects the tag list (e.g. 422 from a malformed tag
       that slipped past our local filter). The scanner will retry
       later via ``tags_synced_at`` remaining NULL.
+
+    Note: no viewer cookie is read. Both upstream calls
+    (``get_file_text_content``, ``sync_core_tags``) are gated by
+    ``CORE_INTERNAL_SECRET`` and bypass the viewer session entirely.
+    Authorisation comes from the proxy's ``file_access`` pre_check.
     """
-    client = InternalClient(cookie_header=cookie)
+    client = InternalClient()
     try:
         content = await client.get_file_text_content(file_id)
     except InternalAPIError as exc:
@@ -88,7 +101,16 @@ async def resync_tags(
 
 def _bump_tags_synced_at(session: Session, file_id: str) -> None:
     """Set ``tags_synced_at = now`` for every note_origin referencing
-    this ``file_id``. No-op when the file isn't a tracked note."""
+    this ``file_id``. No-op when the file isn't a tracked note.
+
+    **Scope**: filters only on ``note_file_id``, not on vault. The
+    invariant is "one NoteOrigin per file_id" — a ``.md`` exists at a
+    single path on disk, and the scanner keys ``note_origins`` by
+    ``(vault_id, note_path)``. If the invariant ever breaks (data
+    migration, vault overlap), this bumps every matching row — which
+    is semantically correct: they all point at the file the caller
+    was authorised to touch via the proxy's ``file_access`` pre_check.
+    """
     rows = (
         session.query(NoteOrigin)
         .filter(NoteOrigin.note_file_id == file_id)
