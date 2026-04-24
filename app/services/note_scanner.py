@@ -101,10 +101,18 @@ def _normalise_tags(metadata: dict[str, Any]) -> list[str]:
     insensitively keeping the first occurrence. Returns an empty list
     when the ``tags`` key is absent or not a list — an empty list
     clears ``File.tags`` per the β canonical rule (spec §D1).
+
+    A hostile ``.md`` with an enormous ``tags:`` list (thousands of
+    invalid entries to stall the regex loop before the valid-count
+    break fires) is capped at ``_MAX_TAGS * 10`` items up front.
+    Legitimate Obsidian usage never exceeds a handful of tags per note,
+    so the cap only touches pathological input.
     """
     raw = metadata.get("tags")
     if not isinstance(raw, list):
         return []
+    if len(raw) > _MAX_TAGS * 10:
+        raw = raw[: _MAX_TAGS * 10]
     seen: dict[str, str] = {}
     for item in raw:
         if not isinstance(item, str):
@@ -274,13 +282,18 @@ async def _reconcile_one(
         await client.sync_core_tags(note_file_id, tags)
         tags_ok = True
     except InternalAPIError as exc:
+        # core's 422 body echoes the offending tag (attacker-controlled
+        # via frontmatter). Strip newlines and truncate before logging
+        # so the log line stays on one row and terminal control
+        # sequences can't forge nearby entries.
+        safe_detail = exc.detail.replace("\n", " ").replace("\r", " ")[:500]
         logger.warning(
             "note scan: tags sync failed vault=%s path=%s file=%s status=%d: %s",
             vault_id,
             note_path,
             note_file_id,
             exc.status_code,
-            exc.detail,
+            safe_detail,
         )
 
     with session_scope() as session:

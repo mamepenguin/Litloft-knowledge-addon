@@ -114,3 +114,35 @@ async def test_sync_core_tags_empty_list_sends_empty_array(monkeypatch):
     _install_transport(monkeypatch, handler)
     await InternalClient().sync_core_tags("abc123456789", [])
     assert received["body"] == {"tags": []}
+
+
+def test_validator_parity_with_core():
+    """Pin the shared validator semantics between the scanner's
+    ``_normalise_tags`` and core's ``TagUpdate`` schema.
+
+    Both sides reject tags with spaces or punctuation and accept CJK
+    word chars + ASCII + hyphen + underscore. If either side drifts,
+    scanner sync will start 422-ing or silently accept names core
+    rejects. The fix is to keep this table in sync with core's
+    ``backend/app/schemas.py::TagUpdate.validate_tags``.
+    """
+    from app.services.note_scanner import _normalise_tags
+
+    samples = [
+        # (input_yaml_value, expected_in_output)
+        ("plain", True),
+        ("with_underscore", True),
+        ("with-hyphen", True),
+        ("日本語", True),
+        ("mixed123", True),
+        ("has space", False),
+        ("has.dot", False),
+        ("has!bang", False),
+        ("", False),
+        ("x" * 31, False),  # over length cap
+        ("x" * 30, True),  # at cap
+    ]
+    for value, expected in samples:
+        result = _normalise_tags({"tags": [value]})
+        got = bool(result)
+        assert got == expected, f"{value!r} expected {expected} got {got}"
