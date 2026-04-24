@@ -199,12 +199,67 @@ export default function KnowledgePage() {
     });
   }, []);
 
+  const navigateMode = useCallback((next: Mode) => {
+    if (typeof window !== "undefined") {
+      const url = new URL(window.location.href);
+      const hasEdit = url.searchParams.has("edit");
+      if (next.kind === "edit") {
+        const targetId = next.file.id;
+        const currentId = url.searchParams.get("edit");
+        if (currentId !== targetId) {
+          url.searchParams.set("edit", targetId);
+          const path = url.pathname + url.search;
+          if (hasEdit) {
+            window.history.replaceState(window.history.state, "", path);
+          } else {
+            window.history.pushState({ knowledgeEdit: true }, "", path);
+          }
+        }
+      } else if (hasEdit) {
+        url.searchParams.delete("edit");
+        window.history.replaceState(
+          window.history.state,
+          "",
+          url.pathname + url.search,
+        );
+      }
+    }
+    setMode(next);
+  }, []);
+
+  useEffect(() => {
+    const onPopState = async () => {
+      const id = new URLSearchParams(window.location.search).get("edit");
+      if (id) {
+        const file = await fetchFileMeta(id);
+        if (file) {
+          setMode({ kind: "edit", file });
+          return;
+        }
+      }
+      setMode((prev) => (prev.kind === "edit" ? { kind: "list" } : prev));
+    };
+    window.addEventListener("popstate", onPopState);
+    return () => window.removeEventListener("popstate", onPopState);
+  }, []);
+
+  const handleEditorBack = useCallback(() => {
+    if (
+      typeof window !== "undefined" &&
+      (window.history.state as { knowledgeEdit?: boolean } | null)?.knowledgeEdit
+    ) {
+      window.history.back();
+    } else {
+      navigateMode({ kind: "list" });
+    }
+  }, [navigateMode]);
+
   const handleDelete = useCallback(
     async (file: CoreFileItem) => {
       // Optimistic: switch out of the editor immediately. Even on API
       // failure the file still exists in the sidebar, so the user can
       // re-open it by clicking — no need to force-reopen.
-      setMode({ kind: "list" });
+      navigateMode({ kind: "list" });
       setActiveId((prev) => {
         if (prev !== null) saveLastFileId(prev, null);
         return prev;
@@ -223,7 +278,7 @@ export default function KnowledgePage() {
         });
       }
     },
-    [pins],
+    [pins, navigateMode],
   );
 
   const handleDeleteFolder = useCallback(
@@ -245,7 +300,7 @@ export default function KnowledgePage() {
     try {
       await restoreFile(file.id);
       setDeleteNotice(null);
-      setMode({ kind: "edit", file });
+      navigateMode({ kind: "edit", file });
       setReloadKey((k) => k + 1);
     } catch (e) {
       setDeleteNotice({
@@ -254,7 +309,7 @@ export default function KnowledgePage() {
         file,
       });
     }
-  }, [deleteNotice]);
+  }, [deleteNotice, navigateMode]);
 
   useEffect(() => {
     if (!deleteNotice) return;
@@ -275,7 +330,7 @@ export default function KnowledgePage() {
       if (editParam) {
         const file = await fetchFileMeta(editParam);
         if (file) {
-          setMode({ kind: "edit", file });
+          navigateMode({ kind: "edit", file });
           return;
         }
       }
@@ -285,17 +340,19 @@ export default function KnowledgePage() {
         if (lastId) {
           const file = await fetchFileMeta(lastId);
           if (file) {
-            setMode({ kind: "edit", file });
+            navigateMode({ kind: "edit", file });
             return;
           }
           saveLastFileId(activeVaultId, null);
         }
       }
-      setMode(res.vaults.length === 0 ? { kind: "setup" } : { kind: "list" });
+      navigateMode(
+        res.vaults.length === 0 ? { kind: "setup" } : { kind: "list" },
+      );
     } catch (e) {
       setError((e as Error).message);
     }
-  }, [editParam, drive]);
+  }, [editParam, drive, navigateMode]);
 
   useEffect(() => {
     refresh();
@@ -335,10 +392,12 @@ export default function KnowledgePage() {
         onCreated={(v) => {
           setVaults((prev) => [...prev, v]);
           setActiveId(v.id);
-          setMode({ kind: "list" });
+          navigateMode({ kind: "list" });
         }}
         onCancel={
-          mode.kind === "addNew" ? () => setMode({ kind: "list" }) : undefined
+          mode.kind === "addNew"
+            ? () => navigateMode({ kind: "list" })
+            : undefined
         }
       />
     );
@@ -365,7 +424,7 @@ export default function KnowledgePage() {
     setDuplicateMatch(null);
     setClipOpen(false);
     const file = await fetchFileMeta(fileId);
-    if (file) setMode({ kind: "edit", file });
+    if (file) navigateMode({ kind: "edit", file });
   };
 
   const closeClip = () => {
@@ -406,11 +465,13 @@ export default function KnowledgePage() {
             fetchingClipsCount={fetchingClipsCount}
             onSwitchVault={(v) => {
               setActiveId(v.id);
-              setMode({ kind: "list" });
+              navigateMode({ kind: "list" });
             }}
-            onAddVault={() => setMode({ kind: "addNew" })}
-            onSelectFile={(f) => setMode({ kind: "edit", file: f })}
-            onOpenFolder={(path, name) => setMode({ kind: "folder", path, name })}
+            onAddVault={() => navigateMode({ kind: "addNew" })}
+            onSelectFile={(f) => navigateMode({ kind: "edit", file: f })}
+            onOpenFolder={(path, name) =>
+              navigateMode({ kind: "folder", path, name })
+            }
             onOpenClip={() => setClipOpen(true)}
             onOpenClipHelp={() => setHelpOpen(true)}
             pins={pins.pins}
@@ -434,7 +495,7 @@ export default function KnowledgePage() {
             drive={selectedFile.drive}
             sidebarHidden={sidebarHidden}
             onToggleSidebar={toggleSidebar}
-            onBack={() => setMode({ kind: "list" })}
+            onBack={handleEditorBack}
             onRenamed={(newFilename) => {
               setMode({
                 kind: "edit",
@@ -453,9 +514,11 @@ export default function KnowledgePage() {
             name={folderMode.name}
             sidebarHidden={sidebarHidden}
             onToggleSidebar={toggleSidebar}
-            onBack={() => setMode({ kind: "list" })}
-            onSelectFile={(f) => setMode({ kind: "edit", file: f })}
-            onSelectFolder={(path, name) => setMode({ kind: "folder", path, name })}
+            onBack={() => navigateMode({ kind: "list" })}
+            onSelectFile={(f) => navigateMode({ kind: "edit", file: f })}
+            onSelectFolder={(path, name) =>
+              navigateMode({ kind: "folder", path, name })
+            }
             onReload={() => setReloadKey((k) => k + 1)}
           />
         ) : active ? (
@@ -463,7 +526,7 @@ export default function KnowledgePage() {
             drive={drive}
             vault={active}
             reloadKey={reloadKey}
-            onSelectFile={(f) => setMode({ kind: "edit", file: f })}
+            onSelectFile={(f) => navigateMode({ kind: "edit", file: f })}
           />
         ) : null}
       </main>
