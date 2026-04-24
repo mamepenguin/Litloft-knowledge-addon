@@ -64,10 +64,39 @@ def _migrate_user_vault_state_to_drive_scope() -> None:
         conn.execute(text("DROP TABLE user_vault_state"))
 
 
+def _migrate_drop_note_origin_ref() -> None:
+    """Drop the legacy ``note_origins.origin_ref`` column.
+
+    Spec 2026-04-24-knowledge-frontmatter-schema-and-display §B1: the
+    column held dead metadata (written + read + stored, never queried
+    or branched on). SQLite 3.35+ supports ``ALTER TABLE ... DROP
+    COLUMN`` natively; if that fails we skip silently because a leftover
+    column is harmless (the ORM no longer references it) and the rebuild
+    dance would risk data loss on restart.
+    """
+    insp = inspect(engine)
+    if "note_origins" not in insp.get_table_names():
+        return
+    cols = {c["name"] for c in insp.get_columns("note_origins")}
+    if "origin_ref" not in cols:
+        return
+    try:
+        with engine.begin() as conn:
+            conn.execute(text("ALTER TABLE note_origins DROP COLUMN origin_ref"))
+        logger.info("knowledge: dropped legacy note_origins.origin_ref column")
+    except Exception as exc:
+        logger.warning(
+            "knowledge: could not drop note_origins.origin_ref (%s); "
+            "leaving column in place (harmless — ORM no longer uses it)",
+            exc,
+        )
+
+
 def init_schema() -> None:
     """Create all tables if not present. Safe to call on every startup."""
     _migrate_user_vault_state_to_drive_scope()
     Base.metadata.create_all(bind=engine)
+    _migrate_drop_note_origin_ref()
 
 
 @contextmanager

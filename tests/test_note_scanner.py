@@ -40,14 +40,12 @@ def _seed_note(
     source_ids: list[str] | None = None,
     last_synced_at: datetime | None = None,
     origin: str | None = "detailed_summary",
-    origin_ref: str | None = None,
 ) -> NoteOrigin:
     row = NoteOrigin(
         vault_id=vault.id,
         note_path=note_path,
         note_file_id=note_file_id,
         origin=origin,
-        origin_ref=origin_ref,
         approved_at=datetime.now(UTC),
         health="healthy",
     )
@@ -161,7 +159,6 @@ async def test_updated_note_reparses_frontmatter(knowledge_db):
         note_file_id="nEdit0000001",
         source_ids=["orig-src"],
         last_synced_at=past,
-        origin_ref="intelligence:orig-src/detailed_summary",
     )
     vault_id = vault.id
     session.close()
@@ -185,8 +182,7 @@ async def test_updated_note_reparses_frontmatter(knowledge_db):
                 "source_file_ids:\n"
                 "  - new-src-1\n"
                 "  - new-src-2\n"
-                "origin_ref: intelligence:new-src-1/detailed_summary\n"
-                "approved_at: \"2026-04-21T10:00:00Z\"\n"
+                "created: \"2026-04-21T10:00:00Z\"\n"
                 "---\n"
                 "\n"
                 "# Retitled\n"
@@ -209,7 +205,11 @@ async def test_updated_note_reparses_frontmatter(knowledge_db):
     )
     assert note is not None
     assert note.origin == "detailed_summary"
-    assert note.origin_ref == "intelligence:new-src-1/detailed_summary"
+    # approved_at column holds the frontmatter ``created`` value (see
+    # models.py comment).
+    assert note.approved_at.replace(tzinfo=UTC) == datetime(
+        2026, 4, 21, 10, 0, 0, tzinfo=UTC
+    )
     # last_synced_at advanced past the old baseline.
     assert note.last_synced_at.replace(tzinfo=UTC) > past
 
@@ -548,6 +548,170 @@ async def test_content_5xx_counts_as_error(knowledge_db):
 
     assert stats.errors == 1
     assert stats.protected_errors == 0
+
+
+@pytest.mark.anyio
+async def test_legacy_approved_at_read_as_created_fallback(knowledge_db):
+    """Existing ``.md`` with the old ``approved_at`` key still populates
+    the DB. The scanner reads ``created`` → ``approved_at`` → ``clipped_at``
+    in order."""
+    session = knowledge_db()
+    vault = _seed_vault(session)
+    past = datetime.now(UTC) - timedelta(hours=2)
+    _seed_note(
+        session,
+        vault,
+        note_file_id="nLegacyAppr0",
+        source_ids=["a"],
+        last_synced_at=past,
+    )
+    vault_id = vault.id
+    session.close()
+
+    client = _FakeClient(
+        file_info={
+            "nLegacyAppr0": {
+                "id": "nLegacyAppr0",
+                "drive": "test-drive",
+                "filename": "n.md",
+                "file_type": "document",
+                "folder_path": "",
+                "updated_at": _iso(datetime.now(UTC)),
+            }
+        },
+        file_content={
+            "nLegacyAppr0": (
+                "---\n"
+                "origin: detailed_summary\n"
+                "source_file_ids:\n"
+                "  - a\n"
+                "approved_at: \"2026-01-15T12:00:00Z\"\n"
+                "---\n"
+                "body\n"
+            )
+        },
+    )
+    stats = await note_scanner.reconcile_once(client)
+    assert stats.updated == 1
+
+    verify = knowledge_db()
+    note = (
+        verify.query(NoteOrigin)
+        .filter(NoteOrigin.vault_id == vault_id, NoteOrigin.note_path == "n.md")
+        .first()
+    )
+    assert note.approved_at.replace(tzinfo=UTC) == datetime(
+        2026, 1, 15, 12, 0, 0, tzinfo=UTC
+    )
+
+
+@pytest.mark.anyio
+async def test_legacy_clipped_at_read_as_created_fallback(knowledge_db):
+    """Older webclip ``.md`` written before the created rename still
+    populate the DB via the ``clipped_at`` fallback."""
+    session = knowledge_db()
+    vault = _seed_vault(session)
+    past = datetime.now(UTC) - timedelta(hours=2)
+    _seed_note(
+        session,
+        vault,
+        note_file_id="nLegacyClip0",
+        source_ids=[],
+        last_synced_at=past,
+        origin="webclip",
+    )
+    vault_id = vault.id
+    session.close()
+
+    client = _FakeClient(
+        file_info={
+            "nLegacyClip0": {
+                "id": "nLegacyClip0",
+                "drive": "test-drive",
+                "filename": "n.md",
+                "file_type": "document",
+                "folder_path": "",
+                "updated_at": _iso(datetime.now(UTC)),
+            }
+        },
+        file_content={
+            "nLegacyClip0": (
+                "---\n"
+                "url: https://example.com/x\n"
+                "origin: webclip\n"
+                "clipped_at: \"2026-02-01T08:30:00Z\"\n"
+                "---\n"
+                "body\n"
+            )
+        },
+    )
+    stats = await note_scanner.reconcile_once(client)
+    assert stats.updated == 1
+
+    verify = knowledge_db()
+    note = (
+        verify.query(NoteOrigin)
+        .filter(
+            NoteOrigin.vault_id == vault_id, NoteOrigin.note_path == "n.md"
+        )
+        .first()
+    )
+    assert note.approved_at.replace(tzinfo=UTC) == datetime(
+        2026, 2, 1, 8, 30, 0, tzinfo=UTC
+    )
+
+
+@pytest.mark.anyio
+async def test_created_takes_precedence_over_legacy_keys(knowledge_db):
+    """When both ``created`` and ``approved_at`` are present, ``created`` wins."""
+    session = knowledge_db()
+    vault = _seed_vault(session)
+    past = datetime.now(UTC) - timedelta(hours=2)
+    _seed_note(
+        session,
+        vault,
+        note_file_id="nMixedKey001",
+        source_ids=[],
+        last_synced_at=past,
+    )
+    vault_id = vault.id
+    session.close()
+
+    client = _FakeClient(
+        file_info={
+            "nMixedKey001": {
+                "id": "nMixedKey001",
+                "drive": "test-drive",
+                "filename": "n.md",
+                "file_type": "document",
+                "folder_path": "",
+                "updated_at": _iso(datetime.now(UTC)),
+            }
+        },
+        file_content={
+            "nMixedKey001": (
+                "---\n"
+                "origin: detailed_summary\n"
+                "created: \"2026-03-10T09:00:00Z\"\n"
+                "approved_at: \"2026-01-01T00:00:00Z\"\n"
+                "---\n"
+                "body\n"
+            )
+        },
+    )
+    await note_scanner.reconcile_once(client)
+
+    verify = knowledge_db()
+    note = (
+        verify.query(NoteOrigin)
+        .filter(
+            NoteOrigin.vault_id == vault_id, NoteOrigin.note_path == "n.md"
+        )
+        .first()
+    )
+    assert note.approved_at.replace(tzinfo=UTC) == datetime(
+        2026, 3, 10, 9, 0, 0, tzinfo=UTC
+    )
 
 
 @pytest.fixture()

@@ -206,3 +206,47 @@ def test_pasted_html_rejects_bad_url(
         headers={"Cookie": viewer_cookie, "X-Lit-Drive": "test-drive"},
     )
     assert r.status_code == 400
+
+
+class TestFrontmatterSchema:
+    """Spec 2026-04-24: webclip writes only url + origin + created. The
+    legacy keys (title / status / clipped_at) must not appear in new
+    placeholders or the ready state."""
+
+    def test_initial_content_has_schema_fields(self):
+        import re
+        from app.routers.clips import _initial_content
+        from app.services.frontmatter import parse
+
+        fm = parse(_initial_content("https://example.com/x"))
+        assert fm.metadata["url"] == "https://example.com/x"
+        assert fm.metadata["origin"] == "webclip"
+        created = fm.metadata["created"]
+        assert isinstance(created, str)
+        assert re.fullmatch(r"\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z", created)
+
+    def test_initial_content_drops_legacy_keys(self):
+        from app.routers.clips import _initial_content
+        from app.services.frontmatter import parse
+
+        fm = parse(_initial_content("https://example.com/x"))
+        assert "status" not in fm.metadata
+        assert "title" not in fm.metadata
+        assert "clipped_at" not in fm.metadata
+
+    def test_ready_content_has_schema_fields(self):
+        import re
+        from app.routers.clips import _ready_content
+        from app.services.extractor import ExtractedArticle
+        from app.services.frontmatter import parse
+
+        article = ExtractedArticle(title="Hello", markdown="body")
+        fm = parse(_ready_content("https://example.com/x", article))
+        assert fm.metadata["url"] == "https://example.com/x"
+        assert fm.metadata["origin"] == "webclip"
+        created = fm.metadata["created"]
+        assert isinstance(created, str)
+        assert re.fullmatch(r"\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z", created)
+        assert "status" not in fm.metadata
+        assert "title" not in fm.metadata
+        assert "clipped_at" not in fm.metadata

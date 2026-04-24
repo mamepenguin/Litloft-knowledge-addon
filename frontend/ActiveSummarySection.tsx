@@ -85,6 +85,11 @@ export default function ActiveSummarySection({
       {error !== null && (
         <p className="text-sm text-accent-amber">{t("loadFailed")}</p>
       )}
+      {/* frontmatter is intentionally hidden here: the surrounding file
+          detail already shows this file's metadata, so repeating
+          `source_file_ids` / `origin` in a Properties panel is noise.
+          Users who want to see/edit the frontmatter open the note in
+          the knowledge editor via the "edit" link above. */}
       {content !== null && (
         <MarkdownPreview
           source={content}

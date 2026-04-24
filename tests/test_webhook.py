@@ -51,7 +51,6 @@ def _seed_note(
         note_path=note_path,
         note_file_id=note_file_id,
         origin="detailed_summary",
-        origin_ref=None,
         approved_at=datetime.now(UTC),
         health=health,
     )

@@ -34,7 +34,7 @@ from app.database import get_db
 from app.internal_client import InternalAPIError, InternalClient
 from app.models import NoteOrigin, NoteOriginSource, UserVault
 from app.schemas import DistillRequest, DistillResponse, NoteOriginOut
-from app.services.frontmatter import compose
+from app.services.frontmatter import compose, iso_z
 
 logger = logging.getLogger(__name__)
 
@@ -117,16 +117,13 @@ def _compose_markdown(
     content: str,
     source_file_id: str,
     origin: str,
-    origin_ref: str | None,
     approved_at: datetime,
 ) -> str:
     metadata: dict[str, object] = {
         "origin": origin,
         "source_file_ids": [source_file_id],
+        "created": iso_z(approved_at),
     }
-    if origin_ref:
-        metadata["origin_ref"] = origin_ref
-    metadata["approved_at"] = approved_at.isoformat().replace("+00:00", "Z")
 
     body_pieces: list[str] = []
     if title:
@@ -176,7 +173,6 @@ async def distill(
         content=body.content,
         source_file_id=body.source_file_id,
         origin=body.origin,
-        origin_ref=body.origin_ref,
         approved_at=approved_at,
     )
 
@@ -241,7 +237,6 @@ async def distill(
         note_path=vault_rel_note_path,
         note_file_id=note_file_id,
         origin=body.origin,
-        origin_ref=body.origin_ref,
         approved_at=approved_at,
         health="healthy",
     )
@@ -321,7 +316,6 @@ async def notes_by_source_file(
                 drive=vault.drive,
                 path=full_path,
                 origin=origin.origin,
-                origin_ref=origin.origin_ref,
                 approved_at=origin.approved_at,
                 health=origin.health,
             )

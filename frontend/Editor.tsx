@@ -272,7 +272,7 @@ export default function Editor({
         />
         <div className={`h-full overflow-auto bg-bg-primary px-8 py-6 ${viewMode === "edit" ? "hidden" : ""}`}>
           <div className="mx-auto max-w-3xl">
-            <MarkdownPreview source={content} showFrontmatter={false} className="h-full" />
+            <MarkdownPreview source={content} className="h-full" />
           </div>
         </div>
       </div>

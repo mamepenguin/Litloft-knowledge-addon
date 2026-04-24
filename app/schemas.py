@@ -75,7 +75,6 @@ class DistillRequest(BaseModel):
     title: str = Field(min_length=1, max_length=200)
     content: str = Field(min_length=0, max_length=1 * 1024 * 1024)
     origin: str = Field(default="detailed_summary", max_length=32)
-    origin_ref: str | None = Field(default=None, max_length=256)
 
 
 class DistillResponse(BaseModel):
@@ -92,7 +91,6 @@ class NoteOriginOut(BaseModel):
     drive: str
     path: str
     origin: str | None
-    origin_ref: str | None
     approved_at: datetime | None
     health: str
 

@@ -36,6 +36,7 @@ from app.sanitize import build_frontmatter, slugify_filename
 from app.schemas import ClipCreate, ClipJobOut, ClipPasted
 from app.services.extractor import ExtractedArticle, extract_article, sanitize_pasted_html
 from app.services.fetcher import BlockedURL, validate_url
+from app.services.frontmatter import iso_z
 from app.services.safepath import validate_relative_path
 from app.services.worker import ClipTask
 
@@ -64,8 +65,8 @@ def _placeholder_slug(title: str | None) -> str:
 def _initial_content(url: str) -> str:
     fm = build_frontmatter({
         "url": url,
-        "status": "fetching",
-        "clipped_at": datetime.now(timezone.utc).isoformat(),
+        "origin": "webclip",
+        "created": iso_z(datetime.now(timezone.utc)),
     })
     return fm + "\nFetching…\n"
 
@@ -77,9 +78,8 @@ def _compute_etag(content: str) -> str:
 def _ready_content(url: str, article: ExtractedArticle) -> str:
     fm = build_frontmatter({
         "url": url,
-        "status": "ready",
-        "title": article.title,
-        "clipped_at": datetime.now(timezone.utc).isoformat(),
+        "origin": "webclip",
+        "created": iso_z(datetime.now(timezone.utc)),
     })
     return fm + "\n" + article.markdown + "\n"
 

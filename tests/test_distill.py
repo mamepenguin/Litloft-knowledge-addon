@@ -35,7 +35,6 @@ def _distill_payload(**overrides):
         "title": "vid.mkv の詳細要約",
         "content": "## 全体像\n\n本編は…",
         "origin": "detailed_summary",
-        "origin_ref": "intelligence:src1/detailed_summary",
     }
     payload.update(overrides)
     return payload
@@ -104,8 +103,18 @@ class TestDistillHappyPath:
         parsed = parse(writes[0]["content"])
         assert parsed.metadata["origin"] == "detailed_summary"
         assert parsed.metadata["source_file_ids"] == ["src1"]
-        assert parsed.metadata["origin_ref"] == "intelligence:src1/detailed_summary"
-        assert "approved_at" in parsed.metadata
+        # ``created`` is second-precision UTC ISO 8601 with a trailing Z
+        # (spec 2026-04-24 §D — no microseconds, no +00:00 suffix).
+        created = parsed.metadata["created"]
+        assert isinstance(created, str), (
+            "created must serialise as a string, not a YAML timestamp"
+        )
+        import re
+        assert re.fullmatch(r"\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z", created), created
+        # Legacy keys removed: origin_ref / approved_at / title / status must
+        # not appear in new writes.
+        assert "origin_ref" not in parsed.metadata
+        assert "approved_at" not in parsed.metadata
         # The body begins with the H1 we set.
         assert parsed.body.startswith("# vid.mkv の詳細要約")
 
@@ -262,7 +271,7 @@ class TestReverseLookup:
         assert entry["drive"] == "test-drive"
         assert entry["path"] == "Notes/AI-Drafts/vid-summary.md"
         assert entry["origin"] == "detailed_summary"
-        assert entry["origin_ref"] == "intelligence:src1/detailed_summary"
+        assert "origin_ref" not in entry
         assert entry["health"] == "healthy"
 
     def test_empty_list_when_no_matches(

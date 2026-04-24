@@ -20,6 +20,7 @@ from app.internal_client import InternalAPIError, InternalClient
 from app.routers import clips, distill, search, vaults, webhooks
 from app.sanitize import build_frontmatter, slugify_filename
 from app.services.extractor import ExtractedArticle
+from app.services.frontmatter import iso_z
 from app.services.note_scanner import scanner_loop
 from app.services.worker import ClipTask, ClipWorker
 
@@ -61,9 +62,8 @@ async def _publish_clip(task: ClipTask, article: ExtractedArticle) -> None:
     current_etag = hashlib.sha256(current.encode("utf-8")).hexdigest()
     fm = build_frontmatter({
         "url": task.url,
-        "status": "ready",
-        "title": article.title,
-        "clipped_at": datetime.now(timezone.utc).isoformat(),
+        "origin": "webclip",
+        "created": iso_z(datetime.now(timezone.utc)),
     })
     new_content = fm + "\n" + article.markdown + "\n"
 

@@ -114,7 +114,10 @@ class NoteOrigin(Base):
     # between Vault subfolders and updates note_path alongside.
     note_file_id: Mapped[str] = mapped_column(String(12), nullable=False)
     origin: Mapped[Optional[str]] = mapped_column(String(32), nullable=True)
-    origin_ref: Mapped[Optional[str]] = mapped_column(String(256), nullable=True)
+    # Carries the frontmatter ``created`` value (spec 2026-04-24 renamed
+    # the frontmatter key from ``approved_at`` to ``created``, but the DB
+    # column is kept to avoid a second rebuild migration — note_scanner
+    # writes the ``created`` value here).
     approved_at: Mapped[Optional[datetime]] = mapped_column(nullable=True)
     health: Mapped[str] = mapped_column(
         String(16),

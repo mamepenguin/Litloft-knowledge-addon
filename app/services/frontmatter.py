@@ -7,7 +7,7 @@ convention::
     origin: detailed_summary
     source_file_ids:
       - "abc123"
-    approved_at: "2026-04-21T12:00:00Z"
+    created: "2026-04-21T12:00:00Z"
     ---
 
     # Title
@@ -21,6 +21,7 @@ frontmatter is not an error; the resulting metadata is simply ``None``.
 from __future__ import annotations
 
 from dataclasses import dataclass
+from datetime import datetime, timezone
 from typing import Any
 
 import yaml
@@ -33,6 +34,22 @@ class ParsedMarkdown:
 
 
 _DELIM = "---"
+
+
+def iso_z(dt: datetime) -> str:
+    """Render a datetime as ISO 8601 with Z suffix, second precision.
+
+    Our frontmatter convention (spec 2026-04-24): UTC, no sub-second
+    noise, trailing ``Z`` instead of ``+00:00``. Naive datetimes are
+    assumed to already be UTC; aware ones are converted.
+
+    Example: ``datetime.now(UTC)`` → ``"2026-04-22T11:38:38Z"``.
+    """
+    if dt.tzinfo is None:
+        aware = dt.replace(tzinfo=timezone.utc)
+    else:
+        aware = dt.astimezone(timezone.utc)
+    return aware.replace(microsecond=0).isoformat().replace("+00:00", "Z")
 
 
 def parse(content: str) -> ParsedMarkdown:

@@ -5,8 +5,7 @@ The scanner asks core's Internal API for each note's current
 ``last_synced_at`` we re-fetch the file content, re-parse its
 frontmatter, and refresh the origin + source rows accordingly. This
 keeps external edits (users opening the ``.md`` in Obsidian and
-tweaking ``source_file_ids``, ``origin_ref``, etc.) from drifting our
-cache.
+tweaking ``source_file_ids`` etc.) from drifting our cache.
 
 Why a scanner and not event hooks: core currently has no
 ``files.content_updated`` event, and adding one expands core's
@@ -79,12 +78,22 @@ def _normalise_source_ids(metadata: dict[str, Any]) -> list[str]:
     return [str(x) for x in raw if isinstance(x, (str, int))]
 
 
-def _normalise_approved_at(metadata: dict[str, Any]) -> datetime | None:
-    raw = metadata.get("approved_at")
-    if isinstance(raw, datetime):
-        return raw if raw.tzinfo else raw.replace(tzinfo=UTC)
-    if isinstance(raw, str):
-        return _parse_iso(raw)
+def _extract_created(metadata: dict[str, Any]) -> datetime | None:
+    """Read the ``created`` timestamp, falling back to legacy keys.
+
+    Spec 2026-04-24 renamed webclip's ``clipped_at`` and distill's
+    ``approved_at`` to a unified ``created``. Older ``.md`` files on
+    disk still use the legacy names — read them as fallback so existing
+    Vaults don't break. New writes always use ``created``.
+    """
+    for key in ("created", "approved_at", "clipped_at"):
+        raw = metadata.get(key)
+        if isinstance(raw, datetime):
+            return raw if raw.tzinfo else raw.replace(tzinfo=UTC)
+        if isinstance(raw, str):
+            parsed = _parse_iso(raw)
+            if parsed is not None:
+                return parsed
     return None
 
 
@@ -97,12 +106,11 @@ def _apply_frontmatter(
     origin = metadata.get("origin")
     note.origin = origin if isinstance(origin, str) else None
 
-    origin_ref = metadata.get("origin_ref")
-    note.origin_ref = origin_ref if isinstance(origin_ref, str) else None
-
-    approved = _normalise_approved_at(metadata)
-    if approved is not None:
-        note.approved_at = approved
+    # ``approved_at`` column stores the latest ``created`` value (see
+    # models.py — the column name is kept for backward compat).
+    created = _extract_created(metadata)
+    if created is not None:
+        note.approved_at = created
 
     note.last_synced_at = datetime.now(UTC)
 

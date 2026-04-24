@@ -1,7 +1,9 @@
 """Tests for the frontmatter parse/compose helpers."""
 from __future__ import annotations
 
-from app.services.frontmatter import compose, parse, strip
+from datetime import datetime, timezone
+
+from app.services.frontmatter import compose, iso_z, parse, strip
 
 
 class TestParse:
@@ -99,3 +101,33 @@ class TestStrip:
     def test_strip_returns_body(self):
         text = "---\norigin: x\n---\n\nbody\n"
         assert strip(text) == "body\n"
+
+
+class TestIsoZ:
+    """Spec 2026-04-24 §D — ``created`` is second-precision UTC with Z."""
+
+    def test_aware_utc_emits_z_suffix(self):
+        dt = datetime(2026, 4, 22, 11, 38, 38, tzinfo=timezone.utc)
+        assert iso_z(dt) == "2026-04-22T11:38:38Z"
+
+    def test_microseconds_are_dropped(self):
+        dt = datetime(
+            2026, 4, 22, 11, 38, 38, microsecond=578041, tzinfo=timezone.utc
+        )
+        assert iso_z(dt) == "2026-04-22T11:38:38Z"
+
+    def test_non_utc_aware_is_converted_to_utc(self):
+        from datetime import timedelta
+        jst = timezone(timedelta(hours=9))
+        dt = datetime(2026, 4, 22, 20, 38, 38, tzinfo=jst)
+        assert iso_z(dt) == "2026-04-22T11:38:38Z"
+
+    def test_naive_datetime_is_assumed_utc(self):
+        dt = datetime(2026, 4, 22, 11, 38, 38)
+        assert iso_z(dt) == "2026-04-22T11:38:38Z"
+
+    def test_never_emits_plus_suffix(self):
+        dt = datetime(2026, 4, 22, 11, 38, 38, tzinfo=timezone.utc)
+        rendered = iso_z(dt)
+        assert "+" not in rendered
+        assert rendered.endswith("Z")
