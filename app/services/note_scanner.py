@@ -93,6 +93,42 @@ _MAX_TAGS = 10
 _MAX_TAG_LEN = 30
 
 
+async def project_tags_from_frontmatter(
+    client: InternalClient,
+    file_id: str,
+    metadata: dict[str, Any],
+    *,
+    log_context: str = "",
+) -> tuple[list[str], bool]:
+    """Project ``metadata['tags']`` onto core ``File.tags`` via the
+    internal API.
+
+    Returns ``(projected_tags, ok)``. ``ok`` is ``True`` iff the
+    HTTP call returned 204. Callers use ``ok`` to decide whether
+    to bump ``tags_synced_at``. Errors are logged (with the ``exc.detail``
+    sanitised to one line) and do not propagate — the scanner and
+    resync endpoint both treat tag sync as best-effort.
+
+    Used both by the periodic scanner (``_reconcile_one``) and the
+    synchronous ``POST /resync-tags/{file_id}`` endpoint triggered by
+    the UI after a frontmatter edit (spec §D5).
+    """
+    tags = _normalise_tags(metadata)
+    try:
+        await client.sync_core_tags(file_id, tags)
+        return tags, True
+    except InternalAPIError as exc:
+        safe_detail = exc.detail.replace("\n", " ").replace("\r", " ")[:500]
+        logger.warning(
+            "tags sync failed %s file=%s status=%d: %s",
+            log_context,
+            file_id,
+            exc.status_code,
+            safe_detail,
+        )
+        return tags, False
+
+
 def _normalise_tags(metadata: dict[str, Any]) -> list[str]:
     """Extract a list of core-valid tag names from frontmatter.
 
@@ -276,25 +312,12 @@ async def _reconcile_one(
     # doesn't leave note_origins ahead of core. Best-effort: tag errors
     # are logged but don't block frontmatter sync — the scanner will
     # retry on the next pass via tags_synced_at still NULL.
-    tags = _normalise_tags(parsed.metadata)
-    tags_ok = False
-    try:
-        await client.sync_core_tags(note_file_id, tags)
-        tags_ok = True
-    except InternalAPIError as exc:
-        # core's 422 body echoes the offending tag (attacker-controlled
-        # via frontmatter). Strip newlines and truncate before logging
-        # so the log line stays on one row and terminal control
-        # sequences can't forge nearby entries.
-        safe_detail = exc.detail.replace("\n", " ").replace("\r", " ")[:500]
-        logger.warning(
-            "note scan: tags sync failed vault=%s path=%s file=%s status=%d: %s",
-            vault_id,
-            note_path,
-            note_file_id,
-            exc.status_code,
-            safe_detail,
-        )
+    tags, tags_ok = await project_tags_from_frontmatter(
+        client,
+        note_file_id,
+        parsed.metadata,
+        log_context=f"vault={vault_id} path={note_path}",
+    )
 
     with session_scope() as session:
         note = (

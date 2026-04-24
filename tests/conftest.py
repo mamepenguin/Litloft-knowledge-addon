@@ -128,12 +128,43 @@ class FakeInternalClient:
             {"event": event, "data": data, "drive": drive}
         )
 
+    # Text content served by ``get_file_text_content``, keyed on file_id.
+    # Tests can pre-seed it to exercise resync-tags and other scanner
+    # paths that depend on the .md body.
+    file_text_override: dict[str, str] = {}
+    # Force ``get_file_text_content`` to raise a specific HTTP status.
+    raise_on_text_content: dict[str, int] = {}
+
+    async def get_file_text_content(self, file_id):
+        from app.internal_client import InternalAPIError
+
+        if file_id in FakeInternalClient.raise_on_text_content:
+            raise InternalAPIError(
+                FakeInternalClient.raise_on_text_content[file_id], "forced"
+            )
+        if file_id not in FakeInternalClient.file_text_override:
+            raise InternalAPIError(404, "not found")
+        return FakeInternalClient.file_text_override[file_id]
+
+    captured_tag_syncs: list[tuple[str, list[str]]] = []
+    raise_on_tag_sync: dict[str, int] = {}
+
+    async def sync_core_tags(self, file_id, tags):
+        from app.internal_client import InternalAPIError
+
+        FakeInternalClient.captured_tag_syncs.append((file_id, list(tags)))
+        if file_id in FakeInternalClient.raise_on_tag_sync:
+            raise InternalAPIError(
+                FakeInternalClient.raise_on_tag_sync[file_id], "forced"
+            )
+
 
 @pytest.fixture()
 def fake_internal(monkeypatch):
     """Swap InternalClient with FakeInternalClient wherever the routers
     import it, and reset the per-test accessible-drives override."""
     import app.routers.distill as distill
+    import app.routers.tags as tags
     import app.routers.vaults as vaults
 
     FakeInternalClient.accessible_drives_override = ["test-drive", "media"]
@@ -144,8 +175,13 @@ def fake_internal(monkeypatch):
     FakeInternalClient.captured_text_writes = []
     FakeInternalClient.file_info_override = {}
     FakeInternalClient.captured_addon_events = []
+    FakeInternalClient.file_text_override = {}
+    FakeInternalClient.raise_on_text_content = {}
+    FakeInternalClient.captured_tag_syncs = []
+    FakeInternalClient.raise_on_tag_sync = {}
     monkeypatch.setattr(vaults, "InternalClient", FakeInternalClient)
     monkeypatch.setattr(distill, "InternalClient", FakeInternalClient)
+    monkeypatch.setattr(tags, "InternalClient", FakeInternalClient)
     yield FakeInternalClient
 
 

@@ -64,6 +64,15 @@
                 "path": "/status",
                 "methods": ["GET"],
                 "response_filter": null
+            },
+            {
+                "path": "/resync-tags/{file_id}",
+                "methods": ["POST"],
+                "pre_check": {
+                    "type": "file_access",
+                    "param": "file_id"
+                },
+                "response_filter": null
             }
         ]
     }
