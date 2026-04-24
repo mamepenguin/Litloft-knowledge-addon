@@ -107,6 +107,17 @@ export default function Editor({
         etagRef.current = newEtag;
         lastSavedRef.current = text;
         setSaveState({ kind: "saved", at: Date.now() });
+        // Propagate frontmatter tag changes to core File.tags without
+        // waiting for the scanner's hourly pass. Every save fires this
+        // (idempotent — the scanner just reparses frontmatter). The
+        // core FilePreview's chip-edit path does the same trigger via
+        // saveFileTags; this covers the Editor's textarea path.
+        void fetch(
+          `/api/addons/knowledge/resync-tags/${encodeURIComponent(fileId)}`,
+          { method: "POST", credentials: "include" },
+        ).catch(() => {
+          // Best-effort; the scanner's hourly pass is the fallback.
+        });
       } catch (err) {
         if (err instanceof ConflictError) {
           setSaveState({ kind: "conflict" });
