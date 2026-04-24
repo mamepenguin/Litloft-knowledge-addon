@@ -39,8 +39,13 @@ def _seed_note(
     note_file_id: str = "nNote0000001",
     source_ids: list[str] | None = None,
     last_synced_at: datetime | None = None,
+    tags_synced_at: datetime | None | object = ...,
     origin: str | None = "detailed_summary",
 ) -> NoteOrigin:
+    """Seed a NoteOrigin. By default ``tags_synced_at`` mirrors
+    ``last_synced_at`` so tests predate Phase 2 land in an
+    already-synced state. Pass ``tags_synced_at=None`` to test the
+    migration branch (Phase 2 §D8)."""
     row = NoteOrigin(
         vault_id=vault.id,
         note_path=note_path,
@@ -51,6 +56,12 @@ def _seed_note(
     )
     if last_synced_at is not None:
         row.last_synced_at = last_synced_at
+    if tags_synced_at is ...:
+        # default: mirror last_synced_at so pre-Phase-2 tests keep
+        # their "no content fetch" expectation
+        row.tags_synced_at = last_synced_at or datetime.now(UTC)
+    else:
+        row.tags_synced_at = tags_synced_at  # type: ignore[assignment]
     session.add(row)
     for sid in source_ids or []:
         session.add(
@@ -76,12 +87,15 @@ class _FakeClient:
         file_content: dict[str, str] | None = None,
         raise_on_info: dict[str, int] | None = None,
         raise_on_content: dict[str, int] | None = None,
+        raise_on_tags: dict[str, int] | None = None,
     ) -> None:
         self._info = file_info or {}
         self._content = file_content or {}
         self._info_errors = raise_on_info or {}
         self._content_errors = raise_on_content or {}
+        self._tags_errors = raise_on_tags or {}
         self.content_calls: list[str] = []
+        self.tag_calls: list[tuple[str, list[str]]] = []
 
     async def get_file(self, file_id: str) -> dict:
         from app.internal_client import InternalAPIError
@@ -99,6 +113,13 @@ class _FakeClient:
         if file_id in self._content_errors:
             raise InternalAPIError(self._content_errors[file_id], "forced")
         return self._content.get(file_id, "")
+
+    async def sync_core_tags(self, file_id: str, tags: list[str]) -> None:
+        from app.internal_client import InternalAPIError
+
+        self.tag_calls.append((file_id, list(tags)))
+        if file_id in self._tags_errors:
+            raise InternalAPIError(self._tags_errors[file_id], "forced")
 
 
 def _iso(dt: datetime) -> str:
@@ -712,6 +733,309 @@ async def test_created_takes_precedence_over_legacy_keys(knowledge_db):
     assert note.approved_at.replace(tzinfo=UTC) == datetime(
         2026, 3, 10, 9, 0, 0, tzinfo=UTC
     )
+
+
+# ---------------------------------------------------------------------
+# Phase 2: frontmatter.tags → core File.tags projection
+# ---------------------------------------------------------------------
+
+
+@pytest.mark.anyio
+async def test_tags_projected_when_frontmatter_changes(knowledge_db):
+    """After frontmatter edit, scanner pushes the new tag list to core."""
+    session = knowledge_db()
+    vault = _seed_vault(session)
+    past = datetime.now(UTC) - timedelta(hours=2)
+    _seed_note(
+        session,
+        vault,
+        note_file_id="nTags0000001",
+        last_synced_at=past,
+        tags_synced_at=past,
+    )
+    session.close()
+
+    client = _FakeClient(
+        file_info={
+            "nTags0000001": {
+                "updated_at": _iso(datetime.now(UTC)),
+            }
+        },
+        file_content={
+            "nTags0000001": (
+                "---\n"
+                "tags:\n"
+                "  - cooking\n"
+                "  - japanese\n"
+                "---\n"
+                "body\n"
+            )
+        },
+    )
+    stats = await note_scanner.reconcile_once(client)
+
+    assert stats.tags_projected == 1
+    assert client.tag_calls == [("nTags0000001", ["cooking", "japanese"])]
+
+
+@pytest.mark.anyio
+async def test_tags_synced_at_null_forces_fetch_even_when_metadata_current(
+    knowledge_db,
+):
+    """Phase 2 migration (§D8): NULL tags_synced_at ⇒ force content fetch
+    so every existing row syncs on the first post-deploy scan, even if
+    the .md hasn't been touched (updated_at == last_synced_at).
+    """
+    session = knowledge_db()
+    vault = _seed_vault(session)
+    frozen = datetime.now(UTC)
+    _seed_note(
+        session,
+        vault,
+        note_file_id="nMigr0000001",
+        last_synced_at=frozen,
+        tags_synced_at=None,  # ← explicit Phase 2 migration state
+    )
+    vault_id = vault.id
+    session.close()
+
+    client = _FakeClient(
+        file_info={
+            "nMigr0000001": {
+                "updated_at": _iso(frozen),
+            }
+        },
+        file_content={
+            "nMigr0000001": (
+                "---\n"
+                "tags: [migrated]\n"
+                "---\n"
+                "body\n"
+            )
+        },
+    )
+    stats = await note_scanner.reconcile_once(client)
+
+    assert client.content_calls == ["nMigr0000001"]
+    assert client.tag_calls == [("nMigr0000001", ["migrated"])]
+    assert stats.tags_projected == 1
+    # Crucially ``updated`` stays 0 — metadata isn't re-applied when
+    # last_synced_at was already current; only tags are caught up.
+    assert stats.updated == 0
+
+    verify = knowledge_db()
+    note = (
+        verify.query(NoteOrigin)
+        .filter(NoteOrigin.vault_id == vault_id, NoteOrigin.note_path == "n.md")
+        .first()
+    )
+    assert note.tags_synced_at is not None
+
+
+@pytest.mark.anyio
+async def test_empty_tags_list_clears_core_tags(knowledge_db):
+    """Frontmatter without a ``tags:`` key sends an empty list, which
+    core interprets as "remove all tags" (β canonical rule — frontmatter
+    wins over DB, including "no tags here")."""
+    session = knowledge_db()
+    vault = _seed_vault(session)
+    _seed_note(
+        session,
+        vault,
+        note_file_id="nClear000001",
+        tags_synced_at=None,
+    )
+    session.close()
+
+    client = _FakeClient(
+        file_info={
+            "nClear000001": {"updated_at": _iso(datetime.now(UTC))}
+        },
+        file_content={
+            "nClear000001": "---\ntitle: x\n---\nbody\n"
+        },
+    )
+    await note_scanner.reconcile_once(client)
+
+    assert client.tag_calls == [("nClear000001", [])]
+
+
+@pytest.mark.anyio
+async def test_invalid_tag_names_are_dropped(knowledge_db):
+    """Non-string entries, over-length, spaces, and special chars are
+    silently skipped — core's validator would 422 on them, so filter
+    upstream. Valid names survive in order-of-appearance."""
+    session = knowledge_db()
+    vault = _seed_vault(session)
+    _seed_note(
+        session,
+        vault,
+        note_file_id="nFilt0000001",
+        tags_synced_at=None,
+    )
+    session.close()
+
+    client = _FakeClient(
+        file_info={
+            "nFilt0000001": {"updated_at": _iso(datetime.now(UTC))}
+        },
+        file_content={
+            "nFilt0000001": (
+                "---\n"
+                "tags:\n"
+                "  - ok-tag\n"
+                "  - has spaces\n"
+                "  - 'has!punct'\n"
+                "  - 日本語\n"
+                "  - 42\n"
+                "  - '" + ("x" * 31) + "'\n"
+                "---\n"
+                "body\n"
+            )
+        },
+    )
+    await note_scanner.reconcile_once(client)
+
+    assert client.tag_calls == [("nFilt0000001", ["ok-tag", "日本語"])]
+
+
+@pytest.mark.anyio
+async def test_case_insensitive_dedup_keeps_first(knowledge_db):
+    session = knowledge_db()
+    vault = _seed_vault(session)
+    _seed_note(
+        session,
+        vault,
+        note_file_id="nDedu0000001",
+        tags_synced_at=None,
+    )
+    session.close()
+
+    client = _FakeClient(
+        file_info={
+            "nDedu0000001": {"updated_at": _iso(datetime.now(UTC))}
+        },
+        file_content={
+            "nDedu0000001": (
+                "---\n"
+                "tags:\n"
+                "  - Cooking\n"
+                "  - cooking\n"
+                "  - COOKING\n"
+                "  - japanese\n"
+                "---\n"
+                "body\n"
+            )
+        },
+    )
+    await note_scanner.reconcile_once(client)
+
+    assert client.tag_calls == [("nDedu0000001", ["Cooking", "japanese"])]
+
+
+@pytest.mark.anyio
+async def test_tags_capped_at_ten(knowledge_db):
+    session = knowledge_db()
+    vault = _seed_vault(session)
+    _seed_note(
+        session,
+        vault,
+        note_file_id="nCap00000001",
+        tags_synced_at=None,
+    )
+    session.close()
+
+    tag_list = "\n".join(f"  - t{i}" for i in range(15))
+    client = _FakeClient(
+        file_info={
+            "nCap00000001": {"updated_at": _iso(datetime.now(UTC))}
+        },
+        file_content={
+            "nCap00000001": f"---\ntags:\n{tag_list}\n---\nbody\n"
+        },
+    )
+    await note_scanner.reconcile_once(client)
+
+    assert len(client.tag_calls[0][1]) == 10
+    assert client.tag_calls[0][1] == [f"t{i}" for i in range(10)]
+
+
+@pytest.mark.anyio
+async def test_tags_sync_error_does_not_block_metadata_update(knowledge_db):
+    """A 422 from core tags API must not prevent note_origins metadata
+    refresh. The scanner retries tags on the next pass via
+    tags_synced_at remaining NULL."""
+    session = knowledge_db()
+    vault = _seed_vault(session)
+    past = datetime.now(UTC) - timedelta(hours=2)
+    _seed_note(
+        session,
+        vault,
+        note_file_id="nTagErr00001",
+        last_synced_at=past,
+        tags_synced_at=past,
+    )
+    vault_id = vault.id
+    session.close()
+
+    client = _FakeClient(
+        file_info={
+            "nTagErr00001": {"updated_at": _iso(datetime.now(UTC))}
+        },
+        file_content={
+            "nTagErr00001": (
+                "---\n"
+                "origin: manual\n"
+                "tags: [keep]\n"
+                "---\n"
+                "body\n"
+            )
+        },
+        raise_on_tags={"nTagErr00001": 500},
+    )
+    stats = await note_scanner.reconcile_once(client)
+
+    # metadata still applied even though tags failed
+    assert stats.updated == 1
+    assert stats.tags_projected == 0
+    verify = knowledge_db()
+    note = (
+        verify.query(NoteOrigin)
+        .filter(NoteOrigin.vault_id == vault_id, NoteOrigin.note_path == "n.md")
+        .first()
+    )
+    assert note.origin == "manual"
+    # tags_synced_at stays at the seeded past value → next pass retries
+    assert note.tags_synced_at.replace(tzinfo=UTC) == past.replace(microsecond=note.tags_synced_at.microsecond)
+
+
+@pytest.mark.anyio
+async def test_unchanged_note_with_synced_tags_is_fully_skipped(knowledge_db):
+    """When both metadata and tags are current, no HTTP calls at all."""
+    session = knowledge_db()
+    vault = _seed_vault(session)
+    now = datetime.now(UTC)
+    _seed_note(
+        session,
+        vault,
+        note_file_id="nSkip0000001",
+        last_synced_at=now,
+        tags_synced_at=now,  # both up-to-date
+    )
+    session.close()
+
+    client = _FakeClient(
+        file_info={
+            "nSkip0000001": {"updated_at": _iso(now)}
+        }
+    )
+    stats = await note_scanner.reconcile_once(client)
+
+    assert client.content_calls == []
+    assert client.tag_calls == []
+    assert stats.scanned == 1
+    assert stats.updated == 0
+    assert stats.tags_projected == 0
 
 
 @pytest.fixture()

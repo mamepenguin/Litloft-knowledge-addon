@@ -92,11 +92,33 @@ def _migrate_drop_note_origin_ref() -> None:
         )
 
 
+def _migrate_add_tags_synced_at() -> None:
+    """Add ``note_origins.tags_synced_at`` if the column is missing.
+
+    Spec 2026-04-24-knowledge-tag-unification §D8: on the first scan
+    after Phase 2 deploy every row's ``tags_synced_at`` is NULL, which
+    tells ``note_scanner`` to force-fetch content and project frontmatter
+    tags onto core ``File.tags``. The column is nullable with no server
+    default so existing rows carry NULL without an explicit UPDATE —
+    the scanner's NULL-check is the migration trigger.
+    """
+    insp = inspect(engine)
+    if "note_origins" not in insp.get_table_names():
+        return
+    cols = {c["name"] for c in insp.get_columns("note_origins")}
+    if "tags_synced_at" in cols:
+        return
+    with engine.begin() as conn:
+        conn.execute(text("ALTER TABLE note_origins ADD COLUMN tags_synced_at DATETIME"))
+    logger.info("knowledge: added note_origins.tags_synced_at column (tags projection pending)")
+
+
 def init_schema() -> None:
     """Create all tables if not present. Safe to call on every startup."""
     _migrate_user_vault_state_to_drive_scope()
     Base.metadata.create_all(bind=engine)
     _migrate_drop_note_origin_ref()
+    _migrate_add_tags_synced_at()
 
 
 @contextmanager

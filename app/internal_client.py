@@ -141,6 +141,31 @@ class InternalClient:
             raise InternalAPIError(r.status_code, r.text)
         return r.text
 
+    async def sync_core_tags(self, file_id: str, tags: list[str]) -> None:
+        """Replace a core file's tags via the Internal API.
+
+        Used by the note scanner to project frontmatter ``tags:`` onto
+        core ``File.tags`` for ``.md`` files (spec
+        ``2026-04-24-knowledge-tag-unification.md`` §D2). Frontmatter
+        is the canonical store for ``.md`` tags; core ``File.tags`` is
+        a read-only projection refreshed here.
+
+        Raises ``InternalAPIError`` on 404 (file gone), 403 (secret
+        mismatch), or 422 (any tag name fails the core's validator —
+        caller should filter invalid names before calling).
+        """
+        headers: dict[str, str] = {"Content-Type": "application/json"}
+        if CORE_INTERNAL_SECRET:
+            headers["X-Internal-Secret"] = CORE_INTERNAL_SECRET
+        async with httpx.AsyncClient(timeout=10.0) as client:
+            r = await client.post(
+                f"{HOMEVAULT_INTERNAL_URL}/api/internal/files/{file_id}/tags",
+                headers=headers,
+                json={"tags": tags},
+            )
+        if r.status_code != 204:
+            raise InternalAPIError(r.status_code, r.text)
+
     async def get_file_text_content(self, file_id: str) -> str:
         """Fetch a file's text content via the gated internal endpoint.
 

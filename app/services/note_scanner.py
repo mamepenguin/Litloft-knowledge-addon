@@ -19,6 +19,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import re
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from typing import Any
@@ -46,6 +47,12 @@ class ReconcileStats:
     # and the scanner has no cookie; webhook-driven health reconcile
     # still works because that path uses the non-gated bulk-state route.
     protected_errors: int = 0
+    # Count of notes whose frontmatter ``tags:`` were successfully
+    # projected to core ``File.tags`` on this pass. Separate from
+    # ``updated`` because a single note can trigger either or both
+    # (frontmatter metadata + tags), and debugging migration issues is
+    # easier when the two are distinguishable.
+    tags_projected: int = 0
 
 
 def _assume_utc(dt: datetime) -> datetime:
@@ -76,6 +83,43 @@ def _normalise_source_ids(metadata: dict[str, Any]) -> list[str]:
     if not isinstance(raw, list):
         return []
     return [str(x) for x in raw if isinstance(x, (str, int))]
+
+
+# Mirror the core TagUpdate validator (backend/app/schemas.py::TagUpdate)
+# so we reject tags here rather than round-tripping them to the API just
+# to receive a 422. Keep the regex and length caps in sync if core changes.
+_TAG_RE = re.compile(r"^[\w\-]+$", re.UNICODE)
+_MAX_TAGS = 10
+_MAX_TAG_LEN = 30
+
+
+def _normalise_tags(metadata: dict[str, Any]) -> list[str]:
+    """Extract a list of core-valid tag names from frontmatter.
+
+    Silently drops non-string entries, invalid names (spaces, punctuation,
+    empty after strip), over-length strings, and deduplicates case-
+    insensitively keeping the first occurrence. Returns an empty list
+    when the ``tags`` key is absent or not a list — an empty list
+    clears ``File.tags`` per the β canonical rule (spec §D1).
+    """
+    raw = metadata.get("tags")
+    if not isinstance(raw, list):
+        return []
+    seen: dict[str, str] = {}
+    for item in raw:
+        if not isinstance(item, str):
+            continue
+        name = item.strip()
+        if not name or len(name) > _MAX_TAG_LEN:
+            continue
+        if not _TAG_RE.match(name):
+            continue
+        key = name.lower()
+        if key not in seen:
+            seen[key] = name
+        if len(seen) >= _MAX_TAGS:
+            break
+    return list(seen.values())
 
 
 def _extract_created(metadata: dict[str, Any]) -> datetime | None:
@@ -139,9 +183,10 @@ def _apply_frontmatter(
 
 
 async def _reconcile_one(
-    client: InternalClient, note_info: tuple[int, str, str, datetime | None]
-) -> tuple[bool, bool, bool]:
-    """Return ``(updated, errored, protected)``.
+    client: InternalClient,
+    note_info: tuple[int, str, str, datetime | None, datetime | None],
+) -> tuple[bool, bool, bool, bool]:
+    """Return ``(updated, errored, protected, tags_projected)``.
 
     - ``updated``: frontmatter was re-applied to ``note_origins``.
     - ``errored``: genuine failure worth investigating (network, 5xx,
@@ -152,8 +197,12 @@ async def _reconcile_one(
       issues. A 403 here typically means ``CORE_INTERNAL_SECRET`` is
       misaligned; 404 here means the row vanished between get_file and
       the content call (webhook racing the scanner).
+    - ``tags_projected``: frontmatter ``tags:`` were successfully pushed
+      to core ``File.tags``. Bumped independently of ``updated`` so
+      migration debugging (spec §D8) can distinguish "fetched content
+      but tags projection failed" from "fetched nothing".
     """
-    vault_id, note_path, note_file_id, last_synced_at = note_info
+    vault_id, note_path, note_file_id, last_synced_at, tags_synced_at = note_info
 
     try:
         info = await client.get_file(note_file_id)
@@ -162,29 +211,37 @@ async def _reconcile_one(
             # The .md disappeared from core's active index. Purged/missing
             # webhooks already handle the corresponding relation cleanup;
             # leave this pass alone rather than racing them.
-            return False, False, False
+            return False, False, False, False
         logger.warning(
             "note scan: get_file failed vault=%s path=%s: %s",
             vault_id,
             note_path,
             exc,
         )
-        return False, True, False
+        return False, True, False, False
 
     updated_at = _parse_iso(info.get("updated_at"))
     if updated_at is None:
         # Core returned no timestamp — nothing we can compare. Skip.
-        return False, False, False
+        return False, False, False, False
 
     # Both timestamps are UTC by construction. SQLite strips tzinfo on
     # store, and core's DateTime column is tz-naive — so either side
     # can arrive tz-naive even when the other is tz-aware. Normalise
     # both before comparison to avoid TypeError.
     updated_at = _assume_utc(updated_at)
+    metadata_stale = last_synced_at is None
     if last_synced_at is not None:
         baseline = _assume_utc(last_synced_at)
-        if updated_at <= baseline:
-            return False, False, False
+        metadata_stale = updated_at > baseline
+
+    # tags_synced_at IS NULL ⇒ Phase 2 migration hasn't projected this
+    # note yet. Force a content fetch even if metadata is current so
+    # the first post-deploy scan syncs every existing row (spec §D8).
+    tags_missing = tags_synced_at is None
+
+    if not metadata_stale and not tags_missing:
+        return False, False, False, False
 
     try:
         content = await client.get_file_text_content(note_file_id)
@@ -196,16 +253,35 @@ async def _reconcile_one(
                 note_path,
                 exc.status_code,
             )
-            return False, False, True
+            return False, False, True, False
         logger.warning(
             "note scan: content fetch failed vault=%s path=%s: %s",
             vault_id,
             note_path,
             exc,
         )
-        return False, True, False
+        return False, True, False, False
 
     parsed = parse_frontmatter(content)
+
+    # Project tags before touching the DB so a projection failure
+    # doesn't leave note_origins ahead of core. Best-effort: tag errors
+    # are logged but don't block frontmatter sync — the scanner will
+    # retry on the next pass via tags_synced_at still NULL.
+    tags = _normalise_tags(parsed.metadata)
+    tags_ok = False
+    try:
+        await client.sync_core_tags(note_file_id, tags)
+        tags_ok = True
+    except InternalAPIError as exc:
+        logger.warning(
+            "note scan: tags sync failed vault=%s path=%s file=%s status=%d: %s",
+            vault_id,
+            note_path,
+            note_file_id,
+            exc.status_code,
+            exc.detail,
+        )
 
     with session_scope() as session:
         note = (
@@ -218,9 +294,12 @@ async def _reconcile_one(
         )
         if note is None:
             # Raced with a purge/delete between the list and this update.
-            return False, False, False
-        _apply_frontmatter(session, note, parsed.metadata)
-    return True, False, False
+            return False, False, False, tags_ok
+        if metadata_stale:
+            _apply_frontmatter(session, note, parsed.metadata)
+        if tags_ok:
+            note.tags_synced_at = datetime.now(UTC)
+    return metadata_stale, False, False, tags_ok
 
 
 async def reconcile_once(
@@ -241,27 +320,32 @@ async def reconcile_once(
                 NoteOrigin.note_path,
                 NoteOrigin.note_file_id,
                 NoteOrigin.last_synced_at,
+                NoteOrigin.tags_synced_at,
             ).all()
         )
-        notes = [(r[0], r[1], r[2], r[3]) for r in rows]
+        notes = [(r[0], r[1], r[2], r[3], r[4]) for r in rows]
 
     updated = 0
     errors = 0
     protected_errors = 0
+    tags_projected = 0
     for info in notes:
-        did_update, errored, protected = await _reconcile_one(client, info)
+        did_update, errored, protected, tags_ok = await _reconcile_one(client, info)
         if did_update:
             updated += 1
         if errored:
             errors += 1
         if protected:
             protected_errors += 1
+        if tags_ok:
+            tags_projected += 1
 
     return ReconcileStats(
         scanned=len(notes),
         updated=updated,
         errors=errors,
         protected_errors=protected_errors,
+        tags_projected=tags_projected,
     )
 
 
@@ -278,9 +362,10 @@ async def scanner_loop(
         try:
             stats = await reconcile_once()
             logger.info(
-                "note scanner: scanned=%d updated=%d errors=%d protected_errors=%d",
+                "note scanner: scanned=%d updated=%d tags_projected=%d errors=%d protected_errors=%d",
                 stats.scanned,
                 stats.updated,
+                stats.tags_projected,
                 stats.errors,
                 stats.protected_errors,
             )

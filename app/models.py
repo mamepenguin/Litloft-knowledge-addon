@@ -129,6 +129,14 @@ class NoteOrigin(Base):
         onupdate=func.now(),
         nullable=False,
     )
+    # Nullable: NULL means "tags have never been projected to core
+    # File.tags". On the first Phase 2 scan after deploy, every row is
+    # NULL and the scanner force-fetches content to project. Spec
+    # 2026-04-24-knowledge-tag-unification §D8.
+    tags_synced_at: Mapped[Optional[datetime]] = mapped_column(
+        nullable=True,
+        default=None,
+    )
 
     sources: Mapped[list["NoteOriginSource"]] = relationship(
         "NoteOriginSource",
