@@ -6,6 +6,7 @@ import {
   putFileContent,
 } from "../api";
 import { applyEditorAction } from "../EditorToolbar";
+import { applyIndent } from "../editorIndent";
 
 type MockFetch = ReturnType<typeof vi.fn>;
 
@@ -161,5 +162,66 @@ describe("applyEditorAction", () => {
     const { text } = applyEditorAction("x", 0, 1, { kind: "codeblock" });
     expect(text).toContain("```");
     expect(text).toContain("x");
+  });
+});
+
+describe("applyIndent", () => {
+  it("inserts 2 spaces at caret when no selection", () => {
+    const { text, selStart, selEnd } = applyIndent("abc", 1, 1, false);
+    expect(text).toBe("a  bc");
+    expect(selStart).toBe(3);
+    expect(selEnd).toBe(3);
+  });
+
+  it("replaces single-line selection with 2 spaces", () => {
+    const { text, selStart } = applyIndent("foo bar", 0, 3, false);
+    expect(text).toBe("   bar");
+    expect(selStart).toBe(2);
+  });
+
+  it("indents every line of a multi-line selection", () => {
+    const { text, selStart, selEnd } = applyIndent(
+      "one\ntwo\nthree",
+      0,
+      11,
+      false,
+    );
+    expect(text).toBe("  one\n  two\n  three");
+    expect(selStart).toBe(2);
+    expect(selEnd).toBe(17);
+  });
+
+  it("does not include trailing line when selection ends on newline", () => {
+    const { text } = applyIndent("one\ntwo\n", 0, 4, false);
+    expect(text).toBe("  one\ntwo\n");
+  });
+
+  it("outdents current line when Shift+Tab with no selection", () => {
+    const { text, selStart } = applyIndent("    foo", 6, 6, true);
+    expect(text).toBe("  foo");
+    expect(selStart).toBe(4);
+  });
+
+  it("outdents up to 2 leading spaces per line", () => {
+    const { text } = applyIndent("    a\n b\n   c", 0, 13, true);
+    expect(text).toBe("  a\nb\n c");
+  });
+
+  it("outdents a leading tab as one char", () => {
+    const { text } = applyIndent("\tfoo", 0, 4, true);
+    expect(text).toBe("foo");
+  });
+
+  it("outdent is a no-op when no leading indent exists", () => {
+    const result = applyIndent("foo\nbar", 0, 7, true);
+    expect(result.text).toBe("foo\nbar");
+    expect(result.selStart).toBe(0);
+    expect(result.selEnd).toBe(7);
+  });
+
+  it("caret inside leading spaces clamps to new line start on outdent", () => {
+    const { text, selStart } = applyIndent("  foo", 1, 1, true);
+    expect(text).toBe("foo");
+    expect(selStart).toBe(0);
   });
 });

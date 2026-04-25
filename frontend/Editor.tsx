@@ -30,6 +30,7 @@ import EditorToolbar, {
   applyEditorAction,
   type EditorAction,
 } from "./EditorToolbar";
+import { applyIndent } from "./editorIndent";
 
 interface Props {
   fileId: string;
@@ -153,6 +154,30 @@ export default function Editor({
       }
     };
   }, [performSave]);
+
+  const handleKeyDown = useCallback(
+    (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+      if (e.key === "Escape") {
+        e.currentTarget.blur();
+        return;
+      }
+      if (e.key !== "Tab") return;
+      e.preventDefault();
+      const ta = e.currentTarget;
+      const { text, selStart, selEnd } = applyIndent(
+        ta.value,
+        ta.selectionStart,
+        ta.selectionEnd,
+        e.shiftKey,
+      );
+      setContent(text);
+      requestAnimationFrame(() => {
+        ta.focus();
+        ta.setSelectionRange(selStart, selEnd);
+      });
+    },
+    [],
+  );
 
   const handleToolbar = useCallback((action: EditorAction) => {
     const ta = textareaRef.current;
@@ -282,6 +307,7 @@ export default function Editor({
           ref={textareaRef}
           value={content}
           onChange={(e) => setContent(e.target.value)}
+          onKeyDown={handleKeyDown}
           spellCheck={false}
           className={`h-full w-full resize-none bg-bg-primary px-8 py-6 font-mono text-[13.5px] leading-relaxed text-text-primary focus:outline-none ${
             viewMode === "split" ? "border-r border-bg-border" : ""
