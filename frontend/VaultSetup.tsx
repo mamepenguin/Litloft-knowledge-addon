@@ -41,7 +41,7 @@ export default function VaultSetup({ drive, onCreated, onCancel }: Props) {
     "w-full rounded-md border border-bg-border bg-bg-primary px-3 py-2 text-sm text-text-primary placeholder:text-text-muted focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent";
 
   return (
-    <div className="flex min-h-[calc(100vh-64px)] items-center justify-center bg-bg-primary p-6">
+    <div className="flex min-h-[calc(var(--app-height,100dvh)-56px)] items-center justify-center bg-bg-primary p-6">
       <div className="w-full max-w-md rounded-2xl border border-bg-border bg-bg-card p-8 shadow-xl">
         <div className="mb-5 flex items-center gap-3">
           <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-accent/15 text-accent">

@@ -358,6 +358,54 @@ export default function KnowledgePage() {
     refresh();
   }, [refresh]);
 
+  useEffect(() => {
+    const html = document.documentElement;
+    const body = document.body;
+    const prev = {
+      htmlOverflow: html.style.overflow,
+      bodyOverflow: body.style.overflow,
+      bodyHeight: body.style.height,
+      bodyTransform: body.style.transform,
+      bodyPosition: body.style.position,
+      bodyWidth: body.style.width,
+      appHeight: html.style.getPropertyValue("--app-height"),
+    };
+    html.style.overflow = "hidden";
+    body.style.overflow = "hidden";
+    body.style.position = "fixed";
+    body.style.width = "100%";
+    body.style.height = "var(--app-height, 100dvh)";
+
+    const vv = window.visualViewport;
+    const update = () => {
+      const h = vv?.height ?? window.innerHeight;
+      const offsetTop = vv?.offsetTop ?? 0;
+      html.style.setProperty("--app-height", `${h}px`);
+      body.style.transform = offsetTop ? `translateY(${offsetTop}px)` : "";
+      if (window.scrollY !== 0 || window.scrollX !== 0) {
+        window.scrollTo(0, 0);
+      }
+    };
+    update();
+    vv?.addEventListener("resize", update);
+    vv?.addEventListener("scroll", update);
+    window.addEventListener("scroll", update, { passive: true });
+
+    return () => {
+      vv?.removeEventListener("resize", update);
+      vv?.removeEventListener("scroll", update);
+      window.removeEventListener("scroll", update);
+      html.style.overflow = prev.htmlOverflow;
+      body.style.overflow = prev.bodyOverflow;
+      body.style.height = prev.bodyHeight;
+      body.style.transform = prev.bodyTransform;
+      body.style.position = prev.bodyPosition;
+      body.style.width = prev.bodyWidth;
+      if (prev.appHeight) html.style.setProperty("--app-height", prev.appHeight);
+      else html.style.removeProperty("--app-height");
+    };
+  }, []);
+
   const selectedFileId = mode.kind === "edit" ? mode.file.id : null;
   useEffect(() => {
     if (activeId === null) return;
@@ -449,7 +497,7 @@ export default function KnowledgePage() {
   ].join(" ");
 
   return (
-    <div className="flex h-[calc(100vh-64px)] overflow-hidden bg-bg-primary">
+    <div className="flex h-[calc(var(--app-height,100dvh)-56px)] overflow-hidden bg-bg-primary">
       {active && (
         <div
           data-testid="knowledge-sidebar-wrapper"
