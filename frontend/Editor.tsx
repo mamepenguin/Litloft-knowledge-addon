@@ -75,6 +75,7 @@ export default function Editor({
 }: Props) {
   const t = useTranslations("knowledge.editor");
   const tSide = useTranslations("knowledge.sidebar");
+  const tShortcuts = useTranslations("knowledge.shortcuts");
   const [content, setContent] = useState<string | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [saveState, setSaveState] = useState<SaveState>({ kind: "idle" });
@@ -219,45 +220,45 @@ export default function Editor({
 
   useShortcuts(
     "knowledge-editor",
-    "Knowledge Editor",
+    tShortcuts("knowledgeEditor"),
     [
-      { key: "ctrl+s", label: "Save", handler: flushSave, editingOnly: true },
+      { key: "ctrl+s", label: tShortcuts("save"), handler: flushSave, editingOnly: true },
       {
         key: "ctrl+b",
-        label: "Bold",
+        label: tShortcuts("bold"),
         handler: () =>
           handleToolbar({ kind: "wrap", before: "**", after: "**" }),
         editingOnly: true,
       },
       {
         key: "ctrl+i",
-        label: "Italic",
+        label: tShortcuts("italic"),
         handler: () => handleToolbar({ kind: "wrap", before: "*", after: "*" }),
         editingOnly: true,
       },
       {
         key: "ctrl+k",
-        label: "Insert link",
+        label: tShortcuts("insertLink"),
         handler: () => handleToolbar({ kind: "link" }),
         editingOnly: true,
       },
       {
         key: "ctrl+e",
-        label: "Inline code",
+        label: tShortcuts("inlineCode"),
         handler: () => handleToolbar({ kind: "wrap", before: "`", after: "`" }),
         editingOnly: true,
       },
       {
         key: "ctrl+shift+k",
-        label: "Code block",
+        label: tShortcuts("codeBlock"),
         handler: () => handleToolbar({ kind: "codeblock" }),
         editingOnly: true,
       },
       {
         key: "ctrl+shift+\\",
-        label: "Cycle view mode",
+        label: tShortcuts("cycleViewMode"),
         handler: cycleViewMode,
-        editingOnly: true,
+        editingOnly: false,
       },
     ],
     content !== null,

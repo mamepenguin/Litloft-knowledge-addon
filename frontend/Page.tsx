@@ -110,6 +110,7 @@ interface ClipInit {
 export default function KnowledgePage() {
   useOverlaySidebar();
   const t = useTranslations("knowledge");
+  const tShortcuts = useTranslations("knowledge.shortcuts");
   const drive = useCurrentDrive();
   const searchParams = useSearchParams();
   const editParam = searchParams.get("edit");
@@ -469,11 +470,11 @@ export default function KnowledgePage() {
 
   useShortcuts(
     "knowledge",
-    "Knowledge",
+    tShortcuts("knowledge"),
     [
-      { key: "/", label: "Focus search", handler: focusSearch },
-      { key: "ctrl+k", label: "Quick switcher", handler: () => setSwitcherOpen(true) },
-      { key: "n", label: "New note", handler: () => void handleCreateNote() },
+      { key: "/", label: tShortcuts("focusSearch"), handler: focusSearch },
+      { key: "ctrl+k", label: tShortcuts("quickSwitcher"), handler: () => setSwitcherOpen(true) },
+      { key: "n", label: tShortcuts("newNote"), handler: () => void handleCreateNote() },
     ],
     shortcutsEnabled,
   );

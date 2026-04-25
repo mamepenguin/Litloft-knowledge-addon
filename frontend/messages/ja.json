@@ -35,6 +35,20 @@
       "emptyRecents": "最近開いたノートはありません。検索を入力してください。",
       "noMatches": "一致するノートがありません。"
     },
+    "shortcuts": {
+      "knowledge": "Knowledge",
+      "knowledgeEditor": "Knowledge エディタ",
+      "focusSearch": "検索にフォーカス",
+      "quickSwitcher": "クイックスイッチャー",
+      "newNote": "新規ノート",
+      "save": "保存",
+      "bold": "太字",
+      "italic": "斜体",
+      "insertLink": "リンクを挿入",
+      "inlineCode": "インラインコード",
+      "codeBlock": "コードブロック",
+      "cycleViewMode": "表示モード切替"
+    },
     "fileList": {
       "loading": "ファイルを読み込み中...",
       "empty": "このフォルダには何もありません。",
