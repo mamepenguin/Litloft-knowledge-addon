@@ -108,6 +108,9 @@ interface Props {
   // Delete notifications
   onRequestDelete?: (file: CoreFileItem) => void;
   onRequestDeleteFolder?: (folder: CoreFolderItem) => void;
+  // External ref to the search input — lets the parent focus it from a
+  // shortcut handler without coupling to internal Sidebar state.
+  searchInputRef?: RefObject<HTMLInputElement | null>;
 }
 
 function expandedStorageKey(vaultId: number): string {
@@ -159,6 +162,7 @@ export default function Sidebar({
   onPinReorder,
   onRequestDelete,
   onRequestDeleteFolder,
+  searchInputRef: externalSearchInputRef,
 }: Props) {
   const tFile = useTranslations("knowledge.fileList");
   const tSearch = useTranslations("knowledge.search");
@@ -185,7 +189,8 @@ export default function Sidebar({
   } | null>(null);
   const [creating, setCreating] = useState(false);
   const folderInputRef = useRef<HTMLInputElement | null>(null);
-  const searchInputRef = useRef<HTMLInputElement | null>(null);
+  const internalSearchInputRef = useRef<HTMLInputElement | null>(null);
+  const searchInputRef = externalSearchInputRef ?? internalSearchInputRef;
 
   // D&D state
   const [draggedItem, setDraggedItem] = useState<DraggedItem | null>(null);
@@ -218,28 +223,6 @@ export default function Sidebar({
 
   // Pin DnD
   const [draggedPinIndex, setDraggedPinIndex] = useState<number | null>(null);
-
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key !== "/" || e.metaKey || e.ctrlKey || e.altKey) return;
-      const target = e.target as HTMLElement | null;
-      if (!target) return;
-      const tag = target.tagName;
-      if (
-        tag === "INPUT" ||
-        tag === "TEXTAREA" ||
-        tag === "SELECT" ||
-        target.isContentEditable
-      ) {
-        return;
-      }
-      e.preventDefault();
-      searchInputRef.current?.focus();
-      searchInputRef.current?.select();
-    };
-    document.addEventListener("keydown", onKey);
-    return () => document.removeEventListener("keydown", onKey);
-  }, []);
 
   useEffect(() => {
     saveExpanded(active.id, expanded);

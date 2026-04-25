@@ -20,6 +20,7 @@ import {
 } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { MarkdownPreview } from "@/components/MarkdownPreview";
+import { useShortcuts } from "@/hooks/useShortcuts";
 import {
   ConflictError,
   getFileContent,
@@ -57,6 +58,8 @@ type SaveState =
   | { kind: "error"; message: string };
 
 type ViewMode = "edit" | "split" | "preview";
+
+const VIEW_MODE_ROTATION: ViewMode[] = ["edit", "split", "preview"];
 
 const AUTOSAVE_DEBOUNCE_MS = 2000;
 
@@ -194,6 +197,71 @@ export default function Editor({
       ta.setSelectionRange(selStart, selEnd);
     });
   }, [content]);
+
+  const flushSave = useCallback(() => {
+    if (saveTimerRef.current) {
+      clearTimeout(saveTimerRef.current);
+      saveTimerRef.current = null;
+    }
+    const latest = contentRef.current;
+    if (latest !== null && latest !== lastSavedRef.current) {
+      void performSave(latest);
+    }
+  }, [performSave]);
+
+  const cycleViewMode = useCallback(() => {
+    setViewMode((prev) => {
+      const idx = VIEW_MODE_ROTATION.indexOf(prev);
+      const next = VIEW_MODE_ROTATION[(idx + 1) % VIEW_MODE_ROTATION.length];
+      return next;
+    });
+  }, []);
+
+  useShortcuts(
+    "knowledge-editor",
+    "Knowledge Editor",
+    [
+      { key: "ctrl+s", label: "Save", handler: flushSave, editingOnly: true },
+      {
+        key: "ctrl+b",
+        label: "Bold",
+        handler: () =>
+          handleToolbar({ kind: "wrap", before: "**", after: "**" }),
+        editingOnly: true,
+      },
+      {
+        key: "ctrl+i",
+        label: "Italic",
+        handler: () => handleToolbar({ kind: "wrap", before: "*", after: "*" }),
+        editingOnly: true,
+      },
+      {
+        key: "ctrl+k",
+        label: "Insert link",
+        handler: () => handleToolbar({ kind: "link" }),
+        editingOnly: true,
+      },
+      {
+        key: "ctrl+e",
+        label: "Inline code",
+        handler: () => handleToolbar({ kind: "wrap", before: "`", after: "`" }),
+        editingOnly: true,
+      },
+      {
+        key: "ctrl+shift+k",
+        label: "Code block",
+        handler: () => handleToolbar({ kind: "codeblock" }),
+        editingOnly: true,
+      },
+      {
+        key: "ctrl+shift+\\",
+        label: "Cycle view mode",
+        handler: cycleViewMode,
+        editingOnly: true,
+      },
+    ],
+    content !== null,
+  );
 
   async function handleReloadFromServer() {
     try {

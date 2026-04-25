@@ -28,6 +28,13 @@
       "none": "Vault 未選択",
       "addNew": "新しい Vault を追加"
     },
+    "quickSwitcher": {
+      "title": "ノートを開く",
+      "placeholder": "ノートを検索...",
+      "searching": "検索中...",
+      "emptyRecents": "最近開いたノートはありません。検索を入力してください。",
+      "noMatches": "一致するノートがありません。"
+    },
     "fileList": {
       "loading": "ファイルを読み込み中...",
       "empty": "このフォルダには何もありません。",

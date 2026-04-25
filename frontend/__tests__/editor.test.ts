@@ -163,6 +163,15 @@ describe("applyEditorAction", () => {
     expect(text).toContain("```");
     expect(text).toContain("x");
   });
+
+  it("inline code wraps selection in single backticks", () => {
+    const { text } = applyEditorAction("foo bar baz", 4, 7, {
+      kind: "wrap",
+      before: "`",
+      after: "`",
+    });
+    expect(text).toBe("foo `bar` baz");
+  });
 });
 
 describe("applyIndent", () => {

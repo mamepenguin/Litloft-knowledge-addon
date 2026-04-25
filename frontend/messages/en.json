@@ -28,6 +28,13 @@
       "none": "No Vault selected",
       "addNew": "Add new Vault"
     },
+    "quickSwitcher": {
+      "title": "Open note",
+      "placeholder": "Search notes...",
+      "searching": "Searching...",
+      "emptyRecents": "No recently opened notes. Type to search.",
+      "noMatches": "No matching notes."
+    },
     "fileList": {
       "loading": "Loading files...",
       "empty": "Nothing in this folder yet.",

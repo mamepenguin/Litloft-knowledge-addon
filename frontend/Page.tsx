@@ -1,13 +1,15 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams, notFound } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { AlertCircle, X } from "lucide-react";
 import { useCurrentDrive } from "@/components/CurrentDriveProvider";
 import { useOverlaySidebar } from "@/components/SidebarProvider";
+import { useShortcuts } from "@/hooks/useShortcuts";
 import { useWebSocket } from "@/hooks/useWebSocket";
 import {
+  createTextFile,
   deleteFolderApi,
   listVaults,
   restoreFile,
@@ -17,6 +19,7 @@ import {
   type CoreFolderItem,
   type Vault,
 } from "./api";
+import QuickSwitcher, { recordRecent } from "./QuickSwitcher";
 import FolderView from "./FolderView";
 import { usePins } from "./hooks/usePins";
 import VaultSetup from "./VaultSetup";
@@ -89,6 +92,15 @@ function saveLastFileId(vaultId: number, fileId: string | null): void {
   }
 }
 
+function untitledFilename(): string {
+  const d = new Date();
+  const pad = (n: number) => String(n).padStart(2, "0");
+  const stamp =
+    `${d.getFullYear()}${pad(d.getMonth() + 1)}${pad(d.getDate())}` +
+    `-${pad(d.getHours())}${pad(d.getMinutes())}${pad(d.getSeconds())}`;
+  return `untitled-${stamp}.md`;
+}
+
 interface ClipInit {
   url: string;
   title: string;
@@ -128,6 +140,9 @@ export default function KnowledgePage() {
     | { status: "error"; message: string; file: CoreFileItem }
     | null
   >(null);
+
+  const [switcherOpen, setSwitcherOpen] = useState(false);
+  const searchInputRef = useRef<HTMLInputElement | null>(null);
 
   // Clip modal state. `clipInit` is seeded once from bookmarklet query
   // params and cleared on close/submit so re-opening the modal does not
@@ -199,7 +214,13 @@ export default function KnowledgePage() {
     });
   }, []);
 
+  const activeIdRef = useRef<number | null>(null);
+  activeIdRef.current = activeId;
+
   const navigateMode = useCallback((next: Mode) => {
+    if (next.kind === "edit" && activeIdRef.current !== null) {
+      recordRecent(activeIdRef.current, next.file);
+    }
     if (typeof window !== "undefined") {
       const url = new URL(window.location.href);
       const hasEdit = url.searchParams.has("edit");
@@ -418,6 +439,45 @@ export default function KnowledgePage() {
     return n;
   }, [recentJobs]);
 
+  const focusSearch = useCallback(() => {
+    setSidebarHidden((prev) => {
+      if (prev) saveSidebarHidden(false);
+      return false;
+    });
+    // Defer focus until the sidebar finishes mounting/un-hiding.
+    requestAnimationFrame(() => {
+      searchInputRef.current?.focus();
+      searchInputRef.current?.select();
+    });
+  }, []);
+
+  const handleCreateNote = useCallback(async () => {
+    if (!drive) return;
+    try {
+      const file = await createTextFile(drive, {
+        path: untitledFilename(),
+        content: "",
+      });
+      setReloadKey((k) => k + 1);
+      navigateMode({ kind: "edit", file });
+    } catch (e) {
+      setError((e as Error).message);
+    }
+  }, [drive, navigateMode]);
+
+  const shortcutsEnabled = mode.kind !== "loading" && mode.kind !== "setup" && mode.kind !== "addNew";
+
+  useShortcuts(
+    "knowledge",
+    "Knowledge",
+    [
+      { key: "/", label: "Focus search", handler: focusSearch },
+      { key: "ctrl+k", label: "Quick switcher", handler: () => setSwitcherOpen(true) },
+      { key: "n", label: "New note", handler: () => void handleCreateNote() },
+    ],
+    shortcutsEnabled,
+  );
+
   if (error) {
     return (
       <div className="flex min-h-[60vh] items-center justify-center p-6 text-sm text-red-400">
@@ -529,6 +589,7 @@ export default function KnowledgePage() {
             onPinReorder={pins.reorder}
             onRequestDelete={handleDelete}
             onRequestDeleteFolder={handleDeleteFolder}
+            searchInputRef={searchInputRef}
           />
         </div>
       )}
@@ -654,6 +715,18 @@ export default function KnowledgePage() {
             </button>
           </div>
         </div>
+      )}
+      {active && (
+        <QuickSwitcher
+          drive={drive}
+          vault={active}
+          open={switcherOpen}
+          onClose={() => setSwitcherOpen(false)}
+          onSelect={(file) => {
+            setSwitcherOpen(false);
+            navigateMode({ kind: "edit", file });
+          }}
+        />
       )}
       {pasteRetry && active && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 px-4">
