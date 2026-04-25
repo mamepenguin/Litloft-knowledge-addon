@@ -53,23 +53,23 @@ describe("KnowledgeEditSection", () => {
     stubFetch({
       "/api/files/f1": { id: "f1", mime_type: "text/markdown", filename: "a.md" },
     });
-    render(wrap(<KnowledgeEditSection fileId="f1" />));
+    render(wrap(<KnowledgeEditSection fileId="f1" drive="d" />));
     const link = await screen.findByRole("link", { name: /open editor/i });
-    expect(link.getAttribute("href")).toBe("/addons/knowledge?edit=f1");
+    expect(link.getAttribute("href")).toBe("/drive/d/addons/knowledge?edit=f1");
   });
 
   it("renders nothing for non-text files", async () => {
     stubFetch({
       "/api/files/f2": { id: "f2", mime_type: "video/mp4", filename: "x.mp4" },
     });
-    const { container } = render(wrap(<KnowledgeEditSection fileId="f2" />));
+    const { container } = render(wrap(<KnowledgeEditSection fileId="f2" drive="d" />));
     await new Promise((r) => setTimeout(r, 20));
     expect(container.innerHTML).toBe("");
   });
 
   it("renders nothing when fetch fails", async () => {
     stubFetch({});
-    const { container } = render(wrap(<KnowledgeEditSection fileId="missing" />));
+    const { container } = render(wrap(<KnowledgeEditSection fileId="missing" drive="d" />));
     await new Promise((r) => setTimeout(r, 20));
     expect(container.innerHTML).toBe("");
   });
@@ -78,7 +78,7 @@ describe("KnowledgeEditSection", () => {
     stubFetch({
       "/api/files/f3": { id: "f3", mime_type: "text/plain", filename: "n.txt" },
     });
-    render(wrap(<KnowledgeEditSection fileId="f3" />));
+    render(wrap(<KnowledgeEditSection fileId="f3" drive="d" />));
     expect(
       await screen.findByRole("link", { name: /open editor/i }),
     ).toBeTruthy();
