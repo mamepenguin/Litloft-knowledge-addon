@@ -454,17 +454,18 @@ export default function KnowledgePage() {
 
   const handleCreateNote = useCallback(async () => {
     if (!drive) return;
+    const active = vaults.find((v) => v.id === activeId) ?? vaults[0];
+    if (!active) return;
     try {
-      const file = await createTextFile(drive, {
-        path: untitledFilename(),
-        content: "",
-      });
+      const name = untitledFilename();
+      const path = active.path ? `${active.path}/${name}` : name;
+      const file = await createTextFile(drive, { path, content: "" });
       setReloadKey((k) => k + 1);
       navigateMode({ kind: "edit", file });
     } catch (e) {
       setError((e as Error).message);
     }
-  }, [drive, navigateMode]);
+  }, [drive, vaults, activeId, navigateMode]);
 
   const shortcutsEnabled = mode.kind !== "loading" && mode.kind !== "setup" && mode.kind !== "addNew";
 
