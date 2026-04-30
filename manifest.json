@@ -74,6 +74,21 @@
                 },
                 "drive_optional": true,
                 "response_filter": null
+            },
+            {
+                "path": "/file_active_summary",
+                "methods": ["POST"],
+                "response_filter": null
+            },
+            {
+                "path": "/file_active_summary/{file_id}",
+                "methods": ["GET", "DELETE"],
+                "response_filter": null
+            },
+            {
+                "path": "/file_active_summary/{file_id}/note",
+                "methods": ["GET"],
+                "response_filter": null
             }
         ]
     }

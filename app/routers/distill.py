@@ -32,7 +32,12 @@ from sqlalchemy.orm import Session
 from app.auth import get_viewer_id
 from app.database import get_db
 from app.internal_client import InternalAPIError, InternalClient
-from app.models import NoteOrigin, NoteOriginSource, UserVault
+from app.models import (
+    FileActiveSummary,
+    NoteOrigin,
+    NoteOriginSource,
+    UserVault,
+)
 from app.schemas import DistillRequest, DistillResponse, NoteOriginOut
 from app.services.frontmatter import compose, iso_z
 
@@ -204,11 +209,11 @@ async def distill(
     note_file_id = created["id"]
     note_rel_path = _join_vault_path(vault, folder, final_filename)
 
-    # Register the relation + active_summary pointer in core. If either
-    # fails after the .md is already written, surface a 502 — the file
-    # is harmless on its own and can be re-promoted or cleaned up
-    # manually. We don't rollback the .md because it is user-owned data
-    # from the moment the write succeeded.
+    # Register the relation in core. If it fails after the .md is
+    # already written, surface a 502 — the file is harmless on its own
+    # and can be re-promoted or cleaned up manually. We don't rollback
+    # the .md because it is user-owned data from the moment the write
+    # succeeded.
     try:
         await client.create_file_relation(
             file_id_a=body.source_file_id,
@@ -216,15 +221,33 @@ async def distill(
             kind="related",
             viewer_id=viewer_id,
         )
-        await client.set_file_active_summary(
-            file_id=body.source_file_id,
-            summary_file_id=note_file_id,
-        )
     except InternalAPIError as e:
         logger.warning(
-            "distill: .md written but relation/active_summary failed: %s", e
+            "distill: .md written but relation registration failed: %s", e
         )
         raise HTTPException(status_code=502, detail=str(e))
+
+    # active_summary pointer lives in knowledge.db now (spec
+    # 2026-04-30-file-active-summary-to-knowledge). UPSERT in the same
+    # transaction as note_origins below so a single commit covers both
+    # the cache and the pointer.
+    pointer = (
+        db.query(FileActiveSummary)
+        .filter(FileActiveSummary.target_file_id == body.source_file_id)
+        .first()
+    )
+    if pointer is None:
+        db.add(
+            FileActiveSummary(
+                target_file_id=body.source_file_id,
+                drive=drive,
+                summary_note_id=note_file_id,
+            )
+        )
+    else:
+        pointer.drive = drive
+        pointer.summary_note_id = note_file_id
+        pointer.set_at = datetime.now(timezone.utc)
 
     vault_rel_note_path = (
         note_rel_path[len(vault.path) + 1 :]
@@ -250,6 +273,14 @@ async def distill(
     )
     db.commit()
 
+    await client.emit_addon_event(
+        "knowledge.active_summary.changed",
+        {
+            "file_id": body.source_file_id,
+            "summary_file_id": note_file_id,
+        },
+        drive=drive,
+    )
     await client.emit_addon_event(
         "knowledge.distilled.created",
         {

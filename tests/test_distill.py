@@ -3,7 +3,12 @@ from __future__ import annotations
 
 import pytest
 
-from app.models import NoteOrigin, NoteOriginSource, UserVault
+from app.models import (
+    FileActiveSummary,
+    NoteOrigin,
+    NoteOriginSource,
+    UserVault,
+)
 from app.services.frontmatter import parse
 
 
@@ -55,16 +60,28 @@ class TestDistillHappyPath:
         assert body["note_path"] == "Notes/AI-Drafts/vid-summary.md"
         assert body["note_file_id"]
 
-        # Relation + active_summary were both registered.
+        # Relation registered in core. The active_summary pointer is
+        # local to knowledge.db now (spec
+        # 2026-04-30-file-active-summary-to-knowledge), so check the
+        # row landed in the addon DB instead of the captured Internal
+        # API call list.
         assert len(fake_internal.captured_relations) == 1
         rel = fake_internal.captured_relations[0]
         assert rel["file_id_a"] == "src1"
         assert rel["file_id_b"] == body["note_file_id"]
         assert rel["kind"] == "related"
         assert isinstance(rel["viewer_id"], str) and rel["viewer_id"]
-        assert fake_internal.captured_active_summaries == [
-            {"file_id": "src1", "summary_file_id": body["note_file_id"]}
-        ]
+
+        from app.database import session_scope
+        with session_scope() as s:
+            row = (
+                s.query(FileActiveSummary)
+                .filter(FileActiveSummary.target_file_id == "src1")
+                .first()
+            )
+            assert row is not None
+            assert row.summary_note_id == body["note_file_id"]
+            assert row.drive == "test-drive"
 
     def test_emits_distilled_created_ws_event(
         self, client, fake_internal, alice_vault, viewer_cookie
@@ -77,15 +94,30 @@ class TestDistillHappyPath:
         assert res.status_code == 201, res.text
         note_file_id = res.json()["note_file_id"]
 
+        # Two events fire: knowledge.active_summary.changed (from the
+        # pointer UPSERT) and knowledge.distilled.created. Order is the
+        # order they were emitted; both are scoped to the source drive.
         events = fake_internal.captured_addon_events
-        assert len(events) == 1
-        evt = events[0]
-        assert evt["event"] == "knowledge.distilled.created"
-        assert evt["drive"] == "test-drive"
-        assert evt["data"] == {
+        event_names = [e["event"] for e in events]
+        assert "knowledge.active_summary.changed" in event_names
+        assert "knowledge.distilled.created" in event_names
+
+        distilled = next(
+            e for e in events if e["event"] == "knowledge.distilled.created"
+        )
+        assert distilled["drive"] == "test-drive"
+        assert distilled["data"] == {
             "vault_id": alice_vault.id,
             "note_file_id": note_file_id,
             "source_file_id": "src1",
+        }
+        active = next(
+            e for e in events if e["event"] == "knowledge.active_summary.changed"
+        )
+        assert active["drive"] == "test-drive"
+        assert active["data"] == {
+            "file_id": "src1",
+            "summary_file_id": note_file_id,
         }
 
     def test_frontmatter_contains_required_fields(

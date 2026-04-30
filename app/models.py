@@ -172,3 +172,28 @@ class NoteOriginSource(Base):
         "NoteOrigin",
         back_populates="sources",
     )
+
+
+class FileActiveSummary(Base):
+    """Pointer from a core file to its active summary note.
+
+    Moved from core (spec ``2026-04-30-file-active-summary-to-knowledge``).
+    Cross-DB: there is no FK to core ``files`` because core lives in a
+    separate SQLite. Lifecycle is reconciled via the ``files.purged`` /
+    ``files.missing`` webhook handlers in ``app.webhook``.
+
+    ``drive`` is stored so the drive-scoped HTTP endpoints can apply the
+    "WHERE drive == header_drive" rule (see hako `-4selmRmM4uGucok5TX6N`)
+    without round-tripping to core for every read.
+    """
+
+    __tablename__ = "file_active_summaries"
+
+    target_file_id: Mapped[str] = mapped_column(String(12), primary_key=True)
+    drive: Mapped[str] = mapped_column(String(128), nullable=False, index=True)
+    summary_note_id: Mapped[str] = mapped_column(String(12), nullable=False)
+    set_at: Mapped[datetime] = mapped_column(
+        server_default=func.now(),
+        onupdate=func.now(),
+        nullable=False,
+    )

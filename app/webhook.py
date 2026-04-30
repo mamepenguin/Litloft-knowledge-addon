@@ -27,7 +27,7 @@ from sqlalchemy.orm import Session
 
 from app.database import session_scope
 from app.internal_client import InternalAPIError, InternalClient
-from app.models import NoteOrigin, NoteOriginSource
+from app.models import FileActiveSummary, NoteOrigin, NoteOriginSource
 
 logger = logging.getLogger(__name__)
 
@@ -203,17 +203,31 @@ async def handle_files_purged(file_ids: list[str]) -> int:
     ``source_file_id``s must go away (core cascade does not reach us).
     After deletion each affected note is either orphaned (no sources
     left) or re-evaluated against whatever remains.
+
+    The same purge also clears any ``FileActiveSummary`` pointer that
+    references one of these file_ids on either side (target or summary
+    note). The pointer is cross-DB so core's ON DELETE CASCADE doesn't
+    reach us — same reason as ``note_origin_sources``.
     """
     if not file_ids:
         return 0
     with session_scope() as session:
         notes = _load_affected_notes(session, file_ids)
-        if not notes:
-            return 0
 
         session.query(NoteOriginSource).filter(
             NoteOriginSource.source_file_id.in_(file_ids)
         ).delete(synchronize_session=False)
+
+        # Drop active-summary pointers that name any purged file on
+        # either side. The pointer is meaningless once either end is
+        # gone; we don't try to be smart about partial states.
+        session.query(FileActiveSummary).filter(
+            (FileActiveSummary.target_file_id.in_(file_ids))
+            | (FileActiveSummary.summary_note_id.in_(file_ids))
+        ).delete(synchronize_session=False)
+
+        if not notes:
+            return 0
 
         sources_by_note = _sources_for_notes(session, notes)
         remaining_sources = sorted(

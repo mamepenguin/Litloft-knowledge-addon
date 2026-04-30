@@ -65,7 +65,6 @@ class FakeInternalClient:
     create_text_file_always_fails: int | None = None
     # Track distill calls so tests can assert registered relations.
     captured_relations: list[dict] = []
-    captured_active_summaries: list[dict] = []
     captured_text_writes: list[dict] = []
     # Source-file metadata returned by ``get_file`` (keyed on file_id).
     file_info_override: dict[str, dict] = {}
@@ -115,12 +114,6 @@ class FakeInternalClient:
         )
         return {"id": 1}
 
-    async def set_file_active_summary(self, file_id, summary_file_id):
-        FakeInternalClient.captured_active_summaries.append(
-            {"file_id": file_id, "summary_file_id": summary_file_id}
-        )
-        return {"file_id": file_id, "summary_file_id": summary_file_id}
-
     captured_addon_events: list[dict] = []
 
     async def emit_addon_event(self, event, data, drive=None):
@@ -163,6 +156,7 @@ class FakeInternalClient:
 def fake_internal(monkeypatch):
     """Swap InternalClient with FakeInternalClient wherever the routers
     import it, and reset the per-test accessible-drives override."""
+    import app.routers.active_summary as active_summary
     import app.routers.distill as distill
     import app.routers.tags as tags
     import app.routers.vaults as vaults
@@ -171,7 +165,6 @@ def fake_internal(monkeypatch):
     FakeInternalClient.create_text_file_collisions = set()
     FakeInternalClient.create_text_file_always_fails = None
     FakeInternalClient.captured_relations = []
-    FakeInternalClient.captured_active_summaries = []
     FakeInternalClient.captured_text_writes = []
     FakeInternalClient.file_info_override = {}
     FakeInternalClient.captured_addon_events = []
@@ -182,6 +175,7 @@ def fake_internal(monkeypatch):
     monkeypatch.setattr(vaults, "InternalClient", FakeInternalClient)
     monkeypatch.setattr(distill, "InternalClient", FakeInternalClient)
     monkeypatch.setattr(tags, "InternalClient", FakeInternalClient)
+    monkeypatch.setattr(active_summary, "InternalClient", FakeInternalClient)
     yield FakeInternalClient
 
 

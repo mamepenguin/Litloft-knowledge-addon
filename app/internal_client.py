@@ -220,23 +220,6 @@ class InternalClient:
             raise InternalAPIError(r.status_code, r.text)
         return r.json() if r.status_code == 201 else {}
 
-    async def set_file_active_summary(
-        self, file_id: str, summary_file_id: str
-    ) -> dict:
-        """UPSERT the active summary pointer for a file."""
-        async with httpx.AsyncClient(timeout=10.0) as client:
-            r = await client.post(
-                f"{HOMEVAULT_INTERNAL_URL}/api/internal/file_active_summary",
-                headers={**self._headers(), "Content-Type": "application/json"},
-                json={
-                    "file_id": file_id,
-                    "summary_file_id": summary_file_id,
-                },
-            )
-        if r.status_code != 200:
-            raise InternalAPIError(r.status_code, r.text)
-        return r.json()
-
     async def fetch_bulk_state(self, file_ids: list[str]) -> dict:
         """Bulk-resolve lifecycle state (active / missing / trash) for
         each ``file_id``.

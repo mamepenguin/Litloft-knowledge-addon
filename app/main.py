@@ -17,7 +17,15 @@ from fastapi import FastAPI
 
 from app.database import init_schema
 from app.internal_client import InternalAPIError, InternalClient
-from app.routers import clips, distill, search, tags, vaults, webhooks
+from app.routers import (
+    active_summary,
+    clips,
+    distill,
+    search,
+    tags,
+    vaults,
+    webhooks,
+)
 from app.sanitize import build_frontmatter, slugify_filename
 from app.services.extractor import ExtractedArticle
 from app.services.frontmatter import iso_z
@@ -165,6 +173,7 @@ app.include_router(distill.router)
 app.include_router(search.router)
 app.include_router(tags.router)
 app.include_router(webhooks.router)
+app.include_router(active_summary.router)
 
 
 @app.get("/health")
