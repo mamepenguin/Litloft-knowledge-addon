@@ -71,7 +71,9 @@
       "activePrefix": "Active: {label}",
       "clipAction": "Web clip",
       "clipBadge": "{count} fetching",
-      "helpAction": "Clip help"
+      "helpAction": "Clip help",
+      "hide": "Hide sidebar",
+      "show": "Show sidebar"
     },
     "editSection": {
       "title": "Knowledge",

@@ -71,7 +71,9 @@
       "activePrefix": "アクティブ: {label}",
       "clipAction": "Web クリップ",
       "clipBadge": "{count} 件取得中",
-      "helpAction": "クリップのヘルプ"
+      "helpAction": "クリップのヘルプ",
+      "hide": "サイドバーを隠す",
+      "show": "サイドバーを表示"
     },
     "editSection": {
       "title": "Knowledge",
