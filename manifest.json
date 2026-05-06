@@ -51,6 +51,11 @@
                 "response_filter": null
             },
             {
+                "path": "/notes",
+                "methods": ["POST"],
+                "response_filter": null
+            },
+            {
                 "path": "/notes/by_source_file/{source_file_id}",
                 "methods": ["GET"],
                 "response_filter": null
