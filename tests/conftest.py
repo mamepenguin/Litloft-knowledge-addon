@@ -158,6 +158,7 @@ def fake_internal(monkeypatch):
     import it, and reset the per-test accessible-drives override."""
     import app.routers.active_summary as active_summary
     import app.routers.distill as distill
+    import app.routers.notes as notes_router
     import app.routers.tags as tags
     import app.routers.vaults as vaults
 
@@ -174,6 +175,7 @@ def fake_internal(monkeypatch):
     FakeInternalClient.raise_on_tag_sync = {}
     monkeypatch.setattr(vaults, "InternalClient", FakeInternalClient)
     monkeypatch.setattr(distill, "InternalClient", FakeInternalClient)
+    monkeypatch.setattr(notes_router, "InternalClient", FakeInternalClient)
     monkeypatch.setattr(tags, "InternalClient", FakeInternalClient)
     monkeypatch.setattr(active_summary, "InternalClient", FakeInternalClient)
     yield FakeInternalClient

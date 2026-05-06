@@ -21,6 +21,7 @@ from app.routers import (
     active_summary,
     clips,
     distill,
+    notes,
     search,
     tags,
     vaults,
@@ -170,6 +171,7 @@ app = FastAPI(
 app.include_router(vaults.router)
 app.include_router(clips.router)
 app.include_router(distill.router)
+app.include_router(notes.router)
 app.include_router(search.router)
 app.include_router(tags.router)
 app.include_router(webhooks.router)

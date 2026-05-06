@@ -207,7 +207,8 @@
         "bold": "太字",
         "list": "リスト",
         "link": "リンク",
-        "code": "コードブロック"
+        "code": "コードブロック",
+        "fileLink": "ファイルリンクを挿入"
       },
       "status": {
         "saving": "保存中...",
@@ -221,6 +222,14 @@
         "overwrite": "自分の変更で上書きする",
         "dismiss": "閉じる"
       }
+    },
+    "fileLinkModal": {
+      "title": "ファイルリンクを挿入",
+      "close": "閉じる",
+      "searchPlaceholder": "ファイルを検索...",
+      "searching": "検索中...",
+      "noResults": "一致するファイルがありません",
+      "typeToSearch": "ファイル名を入力して検索"
     }
   }
 }

@@ -31,6 +31,7 @@ import EditorToolbar, {
   applyEditorAction,
   type EditorAction,
 } from "./EditorToolbar";
+import FileLinkModal from "./FileLinkModal";
 import { applyIndent } from "./editorIndent";
 
 interface Props {
@@ -84,6 +85,8 @@ export default function Editor({
   const lastSavedRef = useRef<string>("");
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [fileLinkModalOpen, setFileLinkModalOpen] = useState(false);
+  const savedSelRef = useRef<{ start: number; end: number } | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -198,6 +201,32 @@ export default function Editor({
       ta.setSelectionRange(selStart, selEnd);
     });
   }, [content]);
+
+  const handleFileLinkRequest = useCallback(() => {
+    const ta = textareaRef.current;
+    if (ta) {
+      savedSelRef.current = { start: ta.selectionStart, end: ta.selectionEnd };
+    }
+    setFileLinkModalOpen(true);
+  }, []);
+
+  const handleFileLinkInsert = useCallback(
+    ({ filename, fileId }: { filename: string; fileId: string }) => {
+      setFileLinkModalOpen(false);
+      const ta = textareaRef.current;
+      if (!ta || content === null) return;
+      const sel = savedSelRef.current ?? { start: ta.selectionStart, end: ta.selectionEnd };
+      const inserted = `[${filename}](loft://${fileId})`;
+      const newText = content.slice(0, sel.start) + inserted + content.slice(sel.end);
+      const cursor = sel.start + inserted.length;
+      setContent(newText);
+      requestAnimationFrame(() => {
+        ta.focus();
+        ta.setSelectionRange(cursor, cursor);
+      });
+    },
+    [content],
+  );
 
   const flushSave = useCallback(() => {
     if (saveTimerRef.current) {
@@ -361,7 +390,9 @@ export default function Editor({
         )}
       </header>
 
-      {viewMode !== "preview" && <EditorToolbar onAction={handleToolbar} />}
+      {viewMode !== "preview" && (
+        <EditorToolbar onAction={handleToolbar} onFileLinkRequest={handleFileLinkRequest} />
+      )}
 
       {/* Keep both panes permanently mounted so that mermaid diagrams and other
           stateful DOM do not get destroyed when switching view modes.
@@ -389,6 +420,7 @@ export default function Editor({
             <MarkdownPreview
               source={content}
               className="h-full"
+              drive={drive}
               editable={{
                 id: fileId,
                 mime_type: "text/markdown",
@@ -406,6 +438,13 @@ export default function Editor({
           onReload={handleReloadFromServer}
           onOverwrite={handleOverwrite}
           onDismiss={() => setSaveState({ kind: "idle" })}
+        />
+      )}
+      {fileLinkModalOpen && (
+        <FileLinkModal
+          drive={drive}
+          onSelect={handleFileLinkInsert}
+          onClose={() => setFileLinkModalOpen(false)}
         />
       )}
     </div>

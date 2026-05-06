@@ -83,6 +83,23 @@ class DistillResponse(BaseModel):
     vault_id: int
 
 
+class NoteCreate(BaseModel):
+    """Create a Knowledge note with pre-formatted Markdown content.
+
+    Used by the Ask → Knowledge save flow. ``content`` is a complete
+    Markdown document (frontmatter + body) composed by the frontend.
+    ``source_file_ids`` lists the files cited in the note so the backend
+    can register ``file_relations`` immediately (before any PUT /content
+    edit triggers Phase 1 sync).
+    """
+
+    vault_id: int
+    folder: str = Field(default="Ask", max_length=512)
+    filename: str = Field(min_length=1, max_length=200)
+    content: str = Field(min_length=0, max_length=1 * 1024 * 1024)
+    source_file_ids: list[str] = Field(default_factory=list, max_length=50)
+
+
 class NoteOriginOut(BaseModel):
     """Reverse-lookup entry: a Vault note whose frontmatter references a source."""
 

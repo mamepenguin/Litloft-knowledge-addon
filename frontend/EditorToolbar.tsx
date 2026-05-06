@@ -1,6 +1,6 @@
 "use client";
 
-import { Bold, Code, Heading1, Heading2, Heading3, Link, List } from "lucide-react";
+import { Bold, Code, Heading1, Heading2, Heading3, Link, Link2, List } from "lucide-react";
 import { useTranslations } from "next-intl";
 
 export type EditorAction =
@@ -11,9 +11,11 @@ export type EditorAction =
 
 interface Props {
   onAction: (action: EditorAction) => void;
+  /** Called when the user clicks the "insert file link" button. */
+  onFileLinkRequest?: () => void;
 }
 
-export default function EditorToolbar({ onAction }: Props) {
+export default function EditorToolbar({ onAction, onFileLinkRequest }: Props) {
   const t = useTranslations("knowledge.editor.toolbar");
 
   const btnClass =
@@ -89,6 +91,20 @@ export default function EditorToolbar({ onAction }: Props) {
       >
         <Code size={15} />
       </button>
+      {onFileLinkRequest && (
+        <>
+          <span className="mx-1.5 h-4 w-px bg-bg-border" />
+          <button
+            type="button"
+            className={btnClass}
+            aria-label={t("fileLink")}
+            title={t("fileLink")}
+            onClick={onFileLinkRequest}
+          >
+            <Link2 size={15} />
+          </button>
+        </>
+      )}
     </div>
   );
 }

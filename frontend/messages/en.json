@@ -207,7 +207,8 @@
         "bold": "Bold",
         "list": "List",
         "link": "Link",
-        "code": "Code block"
+        "code": "Code block",
+        "fileLink": "Insert file link"
       },
       "status": {
         "saving": "Saving...",
@@ -221,6 +222,14 @@
         "overwrite": "Overwrite with my changes",
         "dismiss": "Dismiss"
       }
+    },
+    "fileLinkModal": {
+      "title": "Insert file link",
+      "close": "Close",
+      "searchPlaceholder": "Search files...",
+      "searching": "Searching...",
+      "noResults": "No files found",
+      "typeToSearch": "Type to search for a file"
     }
   }
 }
