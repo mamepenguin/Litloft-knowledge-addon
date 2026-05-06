@@ -14,7 +14,7 @@ interface Props {
 
 function fileIcon(type: string | undefined) {
   switch (type) {
-    case "video": return <Film size={14} className="shrink-0 text-accent-blue" />;
+    case "video": return <Film size={14} className="shrink-0 text-accent" />;
     case "audio": return <Music size={14} className="shrink-0 text-accent-green" />;
     case "image": return <Image size={14} className="shrink-0 text-accent-pink" />;
     default:      return <FileText size={14} className="shrink-0 text-text-muted" />;
@@ -105,7 +105,7 @@ export default function FileLinkModal({ drive, onSelect, onClose }: Props) {
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             placeholder={t("searchPlaceholder")}
-            className="w-full rounded-lg border border-bg-border bg-bg-primary py-2 pl-8 pr-3 text-sm text-text-primary placeholder:text-text-muted focus:border-accent-blue focus:outline-none"
+            className="w-full rounded-lg border border-bg-border bg-bg-primary py-2 pl-8 pr-3 text-sm text-text-primary placeholder:text-text-muted focus:border-accent focus:outline-none"
           />
         </div>
 
