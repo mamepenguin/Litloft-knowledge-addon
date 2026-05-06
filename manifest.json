@@ -15,6 +15,11 @@
             {"id": "knowledge-active-summary", "label": "Summary Note", "priority": 10}
         ]
     },
+    "event_hooks": [
+        {"event": "files.missing",   "url": "http://knowledge:8200/webhook/files-missing",   "secret_env": "KNOWLEDGE_WEBHOOK_SECRET", "addon": "knowledge", "feature": "index"},
+        {"event": "files.recovered", "url": "http://knowledge:8200/webhook/files-recovered", "secret_env": "KNOWLEDGE_WEBHOOK_SECRET", "addon": "knowledge", "feature": "index"},
+        {"event": "files.purged",    "url": "http://knowledge:8200/webhook/files-purged",    "secret_env": "KNOWLEDGE_WEBHOOK_SECRET", "addon": "knowledge", "feature": "index"}
+    ],
     "proxy": {
         "target_env": "KNOWLEDGE_SERVICE_URL",
         "target_default": "http://knowledge:8200",
