@@ -27,7 +27,7 @@ from sqlalchemy.orm import Session
 
 from app.database import session_scope
 from app.internal_client import InternalAPIError, InternalClient
-from app.models import FileActiveSummary, NoteOrigin, NoteOriginSource
+from app.models import ClipJob, FileActiveSummary, NoteOrigin, NoteOriginSource
 
 logger = logging.getLogger(__name__)
 
@@ -224,6 +224,13 @@ async def handle_files_purged(file_ids: list[str]) -> int:
         session.query(FileActiveSummary).filter(
             (FileActiveSummary.target_file_id.in_(file_ids))
             | (FileActiveSummary.summary_note_id.in_(file_ids))
+        ).delete(synchronize_session=False)
+
+        # Drop clip jobs whose file has been purged. ClipJob lives in
+        # knowledge's own SQLite so core's ON DELETE CASCADE doesn't
+        # reach here; purge is the only point where the job must go.
+        session.query(ClipJob).filter(
+            ClipJob.file_id.in_(file_ids)
         ).delete(synchronize_session=False)
 
         if not notes:
