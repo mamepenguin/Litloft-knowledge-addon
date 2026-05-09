@@ -20,6 +20,7 @@ import {
 } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { MarkdownPreview } from "@/components/MarkdownPreview";
+import { useDirty } from "@/hooks/useDirty";
 import { useShortcuts } from "@/hooks/useShortcuts";
 import {
   ConflictError,
@@ -36,7 +37,14 @@ import { applyIndent } from "./editorIndent";
 
 interface Props {
   fileId: string;
-  filename: string;
+  /**
+   * Display name shown in the rename field. Optional in inline mode
+   * (the host already shows the title in its own h1) — when omitted,
+   * the editor fetches it lazily from ``/api/files/{id}`` so a
+   * caller that only knows the id (the file-detail slot) doesn't
+   * need to plumb metadata through.
+   */
+  filename?: string;
   /**
    * The drive this note lives on. Needed for drive-scoped tag
    * autocomplete in the preview pane's Properties Panel. Knowledge
@@ -44,11 +52,31 @@ interface Props {
    * not need to be plumbed.
    */
   drive: string;
-  onBack: () => void;
+  /**
+   * Optional in inline mode (no back button is rendered there); the
+   * Knowledge ``Page.tsx`` host still passes a real handler.
+   */
+  onBack?: () => void;
   onRenamed?: (newFilename: string) => void;
   onDelete?: () => void;
   sidebarHidden?: boolean;
   onToggleSidebar?: () => void;
+  /**
+   * Phase 2 of the right-pane equivalence spec
+   * (docs/superpowers/specs/2026-05-09-right-pane-full-detail.md
+   * §4.2.2). When the editor mounts inside the 2-pane right pane via
+   * ``KnowledgeEditSection``, the surrounding ``FileDetailContent``
+   * already provides the title, breadcrumb, delete affordance and
+   * sidebar — re-rendering them here would compete for the same
+   * space. ``inlineMode`` strips those bits and lets the editor body
+   * (toolbar + textarea/preview) sit flush inside the slot.
+   *
+   * Also publishes dirty state into ``dirtyRegistry`` (always; the
+   * registry is harmless when nothing reads it). The Knowledge
+   * ``Page.tsx`` host doesn't currently subscribe but it will once
+   * the Phase 2.2 navigation guard ships.
+   */
+  inlineMode?: boolean;
 }
 
 type SaveState =
@@ -73,11 +101,36 @@ export default function Editor({
   onDelete,
   sidebarHidden,
   onToggleSidebar,
+  inlineMode,
 }: Props) {
   const t = useTranslations("knowledge.editor");
   const tSide = useTranslations("knowledge.sidebar");
   const tShortcuts = useTranslations("knowledge.shortcuts");
   const [content, setContent] = useState<string | null>(null);
+  // When the host doesn't know the filename (e.g. KnowledgeEditSection
+  // only has fileId + drive from the slot props), fetch it ourselves
+  // so the rename field and the .md-stripped display name still work.
+  const [fetchedFilename, setFetchedFilename] = useState<string | null>(null);
+  useEffect(() => {
+    if (filename !== undefined) return;
+    setFetchedFilename(null);
+    let cancelled = false;
+    fetch(`/api/files/${encodeURIComponent(fileId)}`, {
+      credentials: "include",
+    })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data: { filename?: string } | null) => {
+        if (!cancelled && data?.filename) setFetchedFilename(data.filename);
+      })
+      .catch(() => {
+        // Falls through to the empty-string fallback below; rename
+        // field is hidden in inlineMode anyway.
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [fileId, filename]);
+  const effectiveFilename = filename ?? fetchedFilename ?? "";
   const [loadError, setLoadError] = useState<string | null>(null);
   const [saveState, setSaveState] = useState<SaveState>({ kind: "idle" });
   const [viewMode, setViewMode] = useState<ViewMode>("edit");
@@ -151,6 +204,17 @@ export default function Editor({
       performSave(content);
     }, AUTOSAVE_DEBOUNCE_MS);
   }, [content, performSave]);
+
+  // Publish dirty state into the global registry so the Phase 2.2
+  // navigation guard / browser unload handler can ask "would
+  // navigating away discard unsaved work?". Always on (not gated on
+  // inlineMode) — the registry is harmless when nothing reads it,
+  // and keeping the contract uniform across the two hosts means the
+  // legacy /addons/knowledge route benefits the moment the guard
+  // rolls out.
+  const isDirty =
+    content !== null && content !== lastSavedRef.current;
+  useDirty({ fileId, source: "knowledge-editor", dirty: isDirty });
 
   useEffect(() => {
     return () => {
@@ -343,52 +407,69 @@ export default function Editor({
     );
   }
 
-  const displayName = filename.replace(/\.md$/i, "");
+  const displayName = effectiveFilename.replace(/\.md$/i, "");
+
+  // Inline mode collapses the chrome down to status + view-mode
+  // toggle; the host (FileDetailContent) already shows the title,
+  // breadcrumb, delete affordance and sidebar. Outer container also
+  // swaps to a height-bounded layout so the editor doesn't try to
+  // fill the whole right pane (a 5,000-line note would otherwise
+  // push every other section off-screen).
+  const containerClass = inlineMode
+    ? "flex max-h-[70vh] min-h-[24rem] flex-col"
+    : "flex min-h-0 flex-1 flex-col";
 
   return (
-    <div className="flex min-h-0 flex-1 flex-col">
-      <header className="flex items-center gap-3 border-b border-bg-border px-4 py-2.5">
-        <button
-          type="button"
-          onClick={onBack}
-          className="flex h-8 w-8 items-center justify-center rounded-md text-text-muted hover:bg-bg-elevated hover:text-text-primary md:hidden"
-          aria-label={t("back")}
-        >
-          <ArrowLeft size={16} />
-        </button>
-        {onToggleSidebar && (
-          <button
-            type="button"
-            onClick={onToggleSidebar}
-            className="hidden h-8 w-8 items-center justify-center rounded-md text-text-muted hover:bg-bg-elevated hover:text-text-primary md:inline-flex"
-            aria-label={sidebarHidden ? tSide("show") : tSide("hide")}
-            aria-pressed={sidebarHidden}
-            title={sidebarHidden ? tSide("show") : tSide("hide")}
-          >
-            {sidebarHidden ? <PanelLeft size={16} /> : <PanelLeftClose size={16} />}
-          </button>
-        )}
-        <div className="min-w-0 flex-1">
-          <TitleField
-            fileId={fileId}
-            displayName={displayName}
-            onRenamed={onRenamed}
-          />
+    <div className={containerClass}>
+      {inlineMode ? (
+        <div className="flex items-center justify-end gap-2 border-b border-bg-border px-2 py-1.5">
+          <SaveIndicator state={saveState} />
+          <ViewModeToggle mode={viewMode} onChange={setViewMode} />
         </div>
-        <SaveIndicator state={saveState} />
-        <ViewModeToggle mode={viewMode} onChange={setViewMode} />
-        {onDelete && (
+      ) : (
+        <header className="flex items-center gap-3 border-b border-bg-border px-4 py-2.5">
           <button
             type="button"
-            onClick={handleDelete}
-            aria-label={t("delete")}
-            title={t("delete")}
-            className="flex h-8 w-8 items-center justify-center rounded-md text-text-muted transition-colors hover:bg-red-500/10 hover:text-red-400"
+            onClick={onBack}
+            className="flex h-8 w-8 items-center justify-center rounded-md text-text-muted hover:bg-bg-elevated hover:text-text-primary md:hidden"
+            aria-label={t("back")}
           >
-            <Trash2 size={14} />
+            <ArrowLeft size={16} />
           </button>
-        )}
-      </header>
+          {onToggleSidebar && (
+            <button
+              type="button"
+              onClick={onToggleSidebar}
+              className="hidden h-8 w-8 items-center justify-center rounded-md text-text-muted hover:bg-bg-elevated hover:text-text-primary md:inline-flex"
+              aria-label={sidebarHidden ? tSide("show") : tSide("hide")}
+              aria-pressed={sidebarHidden}
+              title={sidebarHidden ? tSide("show") : tSide("hide")}
+            >
+              {sidebarHidden ? <PanelLeft size={16} /> : <PanelLeftClose size={16} />}
+            </button>
+          )}
+          <div className="min-w-0 flex-1">
+            <TitleField
+              fileId={fileId}
+              displayName={displayName}
+              onRenamed={onRenamed}
+            />
+          </div>
+          <SaveIndicator state={saveState} />
+          <ViewModeToggle mode={viewMode} onChange={setViewMode} />
+          {onDelete && (
+            <button
+              type="button"
+              onClick={handleDelete}
+              aria-label={t("delete")}
+              title={t("delete")}
+              className="flex h-8 w-8 items-center justify-center rounded-md text-text-muted transition-colors hover:bg-red-500/10 hover:text-red-400"
+            >
+              <Trash2 size={14} />
+            </button>
+          )}
+        </header>
+      )}
 
       {viewMode !== "preview" && (
         <EditorToolbar onAction={handleToolbar} onFileLinkRequest={handleFileLinkRequest} />
@@ -424,7 +505,7 @@ export default function Editor({
               editable={{
                 id: fileId,
                 mime_type: "text/markdown",
-                filename,
+                filename: effectiveFilename,
                 drive,
               }}
               onSourceChange={setContent}
