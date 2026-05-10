@@ -1,13 +1,15 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { useSearchParams, notFound } from "next/navigation";
+import { useRouter, useSearchParams, notFound } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { AlertCircle, X } from "lucide-react";
 import { useCurrentDrive } from "@/components/CurrentDriveProvider";
 import { useOverlaySidebar } from "@/components/SidebarProvider";
 import { useShortcuts } from "@/hooks/useShortcuts";
 import { useWebSocket } from "@/hooks/useWebSocket";
+import { buildCanonicalFileUrl } from "@/lib/canonicalFileUrl";
+import { isInlineKnowledgeEditorEnabled } from "@/lib/featureFlags";
 import {
   createTextFile,
   deleteFolderApi,
@@ -112,6 +114,7 @@ export default function KnowledgePage() {
   const t = useTranslations("knowledge");
   const tShortcuts = useTranslations("knowledge.shortcuts");
   const drive = useCurrentDrive();
+  const router = useRouter();
   const searchParams = useSearchParams();
   const editParam = searchParams.get("edit");
 
@@ -346,6 +349,25 @@ export default function KnowledgePage() {
 
   const refresh = useCallback(async () => {
     try {
+      // Phase 2 PR-3 case P (hako ``RGstVXy42Bfw-FlpP8hCx``): when the
+      // inline-editor flag is on and the legacy ``?edit={id}``
+      // deep-link is hit, bounce to the canonical 2-pane URL so the
+      // file opens in ``KnowledgeEditSection`` inside ``FileDetailContent``
+      // rather than the standalone Knowledge route. We keep the legacy
+      // route fully functional when the flag is off.
+      if (editParam && isInlineKnowledgeEditorEnabled()) {
+        const target = await fetchFileMeta(editParam);
+        if (
+          target &&
+          (target.mime_type === "text/markdown" ||
+            target.mime_type === "text/plain")
+        ) {
+          router.replace(
+            buildCanonicalFileUrl(target, target.id, { edit: "1" }),
+          );
+          return;
+        }
+      }
       const res = await listVaults(drive);
       setVaults(res.vaults);
       setActiveId(res.active_vault_id);
@@ -374,7 +396,7 @@ export default function KnowledgePage() {
     } catch (e) {
       setError((e as Error).message);
     }
-  }, [editParam, drive, navigateMode]);
+  }, [editParam, drive, navigateMode, router]);
 
   useEffect(() => {
     refresh();

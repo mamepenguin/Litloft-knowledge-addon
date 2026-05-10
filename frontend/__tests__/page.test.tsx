@@ -18,8 +18,17 @@ vi.mock("@/components/SidebarProvider", () => ({
 }));
 
 let _searchParam: string | null = null;
+const _routerReplace = vi.fn();
 vi.mock("next/navigation", () => ({
   useSearchParams: () => ({ get: (_k: string) => _searchParam }),
+  useRouter: () => ({
+    replace: _routerReplace,
+    push: vi.fn(),
+    back: vi.fn(),
+    forward: vi.fn(),
+    refresh: vi.fn(),
+    prefetch: vi.fn(),
+  }),
   notFound: () => {
     throw new Error("notFound");
   },
@@ -122,12 +131,15 @@ describe("KnowledgePage sidebar toggle & mobile layout", () => {
   beforeEach(() => {
     _mockDrive = "test-drive";
     _searchParam = null;
+    _routerReplace.mockReset();
     setupStorage();
     vi.unstubAllGlobals();
+    vi.unstubAllEnvs();
   });
   afterEach(() => {
     cleanup();
     vi.restoreAllMocks();
+    vi.unstubAllEnvs();
   });
 
   it("renders sidebar by default (no file selected)", async () => {
@@ -236,6 +248,66 @@ describe("KnowledgePage sidebar toggle & mobile layout", () => {
     expect(aside).toBeTruthy();
     expect(aside!.className).toContain("w-full");
     expect(aside!.className).not.toContain("w-72");
+  });
+
+  it("redirects ?edit={id} to canonical 2-pane URL when flag is on (case P)", async () => {
+    vi.stubEnv("NEXT_PUBLIC_INLINE_KNOWLEDGE_EDITOR", "true");
+    _searchParam = "file-a";
+    stubFetch(defaultHandler);
+
+    render(<Page />);
+
+    await waitFor(() => {
+      expect(_routerReplace).toHaveBeenCalled();
+    });
+    const target = _routerReplace.mock.calls[0][0] as string;
+    const url = new URL(`http://localhost${target}`);
+    expect(url.pathname).toBe("/drive/test-drive/Notes");
+    expect(url.searchParams.get("file")).toBe("file-a");
+    expect(url.searchParams.get("edit")).toBe("1");
+  });
+
+  it("does NOT redirect when flag is off (legacy ?edit={id} stays on Knowledge route)", async () => {
+    // Flag unset (default false).
+    _searchParam = "file-a";
+    stubFetch(defaultHandler);
+
+    render(<Page />);
+
+    await waitFor(() => {
+      // Legacy path opens the editor inline in Knowledge route — the
+      // textarea (label='editArea') is the proof we never bounced.
+      expect(screen.getByLabelText("editArea")).toBeInTheDocument();
+    });
+    expect(_routerReplace).not.toHaveBeenCalled();
+  });
+
+  it("does NOT redirect non-editable mimes even when flag is on", async () => {
+    vi.stubEnv("NEXT_PUBLIC_INLINE_KNOWLEDGE_EDITOR", "true");
+    _searchParam = "file-vid";
+    stubFetch((url) => {
+      if (url.match(/\/api\/files\/file-vid$/)) {
+        return {
+          ok: true,
+          status: 200,
+          body: {
+            ...fileA,
+            id: "file-vid",
+            mime_type: "video/mp4",
+            filename: "v.mp4",
+          },
+        };
+      }
+      return defaultHandler(url);
+    });
+
+    render(<Page />);
+
+    // Wait for the metadata fetch to settle.
+    await waitFor(() => {
+      expect(globalThis.fetch).toHaveBeenCalled();
+    });
+    expect(_routerReplace).not.toHaveBeenCalled();
   });
 
   it("toggle button has aria-pressed reflecting sidebarHidden state", async () => {
