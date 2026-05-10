@@ -87,6 +87,15 @@ interface Props {
    * notes with ``?edit=1`` keeps focus on the textarea.
    */
   autoFocus?: boolean;
+  /**
+   * MarkdownDocumentLayout canvas integration: stretch to the full
+   * available height instead of the inline-mode 70vh cap. The cap was
+   * introduced for the legacy vertical stack so a 5,000-line note
+   * wouldn't push other sections off-screen — but in the document
+   * layout the canvas IS the editor's home and should fill it
+   * (spec 2026-05-10 §3 / E15 fix).
+   */
+  fillHeight?: boolean;
 }
 
 type SaveState =
@@ -112,6 +121,7 @@ export default function Editor({
   sidebarHidden,
   onToggleSidebar,
   inlineMode,
+  fillHeight,
   autoFocus,
 }: Props) {
   const t = useTranslations("knowledge.editor");
@@ -433,13 +443,19 @@ export default function Editor({
 
   // Inline mode collapses the chrome down to status + view-mode
   // toggle; the host (FileDetailContent) already shows the title,
-  // breadcrumb, delete affordance and sidebar. Outer container also
-  // swaps to a height-bounded layout so the editor doesn't try to
-  // fill the whole right pane (a 5,000-line note would otherwise
-  // push every other section off-screen).
-  const containerClass = inlineMode
-    ? "flex max-h-[70vh] min-h-[24rem] flex-col"
-    : "flex min-h-0 flex-1 flex-col";
+  // breadcrumb, delete affordance and sidebar. The default inline
+  // layout is height-bounded so a 5,000-line note doesn't push other
+  // sections off-screen in the legacy vertical stack. ``fillHeight``
+  // opts into the document-layout canvas where the editor IS the
+  // primary surface and should fill its parent.
+  let containerClass: string;
+  if (inlineMode && fillHeight) {
+    containerClass = "flex h-full min-h-0 flex-1 flex-col";
+  } else if (inlineMode) {
+    containerClass = "flex max-h-[70vh] min-h-[24rem] flex-col";
+  } else {
+    containerClass = "flex min-h-0 flex-1 flex-col";
+  }
 
   return (
     <div className={containerClass}>

@@ -39,7 +39,15 @@ const EDITABLE_MIMES = new Set(["text/markdown"]);
  *   textarea after load so ``useCreateFile`` and "Edit Note" CTAs
  *   land directly in the edit surface.
  */
-export default function KnowledgeEditSection({ fileId, drive }: { fileId: string; drive: string }) {
+export default function KnowledgeEditSection({
+  fileId,
+  drive,
+  fillHeight,
+}: {
+  fileId: string;
+  drive: string;
+  fillHeight?: boolean;
+}) {
   const t = useTranslations("knowledge.editSection");
   const searchParams = useSearchParams();
   const [file, setFile] = useState<FileMeta | null | undefined>(undefined);
@@ -73,6 +81,7 @@ export default function KnowledgeEditSection({ fileId, drive }: { fileId: string
         drive={drive}
         inlineMode
         autoFocus={autoFocus}
+        fillHeight={fillHeight}
       />
     );
   }
