@@ -446,13 +446,12 @@ export default function Editor({
   // breadcrumb, delete affordance and sidebar. The default inline
   // layout is height-bounded so a 5,000-line note doesn't push other
   // sections off-screen in the legacy vertical stack. ``fillHeight``
-  // opts into the document-layout canvas where the host caps the
-  // footer with its own scroll, so the editor just needs ``flex-1``
-  // to take whatever remains. A 24rem floor keeps the textarea
-  // comfortable on short notes.
+  // opts into the document-layout canvas where the editor scrolls
+  // together with the canvas footer in a single scroll context —
+  // no flex-1, no max-h, no internal overflow. Just natural size.
   let containerClass: string;
   if (inlineMode && fillHeight) {
-    containerClass = "flex min-h-[24rem] flex-1 flex-col";
+    containerClass = "flex flex-col";
   } else if (inlineMode) {
     containerClass = "flex max-h-[70vh] min-h-[24rem] flex-col";
   } else {
@@ -520,9 +519,9 @@ export default function Editor({
           CSS visibility (hidden / display:none via Tailwind) controls what the
           user sees instead of conditional rendering. */}
       <div
-        className={`grid flex-1 min-h-0 ${
-          viewMode === "split" ? "md:grid-cols-2" : "grid-cols-1"
-        }`}
+        className={`grid ${
+          fillHeight ? "" : "flex-1 min-h-0"
+        } ${viewMode === "split" ? "md:grid-cols-2" : "grid-cols-1"}`}
       >
         <textarea
           ref={textareaRef}
@@ -530,13 +529,19 @@ export default function Editor({
           onChange={(e) => setContent(e.target.value)}
           onKeyDown={handleKeyDown}
           spellCheck={false}
-          className={`h-full w-full resize-none bg-bg-primary px-8 py-6 font-mono text-[13.5px] leading-relaxed text-text-primary focus:outline-none ${
+          className={`${
+            fillHeight ? "min-h-[60vh] w-full" : "h-full w-full"
+          } resize-none bg-bg-primary px-8 py-6 font-mono text-[13.5px] leading-relaxed text-text-primary focus:outline-none ${
             viewMode === "split" ? "border-r border-bg-border" : ""
           } ${viewMode === "preview" ? "hidden" : ""}`}
           aria-label={t("editArea")}
           placeholder={t("placeholder")}
         />
-        <div className={`h-full overflow-auto bg-bg-primary px-8 py-6 ${viewMode === "edit" ? "hidden" : ""}`}>
+        <div
+          className={`${
+            fillHeight ? "" : "h-full overflow-auto"
+          } bg-bg-primary px-8 py-6 ${viewMode === "edit" ? "hidden" : ""}`}
+        >
           <div className="mx-auto max-w-3xl">
             <MarkdownPreview
               source={content}
