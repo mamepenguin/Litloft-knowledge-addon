@@ -183,6 +183,59 @@ describe("Editor inlineMode", () => {
     expect(dirtyRegistry.isDirty("f1")).toBe(false);
   });
 
+  it("focuses the textarea once content has loaded when autoFocus is true", async () => {
+    stubFetch({
+      "/api/files/f1/stream": [
+        { ok: true, text: "hello", headers: { etag: '"abc"' } },
+      ],
+    });
+
+    render(
+      <Editor
+        fileId="f1"
+        filename="note.md"
+        drive="d"
+        onBack={() => undefined}
+        inlineMode
+        autoFocus
+      />,
+    );
+
+    const textarea = (await screen.findByLabelText(
+      "editArea",
+    )) as HTMLTextAreaElement;
+    await waitFor(() => {
+      expect(document.activeElement).toBe(textarea);
+    });
+  });
+
+  it("does not focus when autoFocus is false (the default)", async () => {
+    stubFetch({
+      "/api/files/f1/stream": [
+        { ok: true, text: "hello", headers: { etag: '"abc"' } },
+      ],
+    });
+
+    render(
+      <Editor
+        fileId="f1"
+        filename="note.md"
+        drive="d"
+        onBack={() => undefined}
+        inlineMode
+      />,
+    );
+
+    const textarea = (await screen.findByLabelText(
+      "editArea",
+    )) as HTMLTextAreaElement;
+    // Give the autoFocus effect a chance to (not) run.
+    await act(async () => {
+      await Promise.resolve();
+    });
+    expect(document.activeElement).not.toBe(textarea);
+  });
+
   it("fetches the filename from the core API when not supplied", async () => {
     stubFetch({
       "/api/files/f1/stream": [

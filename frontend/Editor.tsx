@@ -77,6 +77,15 @@ interface Props {
    * the Phase 2.2 navigation guard ships.
    */
   inlineMode?: boolean;
+  /**
+   * Phase 2 PR-3 (case P): when ``KnowledgeEditSection`` mounts the
+   * editor in response to ``?file={id}&edit=1`` (the canonical URL
+   * that ``useCreateFile`` now resolves to), focus the textarea once
+   * the content has loaded so the user lands directly in the edit
+   * surface. Re-fires when ``fileId`` changes — navigating between
+   * notes with ``?edit=1`` keeps focus on the textarea.
+   */
+  autoFocus?: boolean;
 }
 
 type SaveState =
@@ -102,6 +111,7 @@ export default function Editor({
   sidebarHidden,
   onToggleSidebar,
   inlineMode,
+  autoFocus,
 }: Props) {
   const t = useTranslations("knowledge.editor");
   const tSide = useTranslations("knowledge.sidebar");
@@ -159,6 +169,17 @@ export default function Editor({
       cancelled = true;
     };
   }, [fileId]);
+
+  const autoFocusedFileIdRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (!autoFocus) return;
+    if (content === null) return;
+    if (autoFocusedFileIdRef.current === fileId) return;
+    const ta = textareaRef.current;
+    if (!ta) return;
+    autoFocusedFileIdRef.current = fileId;
+    ta.focus();
+  }, [autoFocus, content, fileId]);
 
   const performSave = useCallback(
     async (text: string) => {
