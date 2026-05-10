@@ -6,6 +6,7 @@ import {
   useRef,
   useState,
 } from "react";
+import { createPortal } from "react-dom";
 import {
   AlertCircle,
   ArrowLeft,
@@ -535,20 +536,35 @@ export default function Editor({
         </div>
       </div>
 
-      {saveState.kind === "conflict" && (
-        <ConflictModal
-          onReload={handleReloadFromServer}
-          onOverwrite={handleOverwrite}
-          onDismiss={() => setSaveState({ kind: "idle" })}
-        />
-      )}
-      {fileLinkModalOpen && (
-        <FileLinkModal
-          drive={drive}
-          onSelect={handleFileLinkInsert}
-          onClose={() => setFileLinkModalOpen(false)}
-        />
-      )}
+      {/*
+        PR-6: render the overlay modals into ``document.body`` via
+        ``createPortal`` so they are not trapped by ancestor ``transform``
+        / ``contain`` / ``overflow`` rules. When the editor is inline-
+        mounted inside ``FileDetailContent`` (Phase 2 PR-3 onwards), the
+        scroll container above us would otherwise clip a ``fixed`` modal
+        and clash with the global ``<DirtyBlocker />`` dialog at the same
+        z-index. (Phase 2 PR-6, hako RGstVXy42Bfw-FlpP8hCx.)
+      */}
+      {saveState.kind === "conflict" &&
+        typeof document !== "undefined" &&
+        createPortal(
+          <ConflictModal
+            onReload={handleReloadFromServer}
+            onOverwrite={handleOverwrite}
+            onDismiss={() => setSaveState({ kind: "idle" })}
+          />,
+          document.body,
+        )}
+      {fileLinkModalOpen &&
+        typeof document !== "undefined" &&
+        createPortal(
+          <FileLinkModal
+            drive={drive}
+            onSelect={handleFileLinkInsert}
+            onClose={() => setFileLinkModalOpen(false)}
+          />,
+          document.body,
+        )}
     </div>
   );
 }
