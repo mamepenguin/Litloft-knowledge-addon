@@ -41,6 +41,7 @@ declare global {
 }
 
 const KnowledgeEditSection = (await import("../KnowledgeEditSection")).default;
+const { _resetPolicyCache } = await import("@/hooks/usePolicy");
 
 const mdFile = {
   id: "f1",
@@ -48,7 +49,11 @@ const mdFile = {
   filename: "note.md",
 };
 
-function stubFileFetch(file: typeof mdFile | null) {
+function stubFileFetch(
+  file: typeof mdFile | null,
+  options: { editorEnabled?: boolean } = {},
+) {
+  const { editorEnabled = true } = options;
   vi.stubGlobal(
     "fetch",
     vi.fn(async (input: RequestInfo | URL) => {
@@ -60,6 +65,20 @@ function stubFileFetch(file: typeof mdFile | null) {
           json: async () => file,
         } as Response;
       }
+      if (url.includes("/addon-policies")) {
+        return {
+          ok: true,
+          status: 200,
+          json: async () => ({
+            addons: {
+              knowledge: {
+                default: true,
+                features: { editor: editorEnabled },
+              },
+            },
+          }),
+        } as Response;
+      }
       throw new Error(`stubFileFetch: unexpected url ${url}`);
     }),
   );
@@ -68,6 +87,7 @@ function stubFileFetch(file: typeof mdFile | null) {
 beforeEach(() => {
   globalThis.__editParam__ = "";
   vi.unstubAllEnvs();
+  _resetPolicyCache();
 });
 
 afterEach(() => {
@@ -75,6 +95,7 @@ afterEach(() => {
   vi.unstubAllGlobals();
   vi.unstubAllEnvs();
   globalThis.__editParam__ = "";
+  _resetPolicyCache();
 });
 
 describe("KnowledgeEditSection (flag false, default)", () => {
@@ -172,6 +193,40 @@ describe("KnowledgeEditSection (flag true)", () => {
     render(<KnowledgeEditSection fileId="f1" drive="d" />);
     await waitFor(() => {
       expect(globalThis.fetch).toHaveBeenCalled();
+    });
+    expect(screen.queryByTestId("editor-stub")).toBeNull();
+    expect(screen.queryByRole("link")).toBeNull();
+  });
+
+  // C2: spec 2026-05-10 §3 — Markdown のみ編集対象。
+  it("does not render for text/plain (C2: markdown-only)", async () => {
+    vi.stubEnv("NEXT_PUBLIC_INLINE_KNOWLEDGE_EDITOR", "true");
+    stubFileFetch({
+      id: "f1",
+      mime_type: "text/plain",
+      filename: "note.txt",
+    });
+
+    render(<KnowledgeEditSection fileId="f1" drive="d" />);
+    await waitFor(() => {
+      expect(globalThis.fetch).toHaveBeenCalled();
+    });
+    expect(screen.queryByTestId("editor-stub")).toBeNull();
+    expect(screen.queryByRole("link")).toBeNull();
+  });
+
+  // D4: drives.json.addons.knowledge.editor === false → editor non-render.
+  it("does not render when per-drive policy disables the editor", async () => {
+    vi.stubEnv("NEXT_PUBLIC_INLINE_KNOWLEDGE_EDITOR", "true");
+    stubFileFetch(mdFile, { editorEnabled: false });
+
+    render(<KnowledgeEditSection fileId="f1" drive="locked-drive" />);
+    await waitFor(() => {
+      const calls = (globalThis.fetch as ReturnType<typeof vi.fn>).mock.calls;
+      const policyCalled = calls.some(([url]) =>
+        String(url).includes("/addon-policies"),
+      );
+      expect(policyCalled).toBe(true);
     });
     expect(screen.queryByTestId("editor-stub")).toBeNull();
     expect(screen.queryByRole("link")).toBeNull();

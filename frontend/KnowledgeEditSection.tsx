@@ -7,6 +7,7 @@ import { Pencil } from "lucide-react";
 import { useTranslations } from "next-intl";
 
 import { isInlineKnowledgeEditorEnabled } from "@/lib/featureFlags";
+import { usePolicy } from "@/hooks/usePolicy";
 import Editor from "./Editor";
 
 interface FileMeta {
@@ -15,7 +16,10 @@ interface FileMeta {
   filename: string;
 }
 
-const EDITABLE_MIMES = new Set(["text/markdown", "text/plain"]);
+// Markdown only. Other text/* mimes fall back to read-only file detail
+// (spec docs/superpowers/specs/2026-05-10-markdown-document-layout.md
+// §3 C2 採用).
+const EDITABLE_MIMES = new Set(["text/markdown"]);
 
 /**
  * File-detail slot for editable text notes.
@@ -39,6 +43,7 @@ export default function KnowledgeEditSection({ fileId, drive }: { fileId: string
   const t = useTranslations("knowledge.editSection");
   const searchParams = useSearchParams();
   const [file, setFile] = useState<FileMeta | null | undefined>(undefined);
+  const policy = usePolicy(drive, "knowledge", "editor");
 
   useEffect(() => {
     let cancelled = false;
@@ -57,6 +62,7 @@ export default function KnowledgeEditSection({ fileId, drive }: { fileId: string
 
   if (file === undefined || file === null) return null;
   if (!EDITABLE_MIMES.has(file.mime_type)) return null;
+  if (!policy.isLoading && !policy.enabled) return null;
 
   if (isInlineKnowledgeEditorEnabled()) {
     const autoFocus = searchParams.get("edit") === "1";

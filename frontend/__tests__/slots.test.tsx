@@ -82,14 +82,16 @@ describe("KnowledgeEditSection", () => {
     expect(container.innerHTML).toBe("");
   });
 
-  it("also accepts text/plain", async () => {
+  // C2 採用 (spec 2026-05-10 §3): Markdown のみ編集対象。
+  it("does not render for text/plain (C2: markdown-only)", async () => {
     stubFetch({
       "/api/files/f3": { id: "f3", mime_type: "text/plain", filename: "n.txt" },
     });
-    render(wrap(<KnowledgeEditSection fileId="f3" drive="d" />));
-    expect(
-      await screen.findByRole("link", { name: /open editor/i }),
-    ).toBeTruthy();
+    const { container } = render(
+      wrap(<KnowledgeEditSection fileId="f3" drive="d" />),
+    );
+    await new Promise((r) => setTimeout(r, 20));
+    expect(container.innerHTML).toBe("");
   });
 });
 
