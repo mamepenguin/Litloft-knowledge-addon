@@ -530,16 +530,24 @@ export default function Editor({
           onKeyDown={handleKeyDown}
           spellCheck={false}
           className={`${
-            fillHeight ? "min-h-[60vh] w-full" : "h-full w-full"
+            fillHeight ? "w-full" : "h-full w-full"
           } resize-none bg-bg-primary px-8 py-6 font-mono text-[13.5px] leading-relaxed text-text-primary focus:outline-none ${
             viewMode === "split" ? "border-r border-bg-border" : ""
           } ${viewMode === "preview" ? "hidden" : ""}`}
+          style={
+            fillHeight
+              ? ({
+                  fieldSizing: "content",
+                  minHeight: "24rem",
+                } as React.CSSProperties)
+              : undefined
+          }
           aria-label={t("editArea")}
           placeholder={t("placeholder")}
         />
         <div
           className={`${
-            fillHeight ? "" : "h-full overflow-auto"
+            fillHeight ? "min-h-[24rem]" : "h-full overflow-auto"
           } bg-bg-primary px-8 py-6 ${viewMode === "edit" ? "hidden" : ""}`}
         >
           <div className="mx-auto max-w-3xl">
