@@ -43,10 +43,18 @@ function stubFetch(mapping: Record<string, unknown>) {
 }
 
 describe("KnowledgeEditSection", () => {
-  beforeEach(() => vi.unstubAllGlobals());
+  beforeEach(() => {
+    vi.unstubAllGlobals();
+    // Legacy "open editor" link is only rendered when the inline-
+    // editor flag is off. PR-7 flipped the default to true, so these
+    // legacy-link tests opt out explicitly. The flag-true rendering
+    // (Editor inline) is covered in KnowledgeEditSection.test.tsx.
+    vi.stubEnv("NEXT_PUBLIC_INLINE_KNOWLEDGE_EDITOR", "false");
+  });
   afterEach(() => {
     cleanup();
     vi.restoreAllMocks();
+    vi.unstubAllEnvs();
   });
 
   it("renders editor link for text/markdown files", async () => {

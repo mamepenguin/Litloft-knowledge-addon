@@ -135,6 +135,12 @@ describe("KnowledgePage sidebar toggle & mobile layout", () => {
     setupStorage();
     vi.unstubAllGlobals();
     vi.unstubAllEnvs();
+    // These tests exercise the legacy Knowledge route (full-page editor
+    // + sidebar). PR-7 flipped the inline-editor flag default to true,
+    // which would redirect ?edit={id} to the canonical 2-pane URL
+    // before the sidebar renders — opt out for this describe block so
+    // we can keep covering the legacy layout.
+    vi.stubEnv("NEXT_PUBLIC_INLINE_KNOWLEDGE_EDITOR", "false");
   });
   afterEach(() => {
     cleanup();
@@ -268,7 +274,9 @@ describe("KnowledgePage sidebar toggle & mobile layout", () => {
   });
 
   it("does NOT redirect when flag is off (legacy ?edit={id} stays on Knowledge route)", async () => {
-    // Flag unset (default false).
+    // Explicit opt-out: PR-7 flipped the default to true, so the
+    // legacy path is only reachable via the rollback flag.
+    vi.stubEnv("NEXT_PUBLIC_INLINE_KNOWLEDGE_EDITOR", "false");
     _searchParam = "file-a";
     stubFetch(defaultHandler);
 
