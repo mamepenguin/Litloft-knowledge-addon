@@ -2,8 +2,12 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import { Pencil } from "lucide-react";
 import { useTranslations } from "next-intl";
+
+import { isInlineKnowledgeEditorEnabled } from "@/lib/featureFlags";
+import Editor from "./Editor";
 
 interface FileMeta {
   id: string;
@@ -14,11 +18,26 @@ interface FileMeta {
 const EDITABLE_MIMES = new Set(["text/markdown", "text/plain"]);
 
 /**
- * File-detail slot: deep-links to the knowledge editor when the file
- * is a text note the editor can handle. Hidden otherwise.
+ * File-detail slot for editable text notes.
+ *
+ * Two render paths gated by ``NEXT_PUBLIC_INLINE_KNOWLEDGE_EDITOR``
+ * (Phase 2 PR-3, hako ``RGstVXy42Bfw-FlpP8hCx`` case X):
+ *
+ * - **flag false** (default): legacy "Edit Note" CTA that deep-links
+ *   to ``/addons/knowledge?edit={id}``. Behaviour unchanged.
+ *
+ * - **flag true**: mount the editor inline, flat under the
+ *   surrounding ``FileDetailContent`` (no surrounding card frame, no
+ *   h3 heading) so the textarea sits in the same visual stack as the
+ *   tag chips, summary, related files, etc. ``?edit=1`` (carried via
+ *   ``CARRIED_QUERY_KEYS`` from the ``/files/{id}`` redirect, hako
+ *   ``fGOUPRw-H4AJ4w12jrxeq`` Pre-PR) tells the editor to focus the
+ *   textarea after load so ``useCreateFile`` and "Edit Note" CTAs
+ *   land directly in the edit surface.
  */
 export default function KnowledgeEditSection({ fileId, drive }: { fileId: string; drive: string }) {
   const t = useTranslations("knowledge.editSection");
+  const searchParams = useSearchParams();
   const [file, setFile] = useState<FileMeta | null | undefined>(undefined);
 
   useEffect(() => {
@@ -38,6 +57,19 @@ export default function KnowledgeEditSection({ fileId, drive }: { fileId: string
 
   if (file === undefined || file === null) return null;
   if (!EDITABLE_MIMES.has(file.mime_type)) return null;
+
+  if (isInlineKnowledgeEditorEnabled()) {
+    const autoFocus = searchParams.get("edit") === "1";
+    return (
+      <Editor
+        fileId={file.id}
+        filename={file.filename}
+        drive={drive}
+        inlineMode
+        autoFocus={autoFocus}
+      />
+    );
+  }
 
   const href = `/drive/${encodeURIComponent(drive)}/addons/knowledge?edit=${encodeURIComponent(file.id)}`;
 
