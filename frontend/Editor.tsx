@@ -3,10 +3,12 @@
 import {
   useCallback,
   useEffect,
+  useMemo,
   useRef,
   useState,
 } from "react";
 import { createPortal } from "react-dom";
+import matter from "gray-matter";
 import {
   AlertCircle,
   ArrowLeft,
@@ -21,6 +23,8 @@ import {
 } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { MarkdownPreview } from "@/components/MarkdownPreview";
+import { PropertiesPanel } from "@/components/PropertiesPanel";
+import { markdownContentRegistry } from "@/lib/markdownContentRegistry";
 import { useDirty } from "@/hooks/useDirty";
 import { useShortcuts } from "@/hooks/useShortcuts";
 import {
@@ -248,6 +252,45 @@ export default function Editor({
     content !== null && content !== lastSavedRef.current;
   useDirty({ fileId, source: "knowledge-editor", dirty: isDirty });
 
+  // Phase 3.5 (spec 2026-05-10 §D2 / hako ZWLqXgdTwt9le4dAI3U8C):
+  // expose the editor's content as a (getContent, setContent) pair
+  // so the inspector's EditableTagChips can run in content-mode and
+  // mutate this same string instead of doing its own GET/PUT round
+  // trip. Single writer (the editor's textarea autosave) owns the
+  // server etag, eliminating the inspector-vs-editor race.
+  //
+  // Only published once content has loaded (the registry contract
+  // expects getContent() to return the actual current string, not
+  // null). Re-registering on every render is fine — register()
+  // replaces the entry, so the closure captured `setContent` here
+  // is always current. The inner ref capture lets getContent() see
+  // the latest content even though the effect only re-runs when the
+  // file or load state changes.
+  useEffect(() => {
+    if (content === null) return;
+    const dispose = markdownContentRegistry.register(fileId, {
+      getContent: () => contentRef.current ?? "",
+      setContent: (next) => setContent(next),
+    });
+    return dispose;
+    // ``content === null`` flips exactly once (load complete); after
+    // that the entry stays registered until unmount. Subsequent
+    // content edits flow through the ref without re-running this
+    // effect, which keeps the registration stable.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [fileId, content === null]);
+
+  // Pulse the registry on every content change so FileDetailContent
+  // (subscribed via useSyncExternalStore) re-reads `getContent()` and
+  // pushes a fresh `content` prop into the inspector's content-mode
+  // tag chips. Without this, the chip's internal ref captures stale
+  // content at click time, which is exactly the race Phase 3.5 set
+  // out to close.
+  useEffect(() => {
+    if (content === null) return;
+    markdownContentRegistry.touchContent(fileId);
+  }, [fileId, content]);
+
   useEffect(() => {
     return () => {
       if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
@@ -423,6 +466,44 @@ export default function Editor({
     onDelete?.();
   }
 
+  // Phase 3 fm-card (spec 2026-05-10 §D2 / hako B5QG4AcZjbn47MDErmQAO):
+  // parse the editor content into a frontmatter dict + body string so
+  // the preview pane can render a pinned PropertiesPanel above the
+  // body and pass only the body to MarkdownPreview. PropertiesPanel
+  // collapses to null on empty frontmatter, but the mocked test
+  // double in unit tests does not — so we also guard the JSX with
+  // ``hasFrontmatter`` to avoid rendering an empty wrapper above an
+  // .md that has no metadata. Declared above the loadError /
+  // content === null early returns to keep hook order stable across
+  // renders.
+  const { frontmatter, body, hasFrontmatter } = useMemo(() => {
+    if (content === null) {
+      return {
+        frontmatter: {} as Record<string, unknown>,
+        body: "",
+        hasFrontmatter: false,
+      };
+    }
+    try {
+      const parsed = matter(content);
+      const fm = parsed.data as Record<string, unknown>;
+      return {
+        frontmatter: fm,
+        body: parsed.content,
+        hasFrontmatter: Object.keys(fm).length > 0,
+      };
+    } catch {
+      // Malformed YAML — fall back to treating the whole document as
+      // body. The textarea still shows the broken YAML so the user
+      // can fix it.
+      return {
+        frontmatter: {} as Record<string, unknown>,
+        body: content,
+        hasFrontmatter: false,
+      };
+    }
+  }, [content]);
+
   if (loadError) {
     return (
       <div className="flex flex-1 items-center justify-center p-6 text-sm text-red-400">
@@ -551,17 +632,16 @@ export default function Editor({
           } bg-bg-primary px-8 py-6 ${viewMode === "edit" ? "hidden" : ""}`}
         >
           <div className="mx-auto max-w-3xl">
+            {hasFrontmatter && (
+              <div className="mb-6">
+                <PropertiesPanel frontmatter={frontmatter} hideTags />
+              </div>
+            )}
             <MarkdownPreview
-              source={content}
+              source={body}
+              chrome={false}
               className="h-full"
               drive={drive}
-              editable={{
-                id: fileId,
-                mime_type: "text/markdown",
-                filename: effectiveFilename,
-                drive,
-              }}
-              onSourceChange={setContent}
             />
           </div>
         </div>
