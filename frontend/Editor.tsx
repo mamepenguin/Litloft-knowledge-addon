@@ -446,11 +446,13 @@ export default function Editor({
   // breadcrumb, delete affordance and sidebar. The default inline
   // layout is height-bounded so a 5,000-line note doesn't push other
   // sections off-screen in the legacy vertical stack. ``fillHeight``
-  // opts into the document-layout canvas where the editor IS the
-  // primary surface and should fill its parent.
+  // opts into the document-layout canvas: a 60vh floor so the editor
+  // stays comfortable even when the canvas footer (detailed summary,
+  // similar files, comments) expands, plus ``flex-1`` to take more
+  // space when the footer is short.
   let containerClass: string;
   if (inlineMode && fillHeight) {
-    containerClass = "flex h-full min-h-0 flex-1 flex-col";
+    containerClass = "flex min-h-[60vh] flex-1 flex-col";
   } else if (inlineMode) {
     containerClass = "flex max-h-[70vh] min-h-[24rem] flex-col";
   } else {
