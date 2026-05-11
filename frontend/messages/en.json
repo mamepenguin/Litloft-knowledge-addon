@@ -190,6 +190,7 @@
       "delete": "Move to trash",
       "editArea": "Markdown editor",
       "placeholder": "Start writing here…",
+      "yamlError": "Cannot parse frontmatter YAML",
       "title": {
         "label": "Note title",
         "editHint": "Click to rename"

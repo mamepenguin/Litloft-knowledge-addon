@@ -503,12 +503,13 @@ export default function Editor({
   // .md that has no metadata. Declared above the loadError /
   // content === null early returns to keep hook order stable across
   // renders.
-  const { frontmatter, body, hasFrontmatter } = useMemo(() => {
+  const { frontmatter, body, hasFrontmatter, yamlError } = useMemo(() => {
     if (content === null) {
       return {
         frontmatter: {} as Record<string, unknown>,
         body: "",
         hasFrontmatter: false,
+        yamlError: null as string | null,
       };
     }
     try {
@@ -518,15 +519,20 @@ export default function Editor({
         frontmatter: fm,
         body: parsed.content,
         hasFrontmatter: Object.keys(fm).length > 0,
+        yamlError: null as string | null,
       };
-    } catch {
+    } catch (err) {
       // Malformed YAML — fall back to treating the whole document as
       // body. The textarea still shows the broken YAML so the user
-      // can fix it.
+      // can fix it. Surface the parse error to the preview pane so the
+      // user knows why the fm-card disappeared (Phase 3 review
+      // follow-up, hako ZWLqXgdTwt9le4dAI3U8C).
+      const message = err instanceof Error ? err.message : String(err);
       return {
         frontmatter: {} as Record<string, unknown>,
         body: content,
         hasFrontmatter: false,
+        yamlError: message,
       };
     }
   }, [content]);
@@ -659,6 +665,16 @@ export default function Editor({
           } bg-bg-primary px-8 py-6 ${viewMode === "edit" ? "hidden" : ""}`}
         >
           <div className="mx-auto max-w-3xl">
+            {yamlError && (
+              <div
+                className="mb-6 flex items-start gap-2 rounded-xl border border-red-500/30 bg-red-500/10 px-3 py-2 text-xs text-red-300"
+                role="status"
+                title={yamlError}
+              >
+                <AlertCircle size={14} className="mt-0.5 shrink-0" />
+                <span className="break-anywhere">{t("yamlError")}</span>
+              </div>
+            )}
             {hasFrontmatter && (
               <div className="mb-6">
                 <PropertiesPanel frontmatter={frontmatter} hideTags />

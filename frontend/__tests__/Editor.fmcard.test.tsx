@@ -236,6 +236,44 @@ describe("Editor preview pane Phase 3 fm-card", () => {
     expect(foundHidden).toBe(true);
   });
 
+  it("surfaces a YAML parse error badge when the frontmatter is malformed", async () => {
+    // Spec 2026-05-10 Phase 3 review follow-up (hako ZWLqXgdTwt9le4dAI3U8C):
+    // when gray-matter fails on malformed YAML the fm-card silently
+    // disappeared. Surface the error so the user knows why.
+    const MALFORMED = `---\nkey: value\nbad: : :\n---\n\n# body\n`;
+    stubFetch({
+      "/api/files/f1/stream": [
+        {
+          ok: true,
+          text: MALFORMED,
+          headers: { etag: '"abc"' },
+        },
+      ],
+    });
+
+    render(<Editor fileId="f1" filename="note.md" drive="d" inlineMode />);
+
+    await waitFor(() => {
+      expect(screen.getByLabelText("editArea")).toBeInTheDocument();
+    });
+    fireEvent.click(screen.getByLabelText("preview"));
+
+    await waitFor(() => {
+      expect(screen.getByTestId("markdown-preview-stub")).toBeInTheDocument();
+    });
+
+    // The badge text comes from the mocked translator which returns the
+    // key verbatim (``yamlError``).
+    expect(screen.getByText("yamlError")).toBeInTheDocument();
+    // The fm-card itself must NOT appear when parsing fails — frontmatter
+    // is treated as empty so PropertiesPanel is not invoked.
+    expect(screen.queryByTestId("properties-panel-stub")).toBeNull();
+    // The malformed YAML stays in the body so the user can fix it.
+    const lastBody = markdownPreviewCalls.at(-1);
+    expect(lastBody).toBeDefined();
+    expect((lastBody!.source as string) ?? "").toContain("bad: : :");
+  });
+
   it("renders the fm-card panel in split mode (right side preview)", async () => {
     stubFetch({
       "/api/files/f1/stream": [

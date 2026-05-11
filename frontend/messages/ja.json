@@ -190,6 +190,7 @@
       "delete": "ゴミ箱に移動",
       "editArea": "Markdown エディタ",
       "placeholder": "ここに書き始めましょう...",
+      "yamlError": "frontmatter の YAML を解析できません",
       "title": {
         "label": "ノートのタイトル",
         "editHint": "クリックして名前を変更"
