@@ -587,7 +587,7 @@ export default function Editor({
 
   if (loadError) {
     return (
-      <div className="flex flex-1 items-center justify-center p-6 text-sm text-red-400">
+      <div className="flex flex-1 items-center justify-center p-6 text-sm text-danger">
         {t("loadFailed", { error: loadError })}
       </div>
     );
@@ -636,7 +636,7 @@ export default function Editor({
           <button
             type="button"
             onClick={onBack}
-            className="flex h-8 w-8 items-center justify-center rounded-md text-text-muted hover:bg-bg-elevated hover:text-text-primary md:hidden"
+            className="flex h-8 w-8 items-center justify-center rounded-lg text-text-muted hover:bg-bg-elevated hover:text-text-primary md:hidden"
             aria-label={t("back")}
           >
             <ArrowLeft size={16} />
@@ -645,7 +645,7 @@ export default function Editor({
             <button
               type="button"
               onClick={onToggleSidebar}
-              className="hidden h-8 w-8 items-center justify-center rounded-md text-text-muted hover:bg-bg-elevated hover:text-text-primary md:inline-flex"
+              className="hidden h-8 w-8 items-center justify-center rounded-lg text-text-muted hover:bg-bg-elevated hover:text-text-primary md:inline-flex"
               aria-label={sidebarHidden ? tSide("show") : tSide("hide")}
               aria-pressed={sidebarHidden}
               title={sidebarHidden ? tSide("show") : tSide("hide")}
@@ -672,7 +672,7 @@ export default function Editor({
               onClick={handleDelete}
               aria-label={t("delete")}
               title={t("delete")}
-              className="flex h-8 w-8 items-center justify-center rounded-md text-text-muted transition-colors hover:bg-red-500/10 hover:text-red-400"
+              className="flex h-8 w-8 items-center justify-center rounded-lg text-text-muted transition-colors hover:bg-danger/10 hover:text-danger"
             >
               <Trash2 size={14} />
             </button>
@@ -732,7 +732,7 @@ export default function Editor({
           <div className="mx-auto max-w-3xl">
             {yamlError && (
               <div
-                className="mb-6 flex items-start gap-2 rounded-xl border border-red-500/30 bg-red-500/10 px-3 py-2 text-xs text-red-300"
+                className="mb-6 flex items-start gap-2 rounded-xl border border-danger/30 bg-danger/10 px-3 py-2 text-xs text-danger"
                 role="status"
                 title={yamlError}
               >
@@ -843,7 +843,7 @@ function TitleField({
         type="button"
         onClick={() => setEditing(true)}
         title={t("editHint")}
-        className="block w-full truncate rounded px-1 py-0.5 text-left text-base font-semibold text-text-primary hover:bg-bg-elevated"
+        className="block w-full truncate rounded-lg px-1 py-0.5 text-left text-base font-semibold text-text-primary hover:bg-bg-elevated"
       >
         {displayName}
       </button>
@@ -875,10 +875,10 @@ function TitleField({
         }}
         disabled={saving}
         aria-label={t("label")}
-        className="w-full rounded border border-bg-border bg-bg-primary px-2 py-1 text-base font-semibold text-text-primary focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent"
+        className="w-full rounded-lg border border-bg-border bg-bg-primary px-2 py-1 text-base font-semibold text-text-primary focus:border-focus-ring focus:outline-none focus:ring-1 focus:ring-focus-ring"
       />
       {error && (
-        <span className="text-xs text-red-400" title={error}>
+        <span className="text-xs text-danger" title={error}>
           <AlertCircle size={12} />
         </span>
       )}
@@ -905,14 +905,14 @@ function SaveIndicator({ state }: { state: SaveState }) {
     );
   if (state.kind === "conflict")
     return (
-      <span className="flex items-center gap-1 text-xs text-red-400">
+      <span className="flex items-center gap-1 text-xs text-danger">
         <AlertCircle size={12} />
         {t("conflict")}
       </span>
     );
   return (
     <span
-      className="flex max-w-[180px] items-center gap-1 truncate text-xs text-red-400"
+      className="flex max-w-[180px] items-center gap-1 truncate text-xs text-danger"
       title={state.message}
     >
       <AlertCircle size={12} />
@@ -933,8 +933,8 @@ function ConflictModal({
   const t = useTranslations("knowledge.editor.conflict");
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 animate-fade-in">
-      <div className="w-full max-w-md rounded-xl border border-bg-border bg-bg-card p-6 shadow-2xl animate-fade-in-scale">
-        <div className="mb-3 flex items-center gap-2 text-red-400">
+      <div className="w-full max-w-md rounded-xl border border-bg-border bg-bg-card p-6 shadow-lg animate-fade-in-scale">
+        <div className="mb-3 flex items-center gap-2 text-danger">
           <AlertCircle size={18} />
           <h3 className="text-base font-semibold text-text-primary">
             {t("title")}
@@ -945,21 +945,21 @@ function ConflictModal({
           <button
             type="button"
             onClick={onReload}
-            className="rounded-md bg-accent-cta px-4 py-2 text-sm font-medium text-white hover:bg-accent"
+            className="rounded-lg bg-accent-cta px-4 py-2 text-sm font-medium text-white hover:bg-accent"
           >
             {t("reload")}
           </button>
           <button
             type="button"
             onClick={onOverwrite}
-            className="rounded-md border border-bg-border bg-bg-elevated px-4 py-2 text-sm text-text-primary hover:border-accent/40"
+            className="rounded-lg border border-bg-border bg-bg-elevated px-4 py-2 text-sm text-text-primary hover:border-accent/40"
           >
             {t("overwrite")}
           </button>
           <button
             type="button"
             onClick={onDismiss}
-            className="rounded-md px-4 py-2 text-sm text-text-muted hover:bg-bg-elevated"
+            className="rounded-lg px-4 py-2 text-sm text-text-muted hover:bg-bg-elevated"
           >
             {t("dismiss")}
           </button>

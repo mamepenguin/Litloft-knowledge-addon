@@ -137,7 +137,7 @@ export default function FolderView({
           type="button"
           onClick={onBack}
           aria-label={t("back")}
-          className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-md text-text-muted hover:bg-bg-elevated hover:text-text-primary"
+          className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg text-text-muted hover:bg-bg-elevated hover:text-text-primary"
         >
           <ArrowLeft size={16} />
         </button>
@@ -150,7 +150,7 @@ export default function FolderView({
           onClick={cycleSortMode}
           title={sortLabel(sortMode)}
           aria-label={sortLabel(sortMode)}
-          className="flex h-7 items-center gap-1.5 rounded-md px-2 text-xs text-text-muted hover:bg-bg-elevated hover:text-text-primary"
+          className="flex h-7 items-center gap-1.5 rounded-lg px-2 text-xs text-text-muted hover:bg-bg-elevated hover:text-text-primary"
         >
           <ArrowUpDown size={12} />
           <span className="hidden sm:inline">{sortLabel(sortMode)}</span>
@@ -159,7 +159,7 @@ export default function FolderView({
           type="button"
           onClick={handleCreateNote}
           disabled={creating}
-          className="flex items-center gap-1.5 rounded-md bg-accent/15 px-2.5 py-1.5 text-xs font-medium text-accent hover:bg-accent/25 disabled:opacity-50"
+          className="flex items-center gap-1.5 rounded-lg bg-accent/15 px-2.5 py-1.5 text-xs font-medium text-accent hover:bg-accent/25 disabled:opacity-50"
         >
           <Plus size={12} />
           {t("newNote")}
@@ -173,7 +173,7 @@ export default function FolderView({
             {tFile("loading")}
           </div>
         ) : error ? (
-          <div className="rounded-md border border-red-500/30 bg-red-500/10 p-3 text-sm text-red-400">
+          <div className="rounded-lg border border-danger/30 bg-danger/10 p-3 text-sm text-danger">
             {error}
           </div>
         ) : sortedFolders.length === 0 && sortedFiles.length === 0 ? (

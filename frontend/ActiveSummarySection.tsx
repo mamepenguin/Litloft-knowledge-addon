@@ -67,13 +67,13 @@ export default function ActiveSummarySection({
         <div className="flex items-center gap-2 text-sm font-semibold text-text-primary">
           <StickyNote size={14} className="text-accent" />
           <span>{t("title")}</span>
-          <span className="rounded bg-accent/10 px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide text-accent">
+          <span className="rounded-lg bg-accent/10 px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide text-accent">
             {t("badge")}
           </span>
         </div>
         <Link
           href={editHref}
-          className="inline-flex items-center gap-1.5 rounded-md px-2.5 py-1 text-xs font-medium text-text-muted hover:bg-bg-elevated hover:text-text-primary"
+          className="inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1 text-xs font-medium text-text-muted hover:bg-bg-elevated hover:text-text-primary"
         >
           <Pencil size={12} />
           {t("openEditor")}

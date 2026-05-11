@@ -34,7 +34,7 @@ export default function BookmarkletDialog({ drive, open, onClose }: Props) {
       onClick={onClose}
     >
       <div
-        className="w-full max-w-md animate-fade-in-scale rounded-2xl border border-bg-border bg-bg-card shadow-xl"
+        className="w-full max-w-md animate-fade-in-scale rounded-2xl border border-bg-border bg-bg-card shadow-lg"
         onClick={(e) => e.stopPropagation()}
       >
         <header className="flex items-center justify-between border-b border-bg-border px-5 py-3">

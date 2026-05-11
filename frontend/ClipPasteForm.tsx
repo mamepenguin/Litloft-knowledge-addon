@@ -52,7 +52,7 @@ export default function ClipPasteForm({
   return (
     <form
       onSubmit={handleSubmit}
-      className="flex animate-fade-in-scale flex-col gap-4 rounded-2xl border border-bg-border bg-bg-card p-5 shadow-xl"
+      className="flex animate-fade-in-scale flex-col gap-4 rounded-2xl border border-bg-border bg-bg-card p-5 shadow-lg"
     >
       <div>
         <h3 className="text-base font-semibold text-text-primary">
@@ -69,7 +69,7 @@ export default function ClipPasteForm({
         aria-label={t("placeholder")}
         rows={8}
         disabled={submitting}
-        className="w-full rounded-2xl border border-bg-border bg-bg-elevated p-3 font-mono text-xs text-text-primary placeholder:text-text-muted focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent disabled:opacity-50"
+        className="w-full rounded-2xl border border-bg-border bg-bg-elevated p-3 font-mono text-xs text-text-primary placeholder:text-text-muted focus:border-focus-ring focus:outline-none focus:ring-1 focus:ring-focus-ring disabled:opacity-50"
       />
       {error && (
         <p className="text-xs text-danger" role="alert">

@@ -145,14 +145,14 @@ export default function ClipInput({
           placeholder={t("urlPlaceholder")}
           aria-label={t("urlPlaceholder")}
           disabled={submitting}
-          className="flex-1 rounded-2xl border border-bg-border bg-bg-card px-4 py-2 text-sm text-text-primary placeholder:text-text-muted focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent disabled:opacity-50"
+          className="flex-1 rounded-2xl border border-bg-border bg-bg-card px-4 py-2 text-sm text-text-primary placeholder:text-text-muted focus:border-focus-ring focus:outline-none focus:ring-1 focus:ring-focus-ring disabled:opacity-50"
         />
         <select
           value={subfolder}
           onChange={(e) => setSubfolder(e.target.value)}
           disabled={submitting}
           aria-label={t("subfolderLabel")}
-          className="rounded-2xl border border-bg-border bg-bg-card px-3 py-2 text-sm text-text-primary focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent disabled:opacity-50"
+          className="rounded-2xl border border-bg-border bg-bg-card px-3 py-2 text-sm text-text-primary focus:border-focus-ring focus:outline-none focus:ring-1 focus:ring-focus-ring disabled:opacity-50"
         >
           <option value="">{t("rootFolder")}</option>
           {folders.map((f) => (

@@ -41,7 +41,7 @@ export default function ContextMenu({ menu, isPinned, onAction, onClose }: Props
     <div
       data-context-menu
       style={{ top: menu.y, left: menu.x }}
-      className="fixed z-50 min-w-[180px] overflow-hidden rounded-2xl border border-bg-border bg-bg-card shadow-xl animate-fade-in-scale"
+      className="fixed z-50 min-w-[180px] overflow-hidden rounded-2xl border border-bg-border bg-bg-card shadow-lg animate-fade-in-scale"
       role="menu"
       aria-label="Context menu"
     >

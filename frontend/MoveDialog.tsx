@@ -81,14 +81,14 @@ export default function MoveDialog({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 px-4">
-      <div className="w-full max-w-sm overflow-hidden rounded-xl border border-bg-border bg-bg-card shadow-2xl">
+      <div className="w-full max-w-sm overflow-hidden rounded-xl border border-bg-border bg-bg-card shadow-lg">
         <div className="flex items-center justify-between border-b border-bg-border px-4 py-3">
           <h2 className="text-sm font-semibold text-text-primary">{t("title")}</h2>
           <button
             type="button"
             onClick={onClose}
             aria-label={t("cancel")}
-            className="flex h-7 w-7 items-center justify-center rounded-md text-text-muted hover:bg-bg-elevated hover:text-text-primary"
+            className="flex h-7 w-7 items-center justify-center rounded-lg text-text-muted hover:bg-bg-elevated hover:text-text-primary"
           >
             <X size={14} />
           </button>
@@ -109,7 +109,7 @@ export default function MoveDialog({
                       type="button"
                       onClick={() => setSelected(f.path)}
                       className={[
-                        "flex w-full items-center gap-2 rounded-md px-3 py-1.5 text-left text-sm transition-colors",
+                        "flex w-full items-center gap-2 rounded-lg px-3 py-1.5 text-left text-sm transition-colors",
                         isSelected
                           ? "bg-accent/15 text-text-primary"
                           : "text-text-primary hover:bg-bg-elevated",
@@ -139,7 +139,7 @@ export default function MoveDialog({
           <button
             type="button"
             onClick={onClose}
-            className="rounded-md px-3 py-1.5 text-sm text-text-muted hover:bg-bg-elevated hover:text-text-primary"
+            className="rounded-lg px-3 py-1.5 text-sm text-text-muted hover:bg-bg-elevated hover:text-text-primary"
           >
             {t("cancel")}
           </button>
@@ -147,7 +147,7 @@ export default function MoveDialog({
             type="button"
             onClick={() => onConfirm(selected)}
             disabled={selected === currentPath}
-            className="rounded-md bg-accent px-3 py-1.5 text-sm font-medium text-white transition-colors hover:bg-accent-hover disabled:opacity-50"
+            className="rounded-lg bg-accent px-3 py-1.5 text-sm font-medium text-white transition-colors hover:bg-accent-hover disabled:opacity-50"
           >
             {t("confirm")}
           </button>

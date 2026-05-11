@@ -56,7 +56,7 @@ export default function ClipDuplicateDialog({
       aria-labelledby="clip-duplicate-title"
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 px-4"
     >
-      <div className="w-full max-w-md animate-fade-in-scale rounded-2xl border border-bg-border bg-bg-card p-5 shadow-xl">
+      <div className="w-full max-w-md animate-fade-in-scale rounded-2xl border border-bg-border bg-bg-card p-5 shadow-lg">
         <h2
           id="clip-duplicate-title"
           className="text-base font-semibold text-text-primary"

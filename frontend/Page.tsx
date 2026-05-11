@@ -504,7 +504,7 @@ export default function KnowledgePage() {
 
   if (error) {
     return (
-      <div className="flex min-h-[60vh] items-center justify-center p-6 text-sm text-red-400">
+      <div className="flex min-h-[60vh] items-center justify-center p-6 text-sm text-danger">
         {error}
       </div>
     );
@@ -716,15 +716,15 @@ export default function KnowledgePage() {
                 <button
                   type="button"
                   onClick={handleUndoDelete}
-                  className="shrink-0 rounded-md bg-accent px-3 py-1.5 text-xs font-medium text-white transition-colors hover:bg-accent-hover"
+                  className="shrink-0 rounded-lg bg-accent px-3 py-1.5 text-xs font-medium text-white transition-colors hover:bg-accent-hover"
                 >
                   {t("toast.undo")}
                 </button>
               </>
             ) : (
               <>
-                <AlertCircle size={16} className="shrink-0 text-red-400" />
-                <span className="min-w-0 flex-1 text-sm text-red-400">
+                <AlertCircle size={16} className="shrink-0 text-danger" />
+                <span className="min-w-0 flex-1 text-sm text-danger">
                   {t("toast.error", { error: deleteNotice.message })}
                 </span>
               </>
@@ -733,7 +733,7 @@ export default function KnowledgePage() {
               type="button"
               onClick={() => setDeleteNotice(null)}
               aria-label={t("toast.dismiss")}
-              className="shrink-0 rounded-md p-1 text-text-muted hover:bg-bg-elevated hover:text-text-primary"
+              className="shrink-0 rounded-lg p-1 text-text-muted hover:bg-bg-elevated hover:text-text-primary"
             >
               <X size={14} />
             </button>

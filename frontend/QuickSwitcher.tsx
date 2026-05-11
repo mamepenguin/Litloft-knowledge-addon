@@ -226,7 +226,7 @@ export default function QuickSwitcher({
         aria-hidden
       />
       <div
-        className="relative z-10 mx-4 w-full max-w-lg overflow-hidden rounded-2xl bg-bg-card shadow-2xl animate-fade-in-scale"
+        className="relative z-10 mx-4 w-full max-w-lg overflow-hidden rounded-2xl bg-bg-card shadow-lg animate-fade-in-scale"
         role="dialog"
         aria-modal
         aria-label={t("title")}

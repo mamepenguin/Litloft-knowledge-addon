@@ -84,13 +84,13 @@ export default function FileLinkModal({ drive, onSelect, onClose }: Props) {
       aria-modal
       aria-label={t("title")}
     >
-      <div className="flex w-full max-w-md flex-col gap-3 rounded-xl bg-bg-card p-4 shadow-2xl">
+      <div className="flex w-full max-w-md flex-col gap-3 rounded-xl bg-bg-card p-4 shadow-lg">
         <div className="flex items-center justify-between">
           <span className="text-sm font-medium text-text-primary">{t("title")}</span>
           <button
             type="button"
             onClick={onClose}
-            className="flex h-7 w-7 items-center justify-center rounded-md text-text-muted hover:bg-bg-elevated hover:text-text-primary"
+            className="flex h-7 w-7 items-center justify-center rounded-lg text-text-muted hover:bg-bg-elevated hover:text-text-primary"
             aria-label={t("close")}
           >
             <X size={14} />
@@ -105,7 +105,7 @@ export default function FileLinkModal({ drive, onSelect, onClose }: Props) {
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             placeholder={t("searchPlaceholder")}
-            className="w-full rounded-lg border border-bg-border bg-bg-primary py-2 pl-8 pr-3 text-sm text-text-primary placeholder:text-text-muted focus:border-accent focus:outline-none"
+            className="w-full rounded-lg border border-bg-border bg-bg-primary py-2 pl-8 pr-3 text-sm text-text-primary placeholder:text-text-muted focus:border-focus-ring focus:outline-none"
           />
         </div>
 

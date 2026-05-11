@@ -578,7 +578,7 @@ export default function Sidebar({
         <button
           type="button"
           onClick={onOpenClip}
-          className="relative flex flex-1 items-center gap-2 rounded-md px-2.5 py-1.5 text-sm font-medium text-text-primary hover:bg-bg-elevated"
+          className="relative flex flex-1 items-center gap-2 rounded-lg px-2.5 py-1.5 text-sm font-medium text-text-primary hover:bg-bg-elevated"
         >
           <Link2 size={14} className="text-accent" strokeWidth={1.8} />
           <span>{tSidebar("clipAction")}</span>
@@ -597,7 +597,7 @@ export default function Sidebar({
           onClick={onOpenClipHelp}
           title={tSidebar("helpAction")}
           aria-label={tSidebar("helpAction")}
-          className="flex h-8 w-8 items-center justify-center rounded-md text-text-muted hover:bg-bg-elevated hover:text-text-primary"
+          className="flex h-8 w-8 items-center justify-center rounded-lg text-text-muted hover:bg-bg-elevated hover:text-text-primary"
         >
           <CircleHelp size={14} />
         </button>
@@ -616,14 +616,14 @@ export default function Sidebar({
             onChange={(e) => setQuery(e.target.value)}
             placeholder={tSearch("placeholder")}
             aria-label={tSearch("placeholder")}
-            className="w-full rounded-md border border-bg-border bg-bg-primary py-1.5 pl-8 pr-8 text-sm text-text-primary placeholder:text-text-muted focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent"
+            className="w-full rounded-lg border border-bg-border bg-bg-primary py-1.5 pl-8 pr-8 text-sm text-text-primary placeholder:text-text-muted focus:border-focus-ring focus:outline-none focus:ring-1 focus:ring-focus-ring"
           />
           {query && (
             <button
               type="button"
               onClick={() => setQuery("")}
               aria-label={tSearch("clear")}
-              className="absolute right-2 top-1/2 -translate-y-1/2 rounded p-0.5 text-text-muted hover:bg-bg-elevated hover:text-text-primary"
+              className="absolute right-2 top-1/2 -translate-y-1/2 rounded-lg p-0.5 text-text-muted hover:bg-bg-elevated hover:text-text-primary"
             >
               <X size={14} />
             </button>
@@ -661,7 +661,7 @@ export default function Sidebar({
         ) : (
           <div
             className={[
-              "p-2 rounded-md",
+              "p-2 rounded-lg",
               dropTargetPath === rootPath
                 ? "ring-2 ring-inset ring-accent bg-accent/5"
                 : "",
@@ -687,7 +687,7 @@ export default function Sidebar({
                 <button
                   type="button"
                   onClick={togglePinsCollapsed}
-                  className="flex w-full items-center gap-1 rounded-md px-2 py-1 text-left text-xs font-semibold uppercase tracking-wide text-text-muted hover:bg-bg-elevated"
+                  className="flex w-full items-center gap-1 rounded-lg px-2 py-1 text-left text-xs font-semibold uppercase tracking-wide text-text-muted hover:bg-bg-elevated"
                 >
                   <Pin size={11} className="flex-shrink-0" />
                   <span className="flex-1">{tPins("section")}</span>
@@ -755,7 +755,7 @@ export default function Sidebar({
                                 },
                               })
                             }
-                            className={`flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left transition-colors ${
+                            className={`flex w-full items-center gap-2 rounded-lg px-2 py-1.5 text-left transition-colors ${
                               isActive
                                 ? "bg-accent/15 text-text-primary"
                                 : "text-text-primary hover:bg-bg-elevated"
@@ -784,7 +784,7 @@ export default function Sidebar({
                 <button
                   type="button"
                   onClick={cycleSortMode}
-                  className="flex items-center gap-1 rounded px-1.5 py-0.5 text-xs text-text-muted hover:bg-bg-elevated hover:text-text-primary"
+                  className="flex items-center gap-1 rounded-lg px-1.5 py-0.5 text-xs text-text-muted hover:bg-bg-elevated hover:text-text-primary"
                   title={
                     sortMode === "updated_desc"
                       ? "更新日順"
@@ -858,7 +858,7 @@ export default function Sidebar({
             type="button"
             onClick={() => createNoteIn(rootPath)}
             disabled={creating}
-            className="flex flex-1 items-center gap-2 rounded-md px-2.5 py-2 text-sm font-medium text-text-primary hover:bg-bg-elevated disabled:opacity-50"
+            className="flex flex-1 items-center gap-2 rounded-lg px-2.5 py-2 text-sm font-medium text-text-primary hover:bg-bg-elevated disabled:opacity-50"
           >
             <Plus size={16} className="text-accent" />
             {tFile("newFile")}
@@ -869,7 +869,7 @@ export default function Sidebar({
             disabled={creating || pendingFolder !== null}
             title={tFile("newFolder")}
             aria-label={tFile("newFolder")}
-            className="flex h-9 w-9 items-center justify-center rounded-md text-text-muted hover:bg-bg-elevated hover:text-text-primary disabled:opacity-50"
+            className="flex h-9 w-9 items-center justify-center rounded-lg text-text-muted hover:bg-bg-elevated hover:text-text-primary disabled:opacity-50"
           >
             <FolderPlus size={16} />
           </button>
@@ -1025,7 +1025,7 @@ function FolderBody(props: FolderBodyProps) {
     <ul className="flex flex-col">
       {err && (
         <li
-          className="mb-1 rounded-md border border-red-500/30 bg-red-500/10 p-2 text-xs text-red-400"
+          className="mb-1 rounded-lg border border-danger/30 bg-danger/10 p-2 text-xs text-danger"
           style={{ marginLeft: `${depth * 12}px` }}
         >
           {err}
@@ -1122,7 +1122,7 @@ function FolderBody(props: FolderBodyProps) {
                 onDoubleClick={() => {
                   // double-click to rename
                 }}
-                className={`flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left transition-colors ${
+                className={`flex w-full items-center gap-2 rounded-lg px-2 py-1.5 text-left transition-colors ${
                   isActive
                     ? "bg-accent/15 text-text-primary"
                     : "text-text-primary hover:bg-bg-elevated"
@@ -1144,7 +1144,7 @@ function FolderBody(props: FolderBodyProps) {
                     onContextMenu(e, { kind: "file", item: f });
                   }}
                   aria-label="More options"
-                  className="flex h-5 w-5 flex-shrink-0 items-center justify-center rounded text-text-muted opacity-0 transition-opacity group-hover:opacity-100 hover:bg-bg-card hover:text-text-primary"
+                  className="flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-lg text-text-muted opacity-0 transition-opacity group-hover:opacity-100 hover:bg-bg-card hover:text-text-primary"
                 >
                   <MoreHorizontal size={12} />
                 </button>
@@ -1205,7 +1205,7 @@ function FolderRow({
     <li className={isDragging ? "opacity-40" : ""}>
       <div
         className={[
-          "group flex items-center gap-1 rounded-md pr-1",
+          "group flex items-center gap-1 rounded-lg pr-1",
           isDropTarget
             ? "ring-2 ring-accent bg-accent/10"
             : isSelected
@@ -1248,7 +1248,7 @@ function FolderRow({
             type="button"
             onClick={onOpenFolder}
             onContextMenu={onContextMenu}
-            className={`flex flex-1 items-center gap-1.5 overflow-hidden rounded-md px-1 py-1.5 text-left transition-colors ${
+            className={`flex flex-1 items-center gap-1.5 overflow-hidden rounded-lg px-1 py-1.5 text-left transition-colors ${
               isSelected ? "font-medium text-text-primary" : "text-text-primary"
             }`}
           >
@@ -1270,7 +1270,7 @@ function FolderRow({
             }}
             title={tFile("newFileHere")}
             aria-label={tFile("newFileHere")}
-            className="flex h-6 w-6 items-center justify-center rounded text-text-muted hover:bg-bg-card hover:text-text-primary"
+            className="flex h-6 w-6 items-center justify-center rounded-lg text-text-muted hover:bg-bg-card hover:text-text-primary"
           >
             <FilePlus size={12} />
           </button>
@@ -1282,7 +1282,7 @@ function FolderRow({
             }}
             title={tFile("newFolderHere")}
             aria-label={tFile("newFolderHere")}
-            className="flex h-6 w-6 items-center justify-center rounded text-text-muted hover:bg-bg-card hover:text-text-primary"
+            className="flex h-6 w-6 items-center justify-center rounded-lg text-text-muted hover:bg-bg-card hover:text-text-primary"
           >
             <FolderPlus size={12} />
           </button>
@@ -1293,7 +1293,7 @@ function FolderRow({
               onContextMenu(e);
             }}
             aria-label="More options"
-            className="flex h-6 w-6 items-center justify-center rounded text-text-muted hover:bg-bg-card hover:text-text-primary"
+            className="flex h-6 w-6 items-center justify-center rounded-lg text-text-muted hover:bg-bg-card hover:text-text-primary"
           >
             <MoreHorizontal size={12} />
           </button>
@@ -1340,7 +1340,7 @@ function InlineRenameInput({
           onCancel();
         }
       }}
-      className="flex-1 rounded bg-bg-primary px-1 py-0.5 text-sm text-text-primary focus:outline-none focus:ring-1 focus:ring-accent"
+      className="flex-1 rounded-lg bg-bg-primary px-1 py-0.5 text-sm text-text-primary focus:outline-none focus:ring-1 focus:ring-focus-ring"
     />
   );
 }
@@ -1359,7 +1359,7 @@ function FolderInputRow({
   const tFile = useTranslations("knowledge.fileList");
   const [value, setValue] = useState("");
   return (
-    <div className="mb-1 ml-4 flex items-center gap-2 rounded-md bg-bg-elevated px-2 py-1.5">
+    <div className="mb-1 ml-4 flex items-center gap-2 rounded-lg bg-bg-elevated px-2 py-1.5">
       <Folder size={14} className="flex-shrink-0 text-text-muted" />
       <input
         ref={inputRef}
@@ -1427,7 +1427,7 @@ function VaultHeader({
         onClick={() => setOpen((o) => !o)}
         className="flex w-full items-center gap-2 px-3 py-3 text-left hover:bg-bg-elevated"
       >
-        <div className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-md bg-accent/15 text-accent">
+        <div className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg bg-accent/15 text-accent">
           <span className="text-sm font-semibold">
             {active.label.slice(0, 1).toUpperCase()}
           </span>
@@ -1444,7 +1444,7 @@ function VaultHeader({
         <ChevronsUpDown size={14} className="flex-shrink-0 text-text-muted" />
       </button>
       {open && (
-        <div className="absolute left-2 right-2 top-full z-20 mt-1 overflow-hidden rounded-lg border border-bg-border bg-bg-elevated shadow-xl animate-fade-in-scale">
+        <div className="absolute left-2 right-2 top-full z-20 mt-1 overflow-hidden rounded-lg border border-bg-border bg-bg-elevated shadow-lg animate-fade-in-scale">
           <ul className="max-h-72 overflow-y-auto py-1">
             {vaults.map((v) => (
               <li key={v.id}>
@@ -1527,7 +1527,7 @@ function SearchResults({
               <button
                 type="button"
                 onClick={() => onPick(hit)}
-                className={`flex w-full flex-col gap-0.5 rounded-md px-2 py-1.5 text-left transition-colors ${
+                className={`flex w-full flex-col gap-0.5 rounded-lg px-2 py-1.5 text-left transition-colors ${
                   isActive ? "bg-accent/15" : "hover:bg-bg-elevated"
                 }`}
               >

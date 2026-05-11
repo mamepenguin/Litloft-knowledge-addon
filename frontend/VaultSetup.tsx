@@ -38,11 +38,11 @@ export default function VaultSetup({ drive, onCreated, onCancel }: Props) {
   }
 
   const inputClass =
-    "w-full rounded-md border border-bg-border bg-bg-primary px-3 py-2 text-sm text-text-primary placeholder:text-text-muted focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent";
+    "w-full rounded-lg border border-bg-border bg-bg-primary px-3 py-2 text-sm text-text-primary placeholder:text-text-muted focus:border-focus-ring focus:outline-none focus:ring-1 focus:ring-focus-ring";
 
   return (
     <div className="flex min-h-[calc(var(--app-height,100dvh)-56px)] items-center justify-center bg-bg-primary p-6">
-      <div className="w-full max-w-md rounded-2xl border border-bg-border bg-bg-card p-8 shadow-xl">
+      <div className="w-full max-w-md rounded-2xl border border-bg-border bg-bg-card p-8 shadow-lg">
         <div className="mb-5 flex items-center gap-3">
           <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-accent/15 text-accent">
             <NotebookPen size={22} strokeWidth={1.75} />
@@ -95,7 +95,7 @@ export default function VaultSetup({ drive, onCreated, onCancel }: Props) {
             />
           </label>
           {error && (
-            <div className="rounded-md border border-red-500/30 bg-red-500/10 px-3 py-2 text-sm text-red-400">
+            <div className="rounded-lg border border-danger/30 bg-danger/10 px-3 py-2 text-sm text-danger">
               {error}
             </div>
           )}
@@ -104,7 +104,7 @@ export default function VaultSetup({ drive, onCreated, onCancel }: Props) {
               <button
                 type="button"
                 onClick={onCancel}
-                className="flex-1 rounded-md border border-bg-border bg-bg-elevated px-4 py-2 text-sm font-medium text-text-primary hover:border-accent/40"
+                className="flex-1 rounded-lg border border-bg-border bg-bg-elevated px-4 py-2 text-sm font-medium text-text-primary hover:border-accent/40"
               >
                 {t("setup.cancel")}
               </button>
@@ -112,7 +112,7 @@ export default function VaultSetup({ drive, onCreated, onCancel }: Props) {
             <button
               type="submit"
               disabled={submitting || !label.trim()}
-              className="flex-1 rounded-md bg-accent-cta px-4 py-2 text-sm font-medium text-white hover:bg-accent disabled:cursor-not-allowed disabled:opacity-50"
+              className="flex-1 rounded-lg bg-accent-cta px-4 py-2 text-sm font-medium text-white hover:bg-accent disabled:cursor-not-allowed disabled:opacity-50"
             >
               {submitting ? t("setup.creating") : t("setup.create")}
             </button>

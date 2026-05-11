@@ -172,7 +172,7 @@ function ShortcutHint({ keys, label }: { keys: string[]; label: string }) {
         {keys.map((k, i) => (
           <kbd
             key={i}
-            className="inline-flex h-5 min-w-[20px] items-center justify-center rounded-md border border-bg-border bg-bg-card px-1.5 font-mono text-[10px] font-medium text-text-primary"
+            className="inline-flex h-5 min-w-[20px] items-center justify-center rounded-lg border border-bg-border bg-bg-card px-1.5 font-mono text-[10px] font-medium text-text-primary"
           >
             {k}
           </kbd>
@@ -188,8 +188,8 @@ function RecentSkeleton() {
     <ul className="flex flex-col divide-y divide-bg-border" aria-hidden>
       {[0, 1, 2].map((i) => (
         <li key={i} className="flex items-center gap-4 py-3">
-          <span className="h-3 w-4 rounded bg-bg-elevated" />
-          <span className="h-3 flex-1 rounded bg-bg-elevated" />
+          <span className="h-3 w-4 rounded-lg bg-bg-elevated" />
+          <span className="h-3 flex-1 rounded-lg bg-bg-elevated" />
         </li>
       ))}
     </ul>

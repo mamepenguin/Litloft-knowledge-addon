@@ -19,7 +19,7 @@ export default function EditorToolbar({ onAction, onFileLinkRequest }: Props) {
   const t = useTranslations("knowledge.editor.toolbar");
 
   const btnClass =
-    "inline-flex h-8 w-8 items-center justify-center rounded-md text-text-muted transition-colors hover:bg-bg-elevated hover:text-text-primary";
+    "inline-flex h-8 w-8 items-center justify-center rounded-lg text-text-muted transition-colors hover:bg-bg-elevated hover:text-text-primary";
 
   return (
     <div

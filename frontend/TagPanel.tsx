@@ -126,7 +126,7 @@ export default function TagPanel({ fileId, drive, x, y, onClose }: Props) {
       ref={panelRef}
       data-context-menu
       style={{ top: adjustedY, left: adjustedX }}
-      className="fixed z-50 w-60 overflow-hidden rounded-lg border border-bg-border bg-bg-elevated shadow-xl animate-fade-in-scale"
+      className="fixed z-50 w-60 overflow-hidden rounded-lg border border-bg-border bg-bg-elevated shadow-lg animate-fade-in-scale"
     >
       <div className="border-b border-bg-border px-3 py-2">
         <p className="text-xs font-semibold text-text-primary">{t("manage")}</p>
@@ -167,19 +167,19 @@ export default function TagPanel({ fileId, drive, x, y, onClose }: Props) {
                 onChange={(e) => setInput(e.target.value)}
                 onKeyDown={handleKeyDown}
                 placeholder={t("addPlaceholder")}
-                className="flex-1 rounded-md border border-bg-border bg-bg-primary px-2 py-1 text-xs text-text-primary placeholder:text-text-muted focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent"
+                className="flex-1 rounded-lg border border-bg-border bg-bg-primary px-2 py-1 text-xs text-text-primary placeholder:text-text-muted focus:border-focus-ring focus:outline-none focus:ring-1 focus:ring-focus-ring"
               />
               <button
                 type="button"
                 onClick={() => void addTag(input)}
                 aria-label={t("add")}
-                className="flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-md bg-accent/15 text-accent hover:bg-accent/25"
+                className="flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-lg bg-accent/15 text-accent hover:bg-accent/25"
               >
                 <Plus size={12} />
               </button>
             </div>
             {suggestions.length > 0 && (
-              <ul className="mt-1 overflow-hidden rounded-md border border-bg-border bg-bg-primary">
+              <ul className="mt-1 overflow-hidden rounded-lg border border-bg-border bg-bg-primary">
                 {suggestions.map((s, i) => (
                   <li key={s}>
                     <button
