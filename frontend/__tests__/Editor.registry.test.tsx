@@ -193,6 +193,167 @@ describe("Editor markdownContentRegistry integration", () => {
     }
   });
 
+  it("never exposes the previous file's content under the new fileId, even during the transient navigation window (Phase 5)", async () => {
+    // Hard variant of the navigation test: hold the second fetch
+    // pending and inspect the registry while the swap is in flight.
+    // The contract is "registry must never return file-A content
+    // under key 'b'". Either lookup('b') returns null (no entry yet)
+    // or its getContent() returns something derived from B's fetch.
+    let resolveB!: (value: { ok: true; text: string; headers: Record<string, string> }) => void;
+    const bPending = new Promise<{ ok: true; text: string; headers: Record<string, string> }>(
+      (r) => (resolveB = r),
+    );
+
+    const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
+      const url = typeof input === "string" ? input : input.toString();
+      if (url.includes("/api/files/a/stream")) {
+        return {
+          ok: true,
+          status: 200,
+          headers: new Headers({ etag: '"a1"' }),
+          json: async () => undefined,
+          text: async () => "alpha-body",
+        } as Response;
+      }
+      if (url.includes("/api/files/b/stream")) {
+        const spec = await bPending;
+        return {
+          ok: spec.ok,
+          status: 200,
+          headers: new Headers(spec.headers),
+          json: async () => undefined,
+          text: async () => spec.text,
+        } as Response;
+      }
+      throw new Error(`unmatched ${url}`);
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    const { rerender } = render(
+      <Editor fileId="a" filename="alpha.md" drive="d" inlineMode />,
+    );
+    await waitFor(() => {
+      expect(markdownContentRegistry.lookup("a")).not.toBeNull();
+    });
+
+    // Swap to b while b's fetch is still pending.
+    rerender(<Editor fileId="b" filename="beta.md" drive="d" inlineMode />);
+
+    // At this point the host (e.g. FileDetailContent) could read
+    // lookup("b") via useSyncExternalStore. The contract:
+    // - lookup("b") is allowed to be null (no entry until load)
+    // - OR getContent() must NOT be alpha-body
+    const transient = markdownContentRegistry.lookup("b");
+    if (transient !== null) {
+      expect(transient.getContent()).not.toBe("alpha-body");
+    }
+
+    // Also: the old key should already be disposed.
+    expect(markdownContentRegistry.lookup("a")).toBeNull();
+
+    // Finish the load and verify steady-state.
+    resolveB({
+      ok: true,
+      text: "beta-body",
+      headers: { etag: '"b1"' },
+    });
+    await waitFor(() => {
+      expect(markdownContentRegistry.lookup("b")?.getContent()).toBe(
+        "beta-body",
+      );
+    });
+  });
+
+  it("does not leak previous file's content under the new fileId during navigation (Phase 5)", async () => {
+    // Phase 5 edge-case verification: when the host swaps fileId
+    // without remounting the Editor (the typical right-pane navigation
+    // case), the registry must never expose stale content under the
+    // new fileId. The previous file's entry must be disposed and a
+    // fresh entry must only appear once the new file's content has
+    // actually loaded.
+    stubFetch({
+      "/api/files/a/stream": [
+        { ok: true, text: "alpha-body", headers: { etag: '"a1"' } },
+      ],
+      "/api/files/b/stream": [
+        { ok: true, text: "beta-body", headers: { etag: '"b1"' } },
+      ],
+    });
+
+    const { rerender } = render(
+      <Editor fileId="a" filename="alpha.md" drive="d" inlineMode />,
+    );
+
+    // Initial load registers under "a".
+    await waitFor(() => {
+      const entry = markdownContentRegistry.lookup("a");
+      expect(entry).not.toBeNull();
+      expect(entry!.getContent()).toBe("alpha-body");
+    });
+
+    // Swap fileId without remounting.
+    rerender(<Editor fileId="b" filename="beta.md" drive="d" inlineMode />);
+
+    // Wait for the new content to load.
+    await waitFor(() => {
+      const entry = markdownContentRegistry.lookup("b");
+      expect(entry).not.toBeNull();
+      expect(entry!.getContent()).toBe("beta-body");
+    });
+
+    // The old fileId entry must be disposed.
+    expect(markdownContentRegistry.lookup("a")).toBeNull();
+    // And critically: the new fileId entry must never have exposed
+    // alpha-body. Re-read after settling to assert no residual stale
+    // content.
+    expect(markdownContentRegistry.lookup("b")!.getContent()).toBe(
+      "beta-body",
+    );
+  });
+
+  it("isolates registry entries when two Editors run side by side (Phase 5)", async () => {
+    // Phase 5 edge-case verification: a playlist fullscreen view can
+    // run alongside a 2-pane right pane on the same page, each hosting
+    // a different .md file. The registry is fileId-keyed and entry
+    // identity is captured at register() time, so simultaneous mounts
+    // must each see their own entry without crosstalk.
+    stubFetch({
+      "/api/files/x/stream": [
+        { ok: true, text: "x-content", headers: { etag: '"x1"' } },
+      ],
+      "/api/files/y/stream": [
+        { ok: true, text: "y-content", headers: { etag: '"y1"' } },
+      ],
+    });
+
+    render(
+      <div>
+        <Editor fileId="x" filename="x.md" drive="d" inlineMode />
+        <Editor fileId="y" filename="y.md" drive="d" inlineMode />
+      </div>,
+    );
+
+    await waitFor(() => {
+      expect(markdownContentRegistry.lookup("x")?.getContent()).toBe(
+        "x-content",
+      );
+      expect(markdownContentRegistry.lookup("y")?.getContent()).toBe(
+        "y-content",
+      );
+    });
+
+    // External setContent on one entry must not touch the other.
+    markdownContentRegistry.lookup("x")!.setContent("x-edited");
+    await waitFor(() => {
+      expect(markdownContentRegistry.lookup("x")?.getContent()).toBe(
+        "x-edited",
+      );
+    });
+    expect(markdownContentRegistry.lookup("y")?.getContent()).toBe(
+      "y-content",
+    );
+  });
+
   it("unregisters on unmount", async () => {
     stubFetch({
       "/api/files/f1/stream": [
