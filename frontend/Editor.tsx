@@ -242,6 +242,11 @@ export default function Editor({
         ).catch(() => {
           // Best-effort; the scanner's hourly pass is the fallback.
         });
+        // Signal the host (FileDetailContent) to refetch File.tags.
+        // Closes the content-mode UX gap where chip edits + immediate
+        // navigation left the file detail page sitting on a stale
+        // tags array until the next navigation (hako 0RnZ1KdtomAfIJPLAGIHA).
+        markdownContentRegistry.notifySaved(fileId);
       } catch (err) {
         if (err instanceof ConflictError) {
           setSaveState({ kind: "conflict" });

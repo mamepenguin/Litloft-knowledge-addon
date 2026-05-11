@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 
 import { markdownContentRegistry } from "@/lib/markdownContentRegistry";
 
@@ -145,6 +145,52 @@ describe("Editor markdownContentRegistry integration", () => {
     await waitFor(() => {
       expect(textarea.value).toBe("---\ntags: [foo]\n---\ninitial");
     });
+  });
+
+  it("fires notifySaved on the registry after a successful PUT (hako 0RnZ1KdtomAfIJPLAGIHA)", async () => {
+    // Phase 3 follow-up: in content-mode the inspector's chip group
+    // doesn't own the save path, so the host (FileDetailContent) can
+    // only learn about a successful save via the registry's
+    // save-success channel. The Editor must fire notifySaved after
+    // every successful PUT so the host can refetch File.tags.
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    try {
+      stubFetch({
+        "/api/files/f1/stream": [
+          { ok: true, text: "hello", headers: { etag: '"v1"' } },
+        ],
+        "/api/files/f1/content": [
+          { ok: true, headers: { etag: '"v2"' } },
+        ],
+        // performSave also fires a resync-tags POST; queue a noop.
+        "/api/addons/knowledge/resync-tags/": [{ ok: true }],
+      });
+
+      const saveListener = vi.fn();
+      const dispose = markdownContentRegistry.subscribeSaved(
+        "f1",
+        saveListener,
+      );
+
+      render(<Editor fileId="f1" filename="note.md" drive="d" inlineMode />);
+
+      const textarea = (await screen.findByLabelText(
+        "editArea",
+      )) as HTMLTextAreaElement;
+      fireEvent.change(textarea, { target: { value: "hello world" } });
+
+      await act(async () => {
+        vi.advanceTimersByTime(2100);
+      });
+
+      await waitFor(() => {
+        expect(saveListener).toHaveBeenCalled();
+      });
+
+      dispose();
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it("unregisters on unmount", async () => {
