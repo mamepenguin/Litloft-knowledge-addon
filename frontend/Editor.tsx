@@ -132,6 +132,24 @@ export default function Editor({
   const tSide = useTranslations("knowledge.sidebar");
   const tShortcuts = useTranslations("knowledge.shortcuts");
   const [content, setContent] = useState<string | null>(null);
+  // Phase 4 (spec §D5 / hako sFXCwZDluTPZZkbYuozwJ): track mobile
+  // breakpoint so the view-mode toggle can drop the "split" option.
+  // Split makes no sense at <768px (textarea + preview side-by-side
+  // would each be ~half of a 375px viewport). Already implicit in the
+  // Knowledge Page.tsx host; centralised here so the inline-mounted
+  // Editor in FileDetailContent also gets the right toggle set.
+  const [isMobileWidth, setIsMobileWidth] = useState<boolean>(() => {
+    if (typeof window === "undefined") return false;
+    return window.innerWidth < 768;
+  });
+  useEffect(() => {
+    function handleResize() {
+      setIsMobileWidth(window.innerWidth < 768);
+    }
+    handleResize();
+    window.addEventListener("resize", handleResize);
+    return () => window.removeEventListener("resize", handleResize);
+  }, []);
   // When the host doesn't know the filename (e.g. KnowledgeEditSection
   // only has fileId + drive from the slot props), fetch it ourselves
   // so the rename field and the .md-stripped display name still work.
@@ -159,6 +177,15 @@ export default function Editor({
   const [loadError, setLoadError] = useState<string | null>(null);
   const [saveState, setSaveState] = useState<SaveState>({ kind: "idle" });
   const [viewMode, setViewMode] = useState<ViewMode>("edit");
+  // Snap viewMode out of "split" whenever the viewport drops below
+  // the mobile threshold. We prefer "preview" over bouncing back to
+  // "edit" — the user was already on a "see the rendered note"
+  // intent, so keep them there.
+  useEffect(() => {
+    if (isMobileWidth && viewMode === "split") {
+      setViewMode("preview");
+    }
+  }, [isMobileWidth, viewMode]);
   const etagRef = useRef<string>("");
   const lastSavedRef = useRef<string>("");
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
@@ -544,7 +571,7 @@ export default function Editor({
       {inlineMode ? (
         <div className="flex items-center justify-end gap-2 border-b border-bg-border px-2 py-1.5">
           <SaveIndicator state={saveState} />
-          <ViewModeToggle mode={viewMode} onChange={setViewMode} />
+          <ViewModeToggle mode={viewMode} onChange={setViewMode} hideSplit={isMobileWidth} />
         </div>
       ) : (
         <header className="flex items-center gap-3 border-b border-bg-border px-4 py-2.5">
@@ -576,7 +603,7 @@ export default function Editor({
             />
           </div>
           <SaveIndicator state={saveState} />
-          <ViewModeToggle mode={viewMode} onChange={setViewMode} />
+          <ViewModeToggle mode={viewMode} onChange={setViewMode} hideSplit={isMobileWidth} />
           {onDelete && (
             <button
               type="button"
@@ -781,16 +808,27 @@ function TitleField({
 function ViewModeToggle({
   mode,
   onChange,
+  hideSplit = false,
 }: {
   mode: ViewMode;
   onChange: (m: ViewMode) => void;
+  /**
+   * Phase 4: at mobile widths the "split" option is dropped (spec
+   * §D5 / hako sFXCwZDluTPZZkbYuozwJ). Split is structurally invalid
+   * there — half a 375px viewport per pane leaves neither side
+   * usable. The host (Editor) detects the viewport and passes this.
+   */
+  hideSplit?: boolean;
 }) {
   const t = useTranslations("knowledge.editor.view");
-  const options: { id: ViewMode; icon: typeof Pencil; label: string }[] = [
+  const allOptions: { id: ViewMode; icon: typeof Pencil; label: string }[] = [
     { id: "edit", icon: Pencil, label: t("edit") },
     { id: "split", icon: Columns, label: t("split") },
     { id: "preview", icon: Eye, label: t("preview") },
   ];
+  const options = hideSplit
+    ? allOptions.filter((o) => o.id !== "split")
+    : allOptions;
   return (
     <div className="flex items-center gap-0.5 rounded-md border border-bg-border bg-bg-card p-0.5">
       {options.map((o) => {
