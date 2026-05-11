@@ -13,18 +13,20 @@ import {
   AlertCircle,
   ArrowLeft,
   CheckCircle2,
-  Columns,
-  Eye,
   Loader2,
   PanelLeft,
   PanelLeftClose,
-  Pencil,
   Trash2,
 } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { MarkdownPreview } from "@/components/MarkdownPreview";
+import { MarkdownViewModeToggle } from "@/components/MarkdownViewModeToggle";
 import { PropertiesPanel } from "@/components/PropertiesPanel";
 import { markdownContentRegistry } from "@/lib/markdownContentRegistry";
+import {
+  useMarkdownChrome,
+  type MarkdownSaveState,
+} from "@/lib/markdownChromeContext";
 import { useDirty } from "@/hooks/useDirty";
 import { useShortcuts } from "@/hooks/useShortcuts";
 import {
@@ -131,6 +133,12 @@ export default function Editor({
   const t = useTranslations("knowledge.editor");
   const tSide = useTranslations("knowledge.sidebar");
   const tShortcuts = useTranslations("knowledge.shortcuts");
+  // When mounted under MarkdownDocumentLayout the host owns the
+  // unified chrome (view-mode toggle + save dot). The Editor then
+  // suppresses its own inline header and reads/writes those bits
+  // through the context. Standalone mounts (e.g. the bare /addons/
+  // knowledge route) keep their fully local fallback.
+  const chrome = useMarkdownChrome();
   const [content, setContent] = useState<string | null>(null);
   // Phase 4 (spec §D5 / hako sFXCwZDluTPZZkbYuozwJ): track mobile
   // breakpoint so the view-mode toggle can drop the "split" option.
@@ -176,7 +184,15 @@ export default function Editor({
   const effectiveFilename = filename ?? fetchedFilename ?? "";
   const [loadError, setLoadError] = useState<string | null>(null);
   const [saveState, setSaveState] = useState<SaveState>({ kind: "idle" });
-  const [viewMode, setViewMode] = useState<ViewMode>("edit");
+  // When the chrome context is present, the host owns viewMode. Keep
+  // a local state for the standalone fallback so this hook stays
+  // unconditional (Rules of Hooks).
+  const [localViewMode, setLocalViewMode] = useState<ViewMode>("edit");
+  const viewMode: ViewMode = chrome ? chrome.viewMode : localViewMode;
+  const setViewMode = (m: ViewMode) => {
+    if (chrome) chrome.setViewMode(m);
+    else setLocalViewMode(m);
+  };
   // Snap viewMode out of "split" whenever the viewport drops below
   // the mobile threshold. We prefer "preview" over bouncing back to
   // "edit" — the user was already on a "see the rendered note"
@@ -193,7 +209,23 @@ export default function Editor({
     if (isMobileWidth && viewMode === "split") {
       setViewMode("preview");
     }
+    // setViewMode is a stable identity when ``chrome`` is null, and
+    // chrome.setViewMode is stable for the lifetime of the chrome
+    // value (memoised in MarkdownDocumentLayout). Excluding it from
+    // deps keeps this effect from firing on every render.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isMobileWidth, viewMode]);
+
+  // Publish save lifecycle upward so the host chrome's save dot can
+  // reflect the current state. No-op when standalone.
+  useEffect(() => {
+    if (!chrome) return;
+    const next: MarkdownSaveState =
+      saveState.kind === "error"
+        ? { status: "error", message: saveState.message }
+        : { status: saveState.kind };
+    chrome.publishSaveState(next);
+  }, [chrome, saveState]);
   const etagRef = useRef<string>("");
   const lastSavedRef = useRef<string>("");
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
@@ -419,12 +451,15 @@ export default function Editor({
   }, [performSave]);
 
   const cycleViewMode = useCallback(() => {
-    setViewMode((prev) => {
-      const idx = VIEW_MODE_ROTATION.indexOf(prev);
-      const next = VIEW_MODE_ROTATION[(idx + 1) % VIEW_MODE_ROTATION.length];
-      return next;
-    });
-  }, []);
+    const idx = VIEW_MODE_ROTATION.indexOf(viewMode);
+    const next = VIEW_MODE_ROTATION[(idx + 1) % VIEW_MODE_ROTATION.length];
+    setViewMode(next);
+    // setViewMode is intentionally excluded — both branches (chrome
+    // setter, local setter) are stable for the lifetime of the
+    // relevant owner. Including viewMode is enough to keep the next
+    // step computed against the current value.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [viewMode]);
 
   useShortcuts(
     "knowledge-editor",
@@ -587,10 +622,14 @@ export default function Editor({
 
   return (
     <div className={containerClass}>
-      {inlineMode ? (
+      {chrome ? null : inlineMode ? (
         <div className="flex items-center justify-end gap-2 border-b border-bg-border px-2 py-1.5">
           <SaveIndicator state={saveState} />
-          <ViewModeToggle mode={viewMode} onChange={setViewMode} hideSplit={isMobileWidth} />
+          <MarkdownViewModeToggle
+            mode={viewMode}
+            onChange={setViewMode}
+            hideSplit={isMobileWidth}
+          />
         </div>
       ) : (
         <header className="flex items-center gap-3 border-b border-bg-border px-4 py-2.5">
@@ -622,7 +661,11 @@ export default function Editor({
             />
           </div>
           <SaveIndicator state={saveState} />
-          <ViewModeToggle mode={viewMode} onChange={setViewMode} hideSplit={isMobileWidth} />
+          <MarkdownViewModeToggle
+            mode={viewMode}
+            onChange={setViewMode}
+            hideSplit={isMobileWidth}
+          />
           {onDelete && (
             <button
               type="button"
@@ -638,7 +681,16 @@ export default function Editor({
       )}
 
       {viewMode !== "preview" && (
-        <EditorToolbar onAction={handleToolbar} onFileLinkRequest={handleFileLinkRequest} />
+        // Sticky directly below the host chrome (MarkdownDocumentLayout's
+        // 48px top bar / Knowledge Page's own header) so the formatting
+        // affordances stay reachable while the textarea content scrolls
+        // past. `top-0` anchors against the nearest scroll ancestor,
+        // which is the layout's main column. The EditorToolbar's own
+        // `bg-bg-card` already gives it an opaque backdrop, so we only
+        // add the positioning + a low z-index here.
+        <div className="sticky top-0 z-10">
+          <EditorToolbar onAction={handleToolbar} onFileLinkRequest={handleFileLinkRequest} />
+        </div>
       )}
 
       {/* Keep both panes permanently mounted so that mermaid diagrams and other
@@ -831,57 +883,6 @@ function TitleField({
         </span>
       )}
     </form>
-  );
-}
-
-function ViewModeToggle({
-  mode,
-  onChange,
-  hideSplit = false,
-}: {
-  mode: ViewMode;
-  onChange: (m: ViewMode) => void;
-  /**
-   * Phase 4: at mobile widths the "split" option is dropped (spec
-   * §D5 / hako sFXCwZDluTPZZkbYuozwJ). Split is structurally invalid
-   * there — half a 375px viewport per pane leaves neither side
-   * usable. The host (Editor) detects the viewport and passes this.
-   */
-  hideSplit?: boolean;
-}) {
-  const t = useTranslations("knowledge.editor.view");
-  const allOptions: { id: ViewMode; icon: typeof Pencil; label: string }[] = [
-    { id: "edit", icon: Pencil, label: t("edit") },
-    { id: "split", icon: Columns, label: t("split") },
-    { id: "preview", icon: Eye, label: t("preview") },
-  ];
-  const options = hideSplit
-    ? allOptions.filter((o) => o.id !== "split")
-    : allOptions;
-  return (
-    <div className="flex items-center gap-0.5 rounded-md border border-bg-border bg-bg-card p-0.5">
-      {options.map((o) => {
-        const Icon = o.icon;
-        const isActive = mode === o.id;
-        return (
-          <button
-            key={o.id}
-            type="button"
-            onClick={() => onChange(o.id)}
-            aria-label={o.label}
-            title={o.label}
-            aria-pressed={isActive}
-            className={`flex h-7 w-7 items-center justify-center rounded transition-colors ${
-              isActive
-                ? "bg-bg-elevated text-text-primary"
-                : "text-text-muted hover:text-text-primary"
-            }`}
-          >
-            <Icon size={14} />
-          </button>
-        );
-      })}
-    </div>
   );
 }
 
