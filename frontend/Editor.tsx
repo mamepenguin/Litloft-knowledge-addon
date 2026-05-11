@@ -181,6 +181,14 @@ export default function Editor({
   // the mobile threshold. We prefer "preview" over bouncing back to
   // "edit" — the user was already on a "see the rendered note"
   // intent, so keep them there.
+  //
+  // Intentionally one-way (Phase 4 review M3, hako 5rtHKXzQd9VJY7WNU5Deg):
+  // an iPad rotated portrait → landscape will not return to "split"
+  // automatically. We chose not to remember the user's last desktop
+  // viewMode separately because the natural usage pattern is "the
+  // user picks a mode and stays in it"; auto-restoring "split"
+  // after a transient rotation would feel like the toolbar twitched
+  // on its own. If a user wants split back they can tap the toggle.
   useEffect(() => {
     if (isMobileWidth && viewMode === "split") {
       setViewMode("preview");
