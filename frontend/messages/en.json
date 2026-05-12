@@ -231,6 +231,19 @@
       "searching": "Searching...",
       "noResults": "No files found",
       "typeToSearch": "Type to search for a file"
+    },
+    "unresolvedLinkDialog": {
+      "title": "Create note",
+      "filenameLabel": "Filename",
+      "folderLabel": "Folder",
+      "create": "Create",
+      "cancel": "Cancel",
+      "conflictError": "A note with that name already exists.",
+      "invalidPathError": "Invalid path."
+    },
+    "wikiAutocomplete": {
+      "placeholder": "Search notes...",
+      "emptyState": "No matching notes."
     }
   }
 }

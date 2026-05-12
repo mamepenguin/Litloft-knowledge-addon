@@ -231,6 +231,19 @@
       "searching": "検索中...",
       "noResults": "一致するファイルがありません",
       "typeToSearch": "ファイル名を入力して検索"
+    },
+    "unresolvedLinkDialog": {
+      "title": "ノートを作成",
+      "filenameLabel": "ファイル名",
+      "folderLabel": "フォルダ",
+      "create": "作成",
+      "cancel": "キャンセル",
+      "conflictError": "同じ名前のノートが既に存在します。",
+      "invalidPathError": "無効なパスです。"
+    },
+    "wikiAutocomplete": {
+      "placeholder": "ノートを検索...",
+      "emptyState": "一致するノートがありません。"
     }
   }
 }

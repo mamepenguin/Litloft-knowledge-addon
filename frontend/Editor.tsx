@@ -41,6 +41,11 @@ import EditorToolbar, {
 } from "./EditorToolbar";
 import FileLinkModal from "./FileLinkModal";
 import { applyIndent } from "./editorIndent";
+import {
+  WikiLinkAutocomplete,
+  type WikiLinkAutocompleteHandle,
+  type WikiLinkSelection,
+} from "./WikiLinkAutocomplete";
 
 interface Props {
   fileId: string;
@@ -232,6 +237,14 @@ export default function Editor({
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [fileLinkModalOpen, setFileLinkModalOpen] = useState(false);
   const savedSelRef = useRef<{ start: number; end: number } | null>(null);
+  // Wiki-link autocomplete state. ``triggerStart`` is the offset
+  // immediately AFTER the opening ``[[`` (so substring(triggerStart,
+  // caret) gives the query). null = popup closed. Spec 2026-05-12 §3.9.
+  const [wikiTrigger, setWikiTrigger] = useState<{
+    start: number;
+    query: string;
+  } | null>(null);
+  const wikiAutocompleteRef = useRef<WikiLinkAutocompleteHandle | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -375,6 +388,15 @@ export default function Editor({
 
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+      // Wiki-link autocomplete intercepts keyboard nav first. If the
+      // popup is open and consumed the key (ArrowUp/Down, Enter, Esc),
+      // skip the editor's own handling.
+      if (
+        wikiTrigger &&
+        wikiAutocompleteRef.current?.handleKeyDown(e)
+      ) {
+        return;
+      }
       if (e.key === "Escape") {
         e.currentTarget.blur();
         return;
@@ -394,7 +416,76 @@ export default function Editor({
         ta.setSelectionRange(selStart, selEnd);
       });
     },
+    [wikiTrigger],
+  );
+
+  // Inspects the textarea contents around the caret to decide whether
+  // a wiki-link autocomplete popup should be open and, if so, what
+  // query to pass to it. Called from the textarea's onChange handler.
+  const updateWikiTrigger = useCallback(
+    (value: string, caret: number) => {
+      // Walk backwards from the caret looking for ``[[``. A whitespace
+      // or newline before the search character means the user is not
+      // currently inside a wiki-link context — close the popup.
+      let i = caret - 1;
+      while (i >= 1) {
+        const ch = value.charCodeAt(i);
+        if (ch === 0x0a) {
+          // Newline → not in a wiki-link context.
+          setWikiTrigger(null);
+          return;
+        }
+        if (ch === 0x5d /* ] */) {
+          // The user typed the closing ``]`` — bail.
+          setWikiTrigger(null);
+          return;
+        }
+        if (
+          ch === 0x5b /* [ */ &&
+          value.charCodeAt(i - 1) === 0x5b /* [ */
+        ) {
+          const start = i + 1; // First character AFTER the ``[[``.
+          const query = value.slice(start, caret);
+          setWikiTrigger({ start, query });
+          return;
+        }
+        i -= 1;
+      }
+      setWikiTrigger(null);
+    },
     [],
+  );
+
+  const handleContentChange = useCallback(
+    (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+      const next = e.target.value;
+      setContent(next);
+      updateWikiTrigger(next, e.target.selectionStart);
+    },
+    [updateWikiTrigger],
+  );
+
+  const insertWikiLink = useCallback(
+    (sel: WikiLinkSelection, shift: boolean) => {
+      const ta = textareaRef.current;
+      if (!ta || content === null || !wikiTrigger) return;
+      // Replace from the opening ``[[`` (triggerStart - 2) through the
+      // current caret with the rendered link form.
+      const linkBody =
+        shift && sel.mdId ? sel.mdId : sel.basename;
+      const inserted = `[[${linkBody}]]`;
+      const beforeBracket = content.slice(0, wikiTrigger.start - 2);
+      const afterCaret = content.slice(ta.selectionStart);
+      const newText = beforeBracket + inserted + afterCaret;
+      const cursor = beforeBracket.length + inserted.length;
+      setContent(newText);
+      setWikiTrigger(null);
+      requestAnimationFrame(() => {
+        ta.focus();
+        ta.setSelectionRange(cursor, cursor);
+      });
+    },
+    [content, wikiTrigger],
   );
 
   const handleToolbar = useCallback((action: EditorAction) => {
@@ -705,7 +796,7 @@ export default function Editor({
         <textarea
           ref={textareaRef}
           value={content}
-          onChange={(e) => setContent(e.target.value)}
+          onChange={handleContentChange}
           onKeyDown={handleKeyDown}
           spellCheck={false}
           className={`${
@@ -754,6 +845,17 @@ export default function Editor({
           </div>
         </div>
       </div>
+
+      {wikiTrigger && (
+        <WikiLinkAutocomplete
+          drive={drive}
+          vaultId={0}
+          query={wikiTrigger.query}
+          onSelect={insertWikiLink}
+          onClose={() => setWikiTrigger(null)}
+          handleRef={wikiAutocompleteRef}
+        />
+      )}
 
       {/*
         PR-6: render the overlay modals into ``document.body`` via
