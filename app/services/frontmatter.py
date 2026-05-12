@@ -20,11 +20,51 @@ frontmatter is not an error; the resulting metadata is simply ``None``.
 """
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from typing import Any
 
 import yaml
+
+
+_ID_RE = re.compile(r"^\d{12,17}$")
+
+
+def _coerce_valid_id(value: Any) -> str | None:
+    if isinstance(value, str):
+        candidate = value
+    elif isinstance(value, int) and not isinstance(value, bool):
+        candidate = str(value)
+    else:
+        return None
+    return candidate if _ID_RE.match(candidate) else None
+
+
+def ensure_id(
+    metadata: dict[str, Any],
+    existing_id: str | None = None,
+    now: datetime | None = None,
+) -> tuple[dict[str, Any], str]:
+    """Return ``(new_metadata, id_value)`` with a valid ``id:`` key.
+
+    Behaviour-compatible with ``backend/app/services/frontmatter.ensure_id``
+    (parallel implementation — separate containers cannot share code).
+    Pure / immutable: ``metadata`` is never mutated; a new dict with
+    ``id`` as the first key is returned.
+    """
+    preserved = _coerce_valid_id(metadata.get("id"))
+    if preserved is not None:
+        new_id = preserved
+    elif (reused := _coerce_valid_id(existing_id)) is not None:
+        new_id = reused
+    else:
+        moment = now if now is not None else datetime.now(timezone.utc)
+        new_id = moment.strftime("%Y%m%d%H%M%S")
+
+    rest = {k: v for k, v in metadata.items() if k != "id"}
+    new_metadata = {"id": new_id, **rest}
+    return new_metadata, new_id
 
 
 @dataclass(frozen=True)
@@ -88,9 +128,13 @@ def parse(content: str) -> ParsedMarkdown:
     if body.startswith("\n"):
         body = body[1:]
 
+    # Mirror the core parser's broad except (backend/app/services/frontmatter.py):
+    # ``safe_load`` may surface ``RecursionError`` / ``MemoryError`` on
+    # pathological input, which are not ``YAMLError`` subclasses. The parse
+    # failure contract is "never crash the caller".
     try:
         metadata = yaml.safe_load(raw_yaml) or {}
-    except yaml.YAMLError:
+    except Exception:
         return ParsedMarkdown(metadata={}, body=content)
 
     if not isinstance(metadata, dict):

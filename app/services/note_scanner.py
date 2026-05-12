@@ -18,6 +18,7 @@ changes.
 from __future__ import annotations
 
 import asyncio
+import hashlib
 import logging
 import re
 from dataclasses import dataclass
@@ -29,7 +30,81 @@ from sqlalchemy.orm import Session
 from app.database import session_scope
 from app.internal_client import InternalAPIError, InternalClient
 from app.models import NoteOrigin, NoteOriginSource
-from app.services.frontmatter import parse as parse_frontmatter
+from app.services.frontmatter import (
+    compose as compose_frontmatter,
+    ensure_id,
+    parse as parse_frontmatter,
+)
+
+
+_FM_ID_RE = re.compile(r"^\d{12,17}$")
+
+
+def _fm_id_value(metadata: dict[str, Any]) -> str | None:
+    raw = metadata.get("id")
+    if isinstance(raw, str) and _FM_ID_RE.match(raw):
+        return raw
+    if isinstance(raw, int) and not isinstance(raw, bool):
+        candidate = str(raw)
+        if _FM_ID_RE.match(candidate):
+            return candidate
+    return None
+
+
+async def _maybe_fill_frontmatter_id(
+    client: InternalClient,
+    note_file_id: str,
+    content: str,
+    parsed_metadata: dict[str, Any],
+    parsed_body: str,
+    *,
+    vault_id: int,
+    note_path: str,
+) -> bool:
+    """Inject a frontmatter ``id:`` if missing and write the file back.
+
+    Returns ``True`` when a 403/404 is observed (protected_errors). The
+    412 etag-mismatch case is treated as a soft failure — the next pass
+    retries when the etag aligns. All other write failures are logged.
+    """
+    if _fm_id_value(parsed_metadata) is not None:
+        return False
+
+    put = getattr(client, "put_file_content", None)
+    if put is None:
+        return False
+
+    new_meta, _new_id = ensure_id(
+        parsed_metadata, existing_id=None, now=datetime.now(UTC)
+    )
+    new_content = compose_frontmatter(new_meta, parsed_body)
+    if_match = '"' + hashlib.sha256(content.encode("utf-8")).hexdigest() + '"'
+
+    try:
+        await put(note_file_id, new_content, if_match)
+    except InternalAPIError as exc:
+        if exc.status_code == 412:
+            logger.warning(
+                "note scan: id fill etag-conflict vault=%s path=%s (retrying next pass)",
+                vault_id,
+                note_path,
+            )
+            return False
+        if exc.status_code in (403, 404):
+            logger.warning(
+                "note scan: id fill denied vault=%s path=%s status=%d",
+                vault_id,
+                note_path,
+                exc.status_code,
+            )
+            return True
+        logger.warning(
+            "note scan: id fill failed vault=%s path=%s: %s",
+            vault_id,
+            note_path,
+            exc,
+        )
+    return False
 
 logger = logging.getLogger(__name__)
 
@@ -308,6 +383,19 @@ async def _reconcile_one(
 
     parsed = parse_frontmatter(content)
 
+    # Spec 2026-05-12-markdown-link-three-forms §3.1 / §4 Phase A: when
+    # the frontmatter lacks a valid ``id:``, write the file back with
+    # one injected so wiki-link resolution has a stable handle.
+    id_fill_protected = await _maybe_fill_frontmatter_id(
+        client,
+        note_file_id,
+        content,
+        parsed.metadata,
+        parsed.body,
+        vault_id=vault_id,
+        note_path=note_path,
+    )
+
     # Project tags before touching the DB so a projection failure
     # doesn't leave note_origins ahead of core. Best-effort: tag errors
     # are logged but don't block frontmatter sync — the scanner will
@@ -330,12 +418,12 @@ async def _reconcile_one(
         )
         if note is None:
             # Raced with a purge/delete between the list and this update.
-            return False, False, False, tags_ok
+            return False, False, id_fill_protected, tags_ok
         if metadata_stale:
             _apply_frontmatter(session, note, parsed.metadata)
         if tags_ok:
             note.tags_synced_at = datetime.now(UTC)
-    return metadata_stale, False, False, tags_ok
+    return metadata_stale, False, id_fill_protected, tags_ok
 
 
 async def reconcile_once(
