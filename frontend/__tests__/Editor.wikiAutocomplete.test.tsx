@@ -54,11 +54,13 @@ vi.mock("@/components/MarkdownPreview", () => ({
 
 // Stub the vault search so we can control candidate list contents.
 const searchVaultMock = vi.hoisted(() => vi.fn());
+const listVaultsMock = vi.hoisted(() => vi.fn());
 vi.mock("../api", async () => {
   const actual = await vi.importActual<typeof import("../api")>("../api");
   return {
     ...actual,
     searchVault: searchVaultMock,
+    listVaults: listVaultsMock,
   };
 });
 
@@ -123,6 +125,12 @@ function makeHit(id: string, filename: string, title?: string, snippet = "") {
 
 beforeEach(() => {
   searchVaultMock.mockReset();
+  listVaultsMock.mockReset();
+  // Default: a single vault with id=1 active. Tests can override.
+  listVaultsMock.mockResolvedValue({
+    vaults: [{ id: 1, drive: "d", name: "Notes", path: "Notes" }],
+    active_vault_id: 1,
+  });
 });
 
 afterEach(() => {
@@ -152,7 +160,7 @@ describe("Editor wiki-link autocomplete", () => {
       truncated: false,
     });
 
-    render(<Editor fileId="f1" filename="note.md" drive="d" inlineMode />);
+    render(<Editor fileId="f1" filename="note.md" drive="d" vaultId={1} inlineMode />);
 
     const textarea = (await screen.findByLabelText(
       "editArea",
@@ -173,7 +181,7 @@ describe("Editor wiki-link autocomplete", () => {
 
   it("does not open the popup on a single `[`", async () => {
     defaultStream("");
-    render(<Editor fileId="f1" filename="note.md" drive="d" inlineMode />);
+    render(<Editor fileId="f1" filename="note.md" drive="d" vaultId={1} inlineMode />);
     const textarea = (await screen.findByLabelText(
       "editArea",
     )) as HTMLTextAreaElement;
@@ -202,7 +210,7 @@ describe("Editor wiki-link autocomplete", () => {
       }),
     );
 
-    render(<Editor fileId="f1" filename="note.md" drive="d" inlineMode />);
+    render(<Editor fileId="f1" filename="note.md" drive="d" vaultId={1} inlineMode />);
     const textarea = (await screen.findByLabelText(
       "editArea",
     )) as HTMLTextAreaElement;
@@ -234,7 +242,7 @@ describe("Editor wiki-link autocomplete", () => {
       truncated: false,
     });
 
-    render(<Editor fileId="f1" filename="note.md" drive="d" inlineMode />);
+    render(<Editor fileId="f1" filename="note.md" drive="d" vaultId={1} inlineMode />);
     const textarea = (await screen.findByLabelText(
       "editArea",
     )) as HTMLTextAreaElement;
@@ -265,7 +273,7 @@ describe("Editor wiki-link autocomplete", () => {
       truncated: false,
     });
 
-    render(<Editor fileId="f1" filename="note.md" drive="d" inlineMode />);
+    render(<Editor fileId="f1" filename="note.md" drive="d" vaultId={1} inlineMode />);
     const textarea = (await screen.findByLabelText(
       "editArea",
     )) as HTMLTextAreaElement;
@@ -303,7 +311,7 @@ describe("Editor wiki-link autocomplete", () => {
       truncated: false,
     });
 
-    render(<Editor fileId="f1" filename="note.md" drive="d" inlineMode />);
+    render(<Editor fileId="f1" filename="note.md" drive="d" vaultId={1} inlineMode />);
     const textarea = (await screen.findByLabelText(
       "editArea",
     )) as HTMLTextAreaElement;
@@ -331,7 +339,7 @@ describe("Editor wiki-link autocomplete", () => {
       truncated: false,
     });
 
-    render(<Editor fileId="f1" filename="note.md" drive="d" inlineMode />);
+    render(<Editor fileId="f1" filename="note.md" drive="d" vaultId={1} inlineMode />);
     const textarea = (await screen.findByLabelText(
       "editArea",
     )) as HTMLTextAreaElement;
@@ -359,7 +367,7 @@ describe("Editor wiki-link autocomplete", () => {
       truncated: false,
     });
 
-    render(<Editor fileId="f1" filename="note.md" drive="d" inlineMode />);
+    render(<Editor fileId="f1" filename="note.md" drive="d" vaultId={1} inlineMode />);
     const textarea = (await screen.findByLabelText(
       "editArea",
     )) as HTMLTextAreaElement;
@@ -385,7 +393,7 @@ describe("Editor wiki-link autocomplete", () => {
       truncated: false,
     });
 
-    render(<Editor fileId="f1" filename="note.md" drive="d" inlineMode />);
+    render(<Editor fileId="f1" filename="note.md" drive="d" vaultId={1} inlineMode />);
     const textarea = (await screen.findByLabelText(
       "editArea",
     )) as HTMLTextAreaElement;
@@ -407,7 +415,7 @@ describe("Editor wiki-link autocomplete", () => {
       truncated: false,
     });
 
-    render(<Editor fileId="f1" filename="note.md" drive="d" inlineMode />);
+    render(<Editor fileId="f1" filename="note.md" drive="d" vaultId={1} inlineMode />);
     const textarea = (await screen.findByLabelText(
       "editArea",
     )) as HTMLTextAreaElement;

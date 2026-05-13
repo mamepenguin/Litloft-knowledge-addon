@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useTranslations } from "next-intl";
-import { searchVault, type SearchHit } from "./api";
+import { listVaults, searchVault, type SearchHit } from "./api";
 
 export interface AutocompleteHit extends SearchHit {
   /**
@@ -81,15 +81,49 @@ export const WikiLinkAutocomplete = function WikiLinkAutocomplete({
   hitsRef.current = hits;
   highlightRef.current = highlight;
 
+  // The backend /search endpoint requires vault_id >= 1. When the host
+  // mounts the autocomplete without a valid vault id (e.g. the inline
+  // file-detail editor doesn't know the active vault), discover the
+  // active one ourselves via /vaults and reuse it for subsequent
+  // fetches.
+  const [effectiveVaultId, setEffectiveVaultId] = useState<number>(
+    vaultId > 0 ? vaultId : 0,
+  );
+  useEffect(() => {
+    if (vaultId > 0) {
+      setEffectiveVaultId(vaultId);
+      return;
+    }
+    let cancelled = false;
+    listVaults(drive)
+      .then((res) => {
+        if (cancelled) return;
+        const fallback =
+          res.active_vault_id ?? res.vaults[0]?.id ?? 0;
+        setEffectiveVaultId(fallback);
+      })
+      .catch(() => {
+        if (!cancelled) setEffectiveVaultId(0);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [drive, vaultId]);
+
   // Debounce searchVault calls so a burst of keystrokes doesn't fan
   // out to the network. The very first fetch (empty query, popup just
   // opened) runs synchronously so the listbox is populated by the
   // time the host's ``waitFor("wiki-link-autocomplete")`` resolves.
   const firstFetchRef = useRef(true);
   useEffect(() => {
+    if (effectiveVaultId < 1) {
+      // No vault yet — keep the listbox empty rather than hitting the
+      // endpoint with vault_id=0 (which rejects with 422).
+      return;
+    }
     let cancelled = false;
     function run() {
-      searchVault(drive, vaultId, query)
+      searchVault(drive, effectiveVaultId, query)
         .then((res) => {
           if (cancelled) return;
           setHits(res.results as AutocompleteHit[]);
@@ -114,7 +148,7 @@ export const WikiLinkAutocomplete = function WikiLinkAutocomplete({
       cancelled = true;
       clearTimeout(handle);
     };
-  }, [drive, vaultId, query]);
+  }, [drive, effectiveVaultId, query]);
 
   // Expose keyboard handling to the host.
   useEffect(() => {
