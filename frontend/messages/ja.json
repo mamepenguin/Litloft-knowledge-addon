@@ -3,30 +3,14 @@
     "title": "Knowledge",
     "loading": "読み込み中...",
     "empty": {
-      "eyebrow": "Knowledge vault",
+      "eyebrow": "Knowledge",
       "title": "ノートを選んで読み始める",
       "description": "左のサイドバーからノートを選ぶか、新しいノートを作成して書き始めましょう。",
       "recentHeading": "最近のノート",
       "recentEmpty": "まだノートがありません。",
       "statsNotes": "{count} 件のノート",
-      "statsEmpty": "空の Vault",
-      "shortcutSearch": "検索",
-      "vaultLabel": "Vault"
-    },
-    "setup": {
-      "title": "Vault を作成",
-      "description": "Knowledge アドオンは「Vault」（ドライブ内のフォルダ）を基点にノートを管理します。最初の Vault を作成しましょう。",
-      "labelField": "ラベル",
-      "labelPlaceholder": "例: 個人メモ",
-      "driveField": "ドライブ",
-      "pathField": "フォルダパス（ドライブ直下からの相対パス）",
-      "create": "作成",
-      "creating": "作成中...",
-      "cancel": "キャンセル"
-    },
-    "switcher": {
-      "none": "Vault 未選択",
-      "addNew": "新しい Vault を追加"
+      "statsEmpty": "ノートなし",
+      "shortcutSearch": "検索"
     },
     "quickSwitcher": {
       "title": "ノートを開く",
@@ -127,7 +111,7 @@
       "modalClose": "閉じる",
       "recentHeading": "最近のクリップ",
       "helpModalTitle": "クリップについて",
-      "helpDescription": "サイドバーのクリップボタンから URL を送信するか、下のブックマークレットを使うと閲覧中のページを Vault に保存できます。"
+      "helpDescription": "サイドバーのクリップボタンから URL を送信するか、下のブックマークレットを使うと閲覧中のページをKnowledgeに保存できます。"
     },
     "toast": {
       "deleted": "「{name}」をゴミ箱に移動しました",

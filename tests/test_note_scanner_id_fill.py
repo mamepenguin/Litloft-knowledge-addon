@@ -21,28 +21,14 @@ from datetime import UTC, datetime, timedelta
 
 import pytest
 
-from app.models import NoteOrigin, UserVault
+from app.models import NoteOrigin
 from app.services import note_scanner
 
 
-def _seed_vault(session) -> UserVault:
-    vault = UserVault(
-        viewer_id="v0000000000000000",
-        label="T",
-        drive="test-drive",
-        path="Vault",
-    )
-    session.add(vault)
-    session.commit()
-    session.refresh(vault)
-    session.expunge(vault)
-    return vault
-
-
-def _seed_note(session, vault: UserVault, *, note_file_id: str) -> NoteOrigin:
+def _seed_note(session, *, note_file_id: str) -> NoteOrigin:
     past = datetime.now(UTC) - timedelta(hours=2)
     row = NoteOrigin(
-        vault_id=vault.id,
+        drive="test-drive",
         note_path="n.md",
         note_file_id=note_file_id,
         origin="detailed_summary",
@@ -114,8 +100,7 @@ async def test_missing_id_triggers_writeback(knowledge_db):
     """A note fetched without ``id:`` in its frontmatter must be written
     back with an injected id."""
     session = knowledge_db()
-    vault = _seed_vault(session)
-    note = _seed_note(session, vault, note_file_id="nFill0000001")
+    _seed_note(session, note_file_id="nFill0000001")
     session.close()
 
     fresh = datetime.now(UTC)
@@ -158,8 +143,7 @@ async def test_missing_id_triggers_writeback(knowledge_db):
 async def test_present_id_does_not_trigger_writeback(knowledge_db):
     """When the body already has a valid ``id:`` no write-back is sent."""
     session = knowledge_db()
-    vault = _seed_vault(session)
-    _seed_note(session, vault, note_file_id="nKeep0000001")
+    _seed_note(session, note_file_id="nKeep0000001")
     session.close()
 
     fresh = datetime.now(UTC)
@@ -196,8 +180,7 @@ async def test_412_writeback_does_not_error_reconcile(knowledge_db):
     """A 412 (etag mismatch) from put_file_content is logged but the
     reconcile pass completes — the next pass picks up the right etag."""
     session = knowledge_db()
-    vault = _seed_vault(session)
-    _seed_note(session, vault, note_file_id="nEtag0000001")
+    _seed_note(session, note_file_id="nEtag0000001")
     session.close()
 
     fresh = datetime.now(UTC)
@@ -230,8 +213,7 @@ async def test_403_writeback_counts_as_protected(knowledge_db):
     """A 403 (protected drive / secret mismatch) on the id-fill
     write-back increments ``protected_errors`` rather than ``errors``."""
     session = knowledge_db()
-    vault = _seed_vault(session)
-    _seed_note(session, vault, note_file_id="nProt0000001")
+    _seed_note(session, note_file_id="nProt0000001")
     session.close()
 
     fresh = datetime.now(UTC)

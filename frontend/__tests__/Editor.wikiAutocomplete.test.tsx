@@ -13,8 +13,8 @@ import {
  *
  * The Knowledge ``Editor`` textarea opens a wiki-link autocomplete
  * popup when the user types ``[[`` at the caret. The popup reuses
- * ``QuickSwitcher``'s candidate list rendering (search-vault hits in
- * the same drive). Confirm flow:
+ * ``QuickSwitcher``'s candidate list rendering (drive-scoped search
+ * hits). Confirm flow:
  *
  *  - Enter             -> insert ``[[<basename>]]`` (human-readable
  *                          default)
@@ -22,12 +22,8 @@ import {
  *  - Esc               -> close without insertion
  *  - Backspace past [[ -> close
  *
- * Candidates are fetched once per session via the existing
- * ``searchVault`` helper (already drive-scoped). Filtering is
- * debounced at 100ms while typing.
- *
- * These tests run RED until ``WikiLinkAutocomplete`` (or the inline
- * QuickSwitcher variant) is wired into the textarea.
+ * Candidates are fetched via the existing ``searchKnowledge`` helper
+ * (drive-scoped). Filtering is debounced at 100ms while typing.
  */
 
 vi.mock("next-intl", () => ({
@@ -52,15 +48,13 @@ vi.mock("@/components/MarkdownPreview", () => ({
   MarkdownPreview: () => null,
 }));
 
-// Stub the vault search so we can control candidate list contents.
-const searchVaultMock = vi.hoisted(() => vi.fn());
-const listVaultsMock = vi.hoisted(() => vi.fn());
+// Stub the drive-scoped search so we can control candidate list contents.
+const searchKnowledgeMock = vi.hoisted(() => vi.fn());
 vi.mock("../api", async () => {
   const actual = await vi.importActual<typeof import("../api")>("../api");
   return {
     ...actual,
-    searchVault: searchVaultMock,
-    listVaults: listVaultsMock,
+    searchKnowledge: searchKnowledgeMock,
   };
 });
 
@@ -124,13 +118,7 @@ function makeHit(id: string, filename: string, title?: string, snippet = "") {
 }
 
 beforeEach(() => {
-  searchVaultMock.mockReset();
-  listVaultsMock.mockReset();
-  // Default: a single vault with id=1 active. Tests can override.
-  listVaultsMock.mockResolvedValue({
-    vaults: [{ id: 1, drive: "d", name: "Notes", path: "Notes" }],
-    active_vault_id: 1,
-  });
+  searchKnowledgeMock.mockReset();
 });
 
 afterEach(() => {
@@ -150,9 +138,9 @@ async function typeAtEnd(textarea: HTMLTextAreaElement, chars: string) {
 describe("Editor wiki-link autocomplete", () => {
   it("opens an autocomplete popup when [[ is typed at the caret", async () => {
     defaultStream("hello ");
-    searchVaultMock.mockResolvedValue({
+    searchKnowledgeMock.mockResolvedValue({
       query: "",
-      vault_id: 1,
+      drive: "d",
       results: [
         makeHit("noteid000001", "Alpha.md", "Alpha"),
         makeHit("noteid000002", "Beta.md", "Beta"),
@@ -160,7 +148,7 @@ describe("Editor wiki-link autocomplete", () => {
       truncated: false,
     });
 
-    render(<Editor fileId="f1" filename="note.md" drive="d" vaultId={1} inlineMode />);
+    render(<Editor fileId="f1" filename="note.md" drive="d" inlineMode />);
 
     const textarea = (await screen.findByLabelText(
       "editArea",
@@ -187,14 +175,14 @@ describe("Editor wiki-link autocomplete", () => {
 
   it("anchors the popup at the [[ caret position with position:fixed", async () => {
     defaultStream("hello ");
-    searchVaultMock.mockResolvedValue({
+    searchKnowledgeMock.mockResolvedValue({
       query: "",
-      vault_id: 1,
+      drive: "d",
       results: [makeHit("noteid000001", "Alpha.md", "Alpha")],
       truncated: false,
     });
 
-    render(<Editor fileId="f1" filename="note.md" drive="d" vaultId={1} inlineMode />);
+    render(<Editor fileId="f1" filename="note.md" drive="d" inlineMode />);
     const textarea = (await screen.findByLabelText(
       "editArea",
     )) as HTMLTextAreaElement;
@@ -212,13 +200,13 @@ describe("Editor wiki-link autocomplete", () => {
 
   it("closes when the user taps/clicks outside the popup", async () => {
     defaultStream("hello ");
-    searchVaultMock.mockResolvedValue({
+    searchKnowledgeMock.mockResolvedValue({
       query: "",
-      vault_id: 1,
+      drive: "d",
       results: [makeHit("noteid000001", "Alpha.md", "Alpha")],
       truncated: false,
     });
-    render(<Editor fileId="f1" filename="note.md" drive="d" vaultId={1} inlineMode />);
+    render(<Editor fileId="f1" filename="note.md" drive="d" inlineMode />);
     const textarea = (await screen.findByLabelText(
       "editArea",
     )) as HTMLTextAreaElement;
@@ -236,13 +224,13 @@ describe("Editor wiki-link autocomplete", () => {
 
   it("does not close when clicking inside the popup (e.g. selecting an option)", async () => {
     defaultStream("hello ");
-    searchVaultMock.mockResolvedValue({
+    searchKnowledgeMock.mockResolvedValue({
       query: "",
-      vault_id: 1,
+      drive: "d",
       results: [makeHit("noteid000001", "Alpha.md", "Alpha")],
       truncated: false,
     });
-    render(<Editor fileId="f1" filename="note.md" drive="d" vaultId={1} inlineMode />);
+    render(<Editor fileId="f1" filename="note.md" drive="d" inlineMode />);
     const textarea = (await screen.findByLabelText(
       "editArea",
     )) as HTMLTextAreaElement;
@@ -259,7 +247,7 @@ describe("Editor wiki-link autocomplete", () => {
 
   it("does not open the popup on a single `[`", async () => {
     defaultStream("");
-    render(<Editor fileId="f1" filename="note.md" drive="d" vaultId={1} inlineMode />);
+    render(<Editor fileId="f1" filename="note.md" drive="d" inlineMode />);
     const textarea = (await screen.findByLabelText(
       "editArea",
     )) as HTMLTextAreaElement;
@@ -274,10 +262,10 @@ describe("Editor wiki-link autocomplete", () => {
     defaultStream("");
     // The first hit search runs without a query, returns all notes.
     // Once the user types "al" the popup re-queries.
-    searchVaultMock.mockImplementation(
-      async (_drive: string, _vaultId: number, query: string) => ({
+    searchKnowledgeMock.mockImplementation(
+      async (_drive: string, query: string) => ({
         query,
-        vault_id: 1,
+        drive: "d",
         results: query
           ? [makeHit("noteid000001", "Alpha.md", "Alpha")]
           : [
@@ -288,7 +276,7 @@ describe("Editor wiki-link autocomplete", () => {
       }),
     );
 
-    render(<Editor fileId="f1" filename="note.md" drive="d" vaultId={1} inlineMode />);
+    render(<Editor fileId="f1" filename="note.md" drive="d" inlineMode />);
     const textarea = (await screen.findByLabelText(
       "editArea",
     )) as HTMLTextAreaElement;
@@ -310,9 +298,9 @@ describe("Editor wiki-link autocomplete", () => {
 
   it("highlights candidates with ArrowDown / ArrowUp", async () => {
     defaultStream("");
-    searchVaultMock.mockResolvedValue({
+    searchKnowledgeMock.mockResolvedValue({
       query: "",
-      vault_id: 1,
+      drive: "d",
       results: [
         makeHit("noteid000001", "Alpha.md", "Alpha"),
         makeHit("noteid000002", "Beta.md", "Beta"),
@@ -320,7 +308,7 @@ describe("Editor wiki-link autocomplete", () => {
       truncated: false,
     });
 
-    render(<Editor fileId="f1" filename="note.md" drive="d" vaultId={1} inlineMode />);
+    render(<Editor fileId="f1" filename="note.md" drive="d" inlineMode />);
     const textarea = (await screen.findByLabelText(
       "editArea",
     )) as HTMLTextAreaElement;
@@ -344,14 +332,14 @@ describe("Editor wiki-link autocomplete", () => {
 
   it("inserts [[<basename>]] on Enter and closes the popup", async () => {
     defaultStream("Prefix ");
-    searchVaultMock.mockResolvedValue({
+    searchKnowledgeMock.mockResolvedValue({
       query: "",
-      vault_id: 1,
+      drive: "d",
       results: [makeHit("noteid000001", "Alpha.md", "Alpha")],
       truncated: false,
     });
 
-    render(<Editor fileId="f1" filename="note.md" drive="d" vaultId={1} inlineMode />);
+    render(<Editor fileId="f1" filename="note.md" drive="d" inlineMode />);
     const textarea = (await screen.findByLabelText(
       "editArea",
     )) as HTMLTextAreaElement;
@@ -377,9 +365,9 @@ describe("Editor wiki-link autocomplete", () => {
 
   it("inserts [[<md_id>]] on Shift+Enter for disambiguation", async () => {
     defaultStream("");
-    searchVaultMock.mockResolvedValue({
+    searchKnowledgeMock.mockResolvedValue({
       query: "",
-      vault_id: 1,
+      drive: "d",
       results: [
         {
           ...makeHit("noteid000001", "Alpha.md", "Alpha"),
@@ -389,7 +377,7 @@ describe("Editor wiki-link autocomplete", () => {
       truncated: false,
     });
 
-    render(<Editor fileId="f1" filename="note.md" drive="d" vaultId={1} inlineMode />);
+    render(<Editor fileId="f1" filename="note.md" drive="d" inlineMode />);
     const textarea = (await screen.findByLabelText(
       "editArea",
     )) as HTMLTextAreaElement;
@@ -410,14 +398,14 @@ describe("Editor wiki-link autocomplete", () => {
 
   it("closes without inserting on Escape", async () => {
     defaultStream("hello");
-    searchVaultMock.mockResolvedValue({
+    searchKnowledgeMock.mockResolvedValue({
       query: "",
-      vault_id: 1,
+      drive: "d",
       results: [makeHit("noteid000001", "Alpha.md", "Alpha")],
       truncated: false,
     });
 
-    render(<Editor fileId="f1" filename="note.md" drive="d" vaultId={1} inlineMode />);
+    render(<Editor fileId="f1" filename="note.md" drive="d" inlineMode />);
     const textarea = (await screen.findByLabelText(
       "editArea",
     )) as HTMLTextAreaElement;
@@ -438,14 +426,14 @@ describe("Editor wiki-link autocomplete", () => {
 
   it("closes when the user backspaces past the [[ trigger", async () => {
     defaultStream("");
-    searchVaultMock.mockResolvedValue({
+    searchKnowledgeMock.mockResolvedValue({
       query: "",
-      vault_id: 1,
+      drive: "d",
       results: [makeHit("noteid000001", "Alpha.md", "Alpha")],
       truncated: false,
     });
 
-    render(<Editor fileId="f1" filename="note.md" drive="d" vaultId={1} inlineMode />);
+    render(<Editor fileId="f1" filename="note.md" drive="d" inlineMode />);
     const textarea = (await screen.findByLabelText(
       "editArea",
     )) as HTMLTextAreaElement;
@@ -464,14 +452,14 @@ describe("Editor wiki-link autocomplete", () => {
 
   it("shows a `no candidates` empty state when the drive has no notes", async () => {
     defaultStream("");
-    searchVaultMock.mockResolvedValue({
+    searchKnowledgeMock.mockResolvedValue({
       query: "",
-      vault_id: 1,
+      drive: "d",
       results: [],
       truncated: false,
     });
 
-    render(<Editor fileId="f1" filename="note.md" drive="d" vaultId={1} inlineMode />);
+    render(<Editor fileId="f1" filename="note.md" drive="d" inlineMode />);
     const textarea = (await screen.findByLabelText(
       "editArea",
     )) as HTMLTextAreaElement;
@@ -486,14 +474,14 @@ describe("Editor wiki-link autocomplete", () => {
 
   it("debounces the candidate fetch (~100ms) while typing", async () => {
     defaultStream("");
-    searchVaultMock.mockResolvedValue({
+    searchKnowledgeMock.mockResolvedValue({
       query: "",
-      vault_id: 1,
+      drive: "d",
       results: [],
       truncated: false,
     });
 
-    render(<Editor fileId="f1" filename="note.md" drive="d" vaultId={1} inlineMode />);
+    render(<Editor fileId="f1" filename="note.md" drive="d" inlineMode />);
     const textarea = (await screen.findByLabelText(
       "editArea",
     )) as HTMLTextAreaElement;
@@ -505,6 +493,6 @@ describe("Editor wiki-link autocomplete", () => {
     // Only the trailing search should fire (initial empty + final
     // "abcd") -- not one per keystroke.
     await new Promise((r) => setTimeout(r, 200));
-    expect(searchVaultMock.mock.calls.length).toBeLessThanOrEqual(2);
+    expect(searchKnowledgeMock.mock.calls.length).toBeLessThanOrEqual(2);
   });
 });

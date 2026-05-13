@@ -70,13 +70,6 @@ interface Props {
    */
   drive: string;
   /**
-   * Active vault id, used by the [[ wiki-link autocomplete to scope
-   * candidate search. Optional because the slot-injected file-detail
-   * editor does not know the active vault; in that case the
-   * autocomplete falls back to drive-scoped search.
-   */
-  vaultId?: number;
-  /**
    * Optional in inline mode (no back button is rendered there); the
    * Knowledge ``Page.tsx`` host still passes a real handler.
    */
@@ -136,7 +129,6 @@ const AUTOSAVE_DEBOUNCE_MS = 2000;
 
 export default function Editor({
   fileId,
-  vaultId,
   filename,
   drive,
   onBack,
@@ -961,7 +953,6 @@ export default function Editor({
       {wikiTrigger && (
         <WikiLinkAutocomplete
           drive={drive}
-          vaultId={vaultId ?? 0}
           query={wikiTrigger.query}
           onSelect={insertWikiLink}
           onClose={() => setWikiTrigger(null)}

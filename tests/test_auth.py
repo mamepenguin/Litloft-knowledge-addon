@@ -2,7 +2,7 @@
 
 The addon never accepts a viewer_id from the request body or query string
 — it is always derived from the authenticated cookie so that malicious
-clients cannot impersonate another user's Vaults.
+clients cannot impersonate another user.
 """
 import pytest
 from fastapi import HTTPException

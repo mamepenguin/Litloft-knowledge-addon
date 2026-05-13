@@ -103,13 +103,13 @@ def _bump_tags_synced_at(session: Session, file_id: str) -> None:
     """Set ``tags_synced_at = now`` for every note_origin referencing
     this ``file_id``. No-op when the file isn't a tracked note.
 
-    **Scope**: filters only on ``note_file_id``, not on vault. The
+    **Scope**: filters only on ``note_file_id``, not on drive. The
     invariant is "one NoteOrigin per file_id" — a ``.md`` exists at a
     single path on disk, and the scanner keys ``note_origins`` by
-    ``(vault_id, note_path)``. If the invariant ever breaks (data
-    migration, vault overlap), this bumps every matching row — which
-    is semantically correct: they all point at the file the caller
-    was authorised to touch via the proxy's ``file_access`` pre_check.
+    ``(drive, note_path)``. If the invariant ever breaks, this bumps
+    every matching row — semantically correct: they all point at the
+    file the caller was authorised to touch via the proxy's
+    ``file_access`` pre_check.
     """
     rows = (
         session.query(NoteOrigin)

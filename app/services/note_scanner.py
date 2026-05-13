@@ -1,4 +1,4 @@
-"""Periodic reconciliation of ``note_origins`` against Vault ``.md`` files.
+"""Periodic reconciliation of ``note_origins`` against ``.md`` files.
 
 The scanner asks core's Internal API for each note's current
 ``updated_at`` timestamp. When it's newer than the row's
@@ -58,7 +58,7 @@ async def _maybe_fill_frontmatter_id(
     parsed_metadata: dict[str, Any],
     parsed_body: str,
     *,
-    vault_id: int,
+    drive: str,
     note_path: str,
 ) -> bool:
     """Inject a frontmatter ``id:`` if missing and write the file back.
@@ -85,22 +85,22 @@ async def _maybe_fill_frontmatter_id(
     except InternalAPIError as exc:
         if exc.status_code == 412:
             logger.warning(
-                "note scan: id fill etag-conflict vault=%s path=%s (retrying next pass)",
-                vault_id,
+                "note scan: id fill etag-conflict drive=%s path=%s (retrying next pass)",
+                drive,
                 note_path,
             )
             return False
         if exc.status_code in (403, 404):
             logger.warning(
-                "note scan: id fill denied vault=%s path=%s status=%d",
-                vault_id,
+                "note scan: id fill denied drive=%s path=%s status=%d",
+                drive,
                 note_path,
                 exc.status_code,
             )
             return True
         logger.warning(
-            "note scan: id fill failed vault=%s path=%s: %s",
-            vault_id,
+            "note scan: id fill failed drive=%s path=%s: %s",
+            drive,
             note_path,
             exc,
         )
@@ -247,7 +247,7 @@ def _extract_created(metadata: dict[str, Any]) -> datetime | None:
     Spec 2026-04-24 renamed webclip's ``clipped_at`` and distill's
     ``approved_at`` to a unified ``created``. Older ``.md`` files on
     disk still use the legacy names — read them as fallback so existing
-    Vaults don't break. New writes always use ``created``.
+    notes don't break. New writes always use ``created``.
     """
     for key in ("created", "approved_at", "clipped_at"):
         raw = metadata.get(key)
@@ -265,7 +265,7 @@ def _apply_frontmatter(
     note: NoteOrigin,
     metadata: dict[str, Any],
 ) -> None:
-    """Rewrite origin fields and (vault_id, note_path) source rows in place."""
+    """Rewrite origin fields and (drive, note_path) source rows in place."""
     origin = metadata.get("origin")
     note.origin = origin if isinstance(origin, str) else None
 
@@ -281,7 +281,7 @@ def _apply_frontmatter(
     existing_rows = (
         session.query(NoteOriginSource)
         .filter(
-            NoteOriginSource.vault_id == note.vault_id,
+            NoteOriginSource.drive == note.drive,
             NoteOriginSource.note_path == note.note_path,
         )
         .all()
@@ -294,7 +294,7 @@ def _apply_frontmatter(
     for sid in wanted - existing:
         session.add(
             NoteOriginSource(
-                vault_id=note.vault_id,
+                drive=note.drive,
                 note_path=note.note_path,
                 source_file_id=sid,
             )
@@ -303,7 +303,7 @@ def _apply_frontmatter(
 
 async def _reconcile_one(
     client: InternalClient,
-    note_info: tuple[int, str, str, datetime | None, datetime | None],
+    note_info: tuple[str, str, str, datetime | None, datetime | None],
 ) -> tuple[bool, bool, bool, bool]:
     """Return ``(updated, errored, protected, tags_projected)``.
 
@@ -321,7 +321,7 @@ async def _reconcile_one(
       migration debugging (spec §D8) can distinguish "fetched content
       but tags projection failed" from "fetched nothing".
     """
-    vault_id, note_path, note_file_id, last_synced_at, tags_synced_at = note_info
+    drive, note_path, note_file_id, last_synced_at, tags_synced_at = note_info
 
     try:
         info = await client.get_file(note_file_id)
@@ -332,8 +332,8 @@ async def _reconcile_one(
             # leave this pass alone rather than racing them.
             return False, False, False, False
         logger.warning(
-            "note scan: get_file failed vault=%s path=%s: %s",
-            vault_id,
+            "note scan: get_file failed drive=%s path=%s: %s",
+            drive,
             note_path,
             exc,
         )
@@ -367,15 +367,15 @@ async def _reconcile_one(
     except InternalAPIError as exc:
         if exc.status_code in (403, 404):
             logger.warning(
-                "note scan: content denied vault=%s path=%s status=%d (check CORE_INTERNAL_SECRET)",
-                vault_id,
+                "note scan: content denied drive=%s path=%s status=%d (check CORE_INTERNAL_SECRET)",
+                drive,
                 note_path,
                 exc.status_code,
             )
             return False, False, True, False
         logger.warning(
-            "note scan: content fetch failed vault=%s path=%s: %s",
-            vault_id,
+            "note scan: content fetch failed drive=%s path=%s: %s",
+            drive,
             note_path,
             exc,
         )
@@ -392,7 +392,7 @@ async def _reconcile_one(
         content,
         parsed.metadata,
         parsed.body,
-        vault_id=vault_id,
+        drive=drive,
         note_path=note_path,
     )
 
@@ -404,14 +404,14 @@ async def _reconcile_one(
         client,
         note_file_id,
         parsed.metadata,
-        log_context=f"vault={vault_id} path={note_path}",
+        log_context=f"drive={drive} path={note_path}",
     )
 
     with session_scope() as session:
         note = (
             session.query(NoteOrigin)
             .filter(
-                NoteOrigin.vault_id == vault_id,
+                NoteOrigin.drive == drive,
                 NoteOrigin.note_path == note_path,
             )
             .first()
@@ -440,7 +440,7 @@ async def reconcile_once(
     with session_scope() as session:
         rows = (
             session.query(
-                NoteOrigin.vault_id,
+                NoteOrigin.drive,
                 NoteOrigin.note_path,
                 NoteOrigin.note_file_id,
                 NoteOrigin.last_synced_at,

@@ -3,12 +3,11 @@
 import { useTranslations } from "next-intl";
 import { useState } from "react";
 import { Loader2 } from "lucide-react";
-import type { ClipJob, Vault } from "./api";
+import type { ClipJob } from "./api";
 import { createClip } from "./api";
 
 interface Props {
   drive: string;
-  vault: Vault;
   url: string;
   subfolder: string;
   existing: ClipJob[];
@@ -19,7 +18,6 @@ interface Props {
 
 export default function ClipDuplicateDialog({
   drive,
-  vault,
   url,
   subfolder,
   existing,
@@ -39,7 +37,6 @@ export default function ClipDuplicateDialog({
     try {
       const job = await createClip(drive, {
         url,
-        vault_id: vault.id,
         subfolder: subfolder || null,
       });
       onCreated(job);

@@ -1,10 +1,4 @@
-"""FastAPI entry point for the knowledge addon.
-
-Routers loaded per phase:
-  P3  vaults
-  P5  clips (+ background worker for SSRF-safe fetch pipeline)
-  P7  search (planned)
-"""
+"""FastAPI entry point for the knowledge addon."""
 import asyncio
 import hashlib
 import logging
@@ -24,7 +18,6 @@ from app.routers import (
     notes,
     search,
     tags,
-    vaults,
     webhooks,
 )
 from app.sanitize import build_frontmatter, slugify_filename
@@ -168,7 +161,6 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
-app.include_router(vaults.router)
 app.include_router(clips.router)
 app.include_router(distill.router)
 app.include_router(notes.router)

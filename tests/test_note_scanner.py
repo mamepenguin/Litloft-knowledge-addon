@@ -13,28 +13,14 @@ from datetime import UTC, datetime, timedelta
 
 import pytest
 
-from app.models import NoteOrigin, NoteOriginSource, UserVault
+from app.models import NoteOrigin, NoteOriginSource
 from app.services import note_scanner
-
-
-def _seed_vault(session) -> UserVault:
-    vault = UserVault(
-        viewer_id="v0000000000000000",
-        label="T",
-        drive="test-drive",
-        path="Vault",
-    )
-    session.add(vault)
-    session.commit()
-    session.refresh(vault)
-    session.expunge(vault)
-    return vault
 
 
 def _seed_note(
     session,
-    vault: UserVault,
     *,
+    drive: str = "test-drive",
     note_path: str = "n.md",
     note_file_id: str = "nNote0000001",
     source_ids: list[str] | None = None,
@@ -47,7 +33,7 @@ def _seed_note(
     already-synced state. Pass ``tags_synced_at=None`` to test the
     migration branch (Phase 2 §D8)."""
     row = NoteOrigin(
-        vault_id=vault.id,
+        drive=drive,
         note_path=note_path,
         note_file_id=note_file_id,
         origin=origin,
@@ -66,7 +52,7 @@ def _seed_note(
     for sid in source_ids or []:
         session.add(
             NoteOriginSource(
-                vault_id=vault.id,
+                drive=drive,
                 note_path=note_path,
                 source_file_id=sid,
             )
@@ -138,11 +124,9 @@ async def test_no_rows_returns_zero(knowledge_db):
 @pytest.mark.anyio
 async def test_unchanged_note_skipped(knowledge_db):
     session = knowledge_db()
-    vault = _seed_vault(session)
     now = datetime.now(UTC)
     _seed_note(
         session,
-        vault,
         note_file_id="nKeep0000001",
         source_ids=["srcA"],
         last_synced_at=now,
@@ -172,16 +156,13 @@ async def test_unchanged_note_skipped(knowledge_db):
 @pytest.mark.anyio
 async def test_updated_note_reparses_frontmatter(knowledge_db):
     session = knowledge_db()
-    vault = _seed_vault(session)
     past = datetime.now(UTC) - timedelta(hours=2)
     _seed_note(
         session,
-        vault,
         note_file_id="nEdit0000001",
         source_ids=["orig-src"],
         last_synced_at=past,
     )
-    vault_id = vault.id
     session.close()
 
     fresh = datetime.now(UTC)
@@ -221,7 +202,7 @@ async def test_updated_note_reparses_frontmatter(knowledge_db):
     verify = knowledge_db()
     note = (
         verify.query(NoteOrigin)
-        .filter(NoteOrigin.vault_id == vault_id, NoteOrigin.note_path == "n.md")
+        .filter(NoteOrigin.drive == "test-drive", NoteOrigin.note_path == "n.md")
         .first()
     )
     assert note is not None
@@ -237,7 +218,7 @@ async def test_updated_note_reparses_frontmatter(knowledge_db):
     src_rows = (
         verify.query(NoteOriginSource.source_file_id)
         .filter(
-            NoteOriginSource.vault_id == vault_id,
+            NoteOriginSource.drive == "test-drive",
             NoteOriginSource.note_path == "n.md",
         )
         .all()
@@ -249,16 +230,13 @@ async def test_updated_note_reparses_frontmatter(knowledge_db):
 async def test_source_file_ids_shrink(knowledge_db):
     """Removing one of three sources drops exactly one row."""
     session = knowledge_db()
-    vault = _seed_vault(session)
     past = datetime.now(UTC) - timedelta(hours=2)
     _seed_note(
         session,
-        vault,
         note_file_id="nShrink001xx",
         source_ids=["a", "b", "c"],
         last_synced_at=past,
     )
-    vault_id = vault.id
     session.close()
 
     client = _FakeClient(
@@ -290,7 +268,7 @@ async def test_source_file_ids_shrink(knowledge_db):
     rows = (
         verify.query(NoteOriginSource.source_file_id)
         .filter(
-            NoteOriginSource.vault_id == vault_id,
+            NoteOriginSource.drive == "test-drive",
             NoteOriginSource.note_path == "n.md",
         )
         .all()
@@ -302,16 +280,13 @@ async def test_source_file_ids_shrink(knowledge_db):
 async def test_frontmatter_without_source_ids_clears_rows(knowledge_db):
     """User stripped the source_file_ids block entirely."""
     session = knowledge_db()
-    vault = _seed_vault(session)
     past = datetime.now(UTC) - timedelta(hours=2)
     _seed_note(
         session,
-        vault,
         note_file_id="nStripXXX001",
         source_ids=["a", "b"],
         last_synced_at=past,
     )
-    vault_id = vault.id
     session.close()
 
     client = _FakeClient(
@@ -340,7 +315,7 @@ async def test_frontmatter_without_source_ids_clears_rows(knowledge_db):
     count = (
         verify.query(NoteOriginSource)
         .filter(
-            NoteOriginSource.vault_id == vault_id,
+            NoteOriginSource.drive == "test-drive",
             NoteOriginSource.note_path == "n.md",
         )
         .count()
@@ -348,7 +323,7 @@ async def test_frontmatter_without_source_ids_clears_rows(knowledge_db):
     assert count == 0
     note = (
         verify.query(NoteOrigin)
-        .filter(NoteOrigin.vault_id == vault_id, NoteOrigin.note_path == "n.md")
+        .filter(NoteOrigin.drive == "test-drive", NoteOrigin.note_path == "n.md")
         .first()
     )
     assert note.origin == "manual"
@@ -358,11 +333,9 @@ async def test_frontmatter_without_source_ids_clears_rows(knowledge_db):
 async def test_missing_note_file_id_is_skipped(knowledge_db):
     """Core returns 404 (note was purged) → leave the row for webhooks."""
     session = knowledge_db()
-    vault = _seed_vault(session)
     past = datetime.now(UTC) - timedelta(hours=2)
     _seed_note(
         session,
-        vault,
         note_file_id="nGhostXXXXXX",
         source_ids=["a"],
         last_synced_at=past,
@@ -380,8 +353,7 @@ async def test_missing_note_file_id_is_skipped(knowledge_db):
 @pytest.mark.anyio
 async def test_core_error_counts_as_error(knowledge_db):
     session = knowledge_db()
-    vault = _seed_vault(session)
-    _seed_note(session, vault, note_file_id="nFailXXXXXXX")
+    _seed_note(session, note_file_id="nFailXXXXXXX")
     session.close()
 
     client = _FakeClient(raise_on_info={"nFailXXXXXXX": 500})
@@ -396,8 +368,7 @@ async def test_core_error_counts_as_error(knowledge_db):
 async def test_missing_updated_at_skips(knowledge_db):
     """Core returns no updated_at → scanner can't decide, skip."""
     session = knowledge_db()
-    vault = _seed_vault(session)
-    _seed_note(session, vault, note_file_id="nNoTSXXXXXXX")
+    _seed_note(session, note_file_id="nNoTSXXXXXXX")
     session.close()
 
     client = _FakeClient(
@@ -421,16 +392,13 @@ async def test_missing_updated_at_skips(knowledge_db):
 async def test_malformed_frontmatter_still_updates_timestamp(knowledge_db):
     """A .md with no frontmatter should just clear out source_file_ids."""
     session = knowledge_db()
-    vault = _seed_vault(session)
     past = datetime.now(UTC) - timedelta(hours=2)
     _seed_note(
         session,
-        vault,
         note_file_id="nBadFMXXXXXX",
         source_ids=["a"],
         last_synced_at=past,
     )
-    vault_id = vault.id
     session.close()
 
     client = _FakeClient(
@@ -453,7 +421,7 @@ async def test_malformed_frontmatter_still_updates_timestamp(knowledge_db):
     count = (
         verify.query(NoteOriginSource)
         .filter(
-            NoteOriginSource.vault_id == vault_id,
+            NoteOriginSource.drive == "test-drive",
             NoteOriginSource.note_path == "n.md",
         )
         .count()
@@ -469,11 +437,9 @@ async def test_content_403_counts_as_protected_error(knowledge_db):
     ``protected_errors`` in the per-iteration summary.
     """
     session = knowledge_db()
-    vault = _seed_vault(session)
     past = datetime.now(UTC) - timedelta(hours=2)
     _seed_note(
         session,
-        vault,
         note_file_id="nForbid00001",
         source_ids=["a"],
         last_synced_at=past,
@@ -508,11 +474,9 @@ async def test_content_404_counts_as_protected_error(knowledge_db):
     error proper.
     """
     session = knowledge_db()
-    vault = _seed_vault(session)
     past = datetime.now(UTC) - timedelta(hours=2)
     _seed_note(
         session,
-        vault,
         note_file_id="nVanish00001",
         last_synced_at=past,
     )
@@ -542,11 +506,9 @@ async def test_content_5xx_counts_as_error(knowledge_db):
     """A 5xx from the content endpoint is still a real error — the
     generic ``errors`` counter is what oncall should be watching."""
     session = knowledge_db()
-    vault = _seed_vault(session)
     past = datetime.now(UTC) - timedelta(hours=2)
     _seed_note(
         session,
-        vault,
         note_file_id="nBoom0000001",
         last_synced_at=past,
     )
@@ -577,16 +539,13 @@ async def test_legacy_approved_at_read_as_created_fallback(knowledge_db):
     the DB. The scanner reads ``created`` → ``approved_at`` → ``clipped_at``
     in order."""
     session = knowledge_db()
-    vault = _seed_vault(session)
     past = datetime.now(UTC) - timedelta(hours=2)
     _seed_note(
         session,
-        vault,
         note_file_id="nLegacyAppr0",
         source_ids=["a"],
         last_synced_at=past,
     )
-    vault_id = vault.id
     session.close()
 
     client = _FakeClient(
@@ -618,7 +577,7 @@ async def test_legacy_approved_at_read_as_created_fallback(knowledge_db):
     verify = knowledge_db()
     note = (
         verify.query(NoteOrigin)
-        .filter(NoteOrigin.vault_id == vault_id, NoteOrigin.note_path == "n.md")
+        .filter(NoteOrigin.drive == "test-drive", NoteOrigin.note_path == "n.md")
         .first()
     )
     assert note.approved_at.replace(tzinfo=UTC) == datetime(
@@ -631,17 +590,14 @@ async def test_legacy_clipped_at_read_as_created_fallback(knowledge_db):
     """Older webclip ``.md`` written before the created rename still
     populate the DB via the ``clipped_at`` fallback."""
     session = knowledge_db()
-    vault = _seed_vault(session)
     past = datetime.now(UTC) - timedelta(hours=2)
     _seed_note(
         session,
-        vault,
         note_file_id="nLegacyClip0",
         source_ids=[],
         last_synced_at=past,
         origin="webclip",
     )
-    vault_id = vault.id
     session.close()
 
     client = _FakeClient(
@@ -673,7 +629,7 @@ async def test_legacy_clipped_at_read_as_created_fallback(knowledge_db):
     note = (
         verify.query(NoteOrigin)
         .filter(
-            NoteOrigin.vault_id == vault_id, NoteOrigin.note_path == "n.md"
+            NoteOrigin.drive == "test-drive", NoteOrigin.note_path == "n.md"
         )
         .first()
     )
@@ -686,16 +642,13 @@ async def test_legacy_clipped_at_read_as_created_fallback(knowledge_db):
 async def test_created_takes_precedence_over_legacy_keys(knowledge_db):
     """When both ``created`` and ``approved_at`` are present, ``created`` wins."""
     session = knowledge_db()
-    vault = _seed_vault(session)
     past = datetime.now(UTC) - timedelta(hours=2)
     _seed_note(
         session,
-        vault,
         note_file_id="nMixedKey001",
         source_ids=[],
         last_synced_at=past,
     )
-    vault_id = vault.id
     session.close()
 
     client = _FakeClient(
@@ -726,7 +679,7 @@ async def test_created_takes_precedence_over_legacy_keys(knowledge_db):
     note = (
         verify.query(NoteOrigin)
         .filter(
-            NoteOrigin.vault_id == vault_id, NoteOrigin.note_path == "n.md"
+            NoteOrigin.drive == "test-drive", NoteOrigin.note_path == "n.md"
         )
         .first()
     )
@@ -744,11 +697,9 @@ async def test_created_takes_precedence_over_legacy_keys(knowledge_db):
 async def test_tags_projected_when_frontmatter_changes(knowledge_db):
     """After frontmatter edit, scanner pushes the new tag list to core."""
     session = knowledge_db()
-    vault = _seed_vault(session)
     past = datetime.now(UTC) - timedelta(hours=2)
     _seed_note(
         session,
-        vault,
         note_file_id="nTags0000001",
         last_synced_at=past,
         tags_synced_at=past,
@@ -787,16 +738,13 @@ async def test_tags_synced_at_null_forces_fetch_even_when_metadata_current(
     the .md hasn't been touched (updated_at == last_synced_at).
     """
     session = knowledge_db()
-    vault = _seed_vault(session)
     frozen = datetime.now(UTC)
     _seed_note(
         session,
-        vault,
         note_file_id="nMigr0000001",
         last_synced_at=frozen,
         tags_synced_at=None,  # ← explicit Phase 2 migration state
     )
-    vault_id = vault.id
     session.close()
 
     client = _FakeClient(
@@ -826,7 +774,7 @@ async def test_tags_synced_at_null_forces_fetch_even_when_metadata_current(
     verify = knowledge_db()
     note = (
         verify.query(NoteOrigin)
-        .filter(NoteOrigin.vault_id == vault_id, NoteOrigin.note_path == "n.md")
+        .filter(NoteOrigin.drive == "test-drive", NoteOrigin.note_path == "n.md")
         .first()
     )
     assert note.tags_synced_at is not None
@@ -838,10 +786,8 @@ async def test_empty_tags_list_clears_core_tags(knowledge_db):
     core interprets as "remove all tags" (β canonical rule — frontmatter
     wins over DB, including "no tags here")."""
     session = knowledge_db()
-    vault = _seed_vault(session)
     _seed_note(
         session,
-        vault,
         note_file_id="nClear000001",
         tags_synced_at=None,
     )
@@ -866,10 +812,8 @@ async def test_invalid_tag_names_are_dropped(knowledge_db):
     silently skipped — core's validator would 422 on them, so filter
     upstream. Valid names survive in order-of-appearance."""
     session = knowledge_db()
-    vault = _seed_vault(session)
     _seed_note(
         session,
-        vault,
         note_file_id="nFilt0000001",
         tags_synced_at=None,
     )
@@ -902,10 +846,8 @@ async def test_invalid_tag_names_are_dropped(knowledge_db):
 @pytest.mark.anyio
 async def test_case_insensitive_dedup_keeps_first(knowledge_db):
     session = knowledge_db()
-    vault = _seed_vault(session)
     _seed_note(
         session,
-        vault,
         note_file_id="nDedu0000001",
         tags_synced_at=None,
     )
@@ -936,10 +878,8 @@ async def test_case_insensitive_dedup_keeps_first(knowledge_db):
 @pytest.mark.anyio
 async def test_tags_capped_at_ten(knowledge_db):
     session = knowledge_db()
-    vault = _seed_vault(session)
     _seed_note(
         session,
-        vault,
         note_file_id="nCap00000001",
         tags_synced_at=None,
     )
@@ -966,16 +906,13 @@ async def test_tags_sync_error_does_not_block_metadata_update(knowledge_db):
     refresh. The scanner retries tags on the next pass via
     tags_synced_at remaining NULL."""
     session = knowledge_db()
-    vault = _seed_vault(session)
     past = datetime.now(UTC) - timedelta(hours=2)
     _seed_note(
         session,
-        vault,
         note_file_id="nTagErr00001",
         last_synced_at=past,
         tags_synced_at=past,
     )
-    vault_id = vault.id
     session.close()
 
     client = _FakeClient(
@@ -1001,7 +938,7 @@ async def test_tags_sync_error_does_not_block_metadata_update(knowledge_db):
     verify = knowledge_db()
     note = (
         verify.query(NoteOrigin)
-        .filter(NoteOrigin.vault_id == vault_id, NoteOrigin.note_path == "n.md")
+        .filter(NoteOrigin.drive == "test-drive", NoteOrigin.note_path == "n.md")
         .first()
     )
     assert note.origin == "manual"
@@ -1013,11 +950,9 @@ async def test_tags_sync_error_does_not_block_metadata_update(knowledge_db):
 async def test_unchanged_note_with_synced_tags_is_fully_skipped(knowledge_db):
     """When both metadata and tags are current, no HTTP calls at all."""
     session = knowledge_db()
-    vault = _seed_vault(session)
     now = datetime.now(UTC)
     _seed_note(
         session,
-        vault,
         note_file_id="nSkip0000001",
         last_synced_at=now,
         tags_synced_at=now,  # both up-to-date

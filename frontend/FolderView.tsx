@@ -11,11 +11,10 @@ import {
 import { useTranslations } from "next-intl";
 import {
   createTextFile,
-  listVaultFiles,
-  listVaultFolders,
+  listKnowledgeFiles,
+  listKnowledgeFolders,
   type CoreFileItem,
   type CoreFolderItem,
-  type Vault,
 } from "./api";
 import { sortFiles, useSortMode, type SortMode } from "./hooks/useSortMode";
 
@@ -43,7 +42,6 @@ function formatDate(iso: string): string {
 
 interface Props {
   drive: string;
-  vault: Vault;
   path: string;
   name: string;
   sidebarHidden: boolean;
@@ -56,7 +54,6 @@ interface Props {
 
 export default function FolderView({
   drive,
-  vault,
   path,
   name,
   onBack,
@@ -67,7 +64,7 @@ export default function FolderView({
   const t = useTranslations("knowledge.folderView");
   const tFile = useTranslations("knowledge.fileList");
 
-  const { sortMode, cycleSortMode } = useSortMode(vault.id);
+  const { sortMode, cycleSortMode } = useSortMode(drive);
 
   const [files, setFiles] = useState<CoreFileItem[]>([]);
   const [folders, setFolders] = useState<CoreFolderItem[]>([]);
@@ -82,8 +79,8 @@ export default function FolderView({
       setError(null);
       try {
         const [filesResult, foldersResult] = await Promise.all([
-          listVaultFiles(drive, path),
-          listVaultFolders(drive, path),
+          listKnowledgeFiles(drive, path),
+          listKnowledgeFolders(drive, path),
         ]);
         if (!cancelled) {
           setFiles(filesResult.data);

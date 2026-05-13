@@ -1,16 +1,6 @@
 """ORM models for the knowledge addon.
 
-Five tables:
-- ``user_vaults``        — one row per (viewer_id, drive, path). Labels
-                           are user-facing; drive+path is the source of
-                           truth for where notes live.
-- ``user_vault_state``   — at most one row per (viewer_id, drive),
-                           pointing to the currently-active Vault for
-                           that drive. Composite PK enforces the
-                           "exactly one active Vault per (user, drive)"
-                           invariant. Cross-drive isolation means
-                           switching drives never leaks the other
-                           drive's active selection.
+Four tables:
 - ``clip_jobs``          — per-file webclip ingestion state. Used to
                            recover in-flight jobs after a restart and to
                            gate editing while a clip is fetching.
@@ -18,22 +8,25 @@ Five tables:
                            Populated by /distill and refreshed by the
                            frontmatter scanner. The ``.md`` file itself
                            is the source of truth; this table is a
-                           queryable cache.
+                           queryable cache. Keyed by ``(drive, note_path)``
+                           — drive is the security boundary, note_path is
+                           drive-relative.
 - ``note_origin_sources`` — many-to-many between notes and their source
                            File rows in core. Normalised so the reverse
                            lookup (``by_source_file``) is an index hit
                            even when a note lists multiple sources
                            (future multi-file summaries).
+- ``file_active_summaries`` — pointer from a core file to its active
+                           summary note. Cross-DB (no FK to core
+                           ``files``); reconciled via webhook handlers.
 """
 from datetime import datetime
 from typing import Optional
 
 from sqlalchemy import (
-    ForeignKey,
     ForeignKeyConstraint,
     Integer,
     String,
-    UniqueConstraint,
     func,
 )
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
@@ -43,42 +36,16 @@ class Base(DeclarativeBase):
     pass
 
 
-class UserVault(Base):
-    __tablename__ = "user_vaults"
-    __table_args__ = (UniqueConstraint("viewer_id", "drive", "path", name="uq_vault_location"),)
-
-    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
-    viewer_id: Mapped[str] = mapped_column(String(16), nullable=False, index=True)
-    label: Mapped[str] = mapped_column(String(100), nullable=False)
-    drive: Mapped[str] = mapped_column(String(128), nullable=False)
-    path: Mapped[str] = mapped_column(String(4096), nullable=False)
-    created_at: Mapped[datetime] = mapped_column(server_default=func.now(), nullable=False)
-
-
-class UserVaultState(Base):
-    __tablename__ = "user_vault_state"
-
-    viewer_id: Mapped[str] = mapped_column(String(16), primary_key=True)
-    drive: Mapped[str] = mapped_column(String(128), primary_key=True)
-    active_vault_id: Mapped[int] = mapped_column(
-        ForeignKey("user_vaults.id", ondelete="CASCADE"),
-        nullable=False,
-    )
-    updated_at: Mapped[datetime] = mapped_column(
-        server_default=func.now(),
-        onupdate=func.now(),
-        nullable=False,
-    )
-
-    active_vault: Mapped["UserVault"] = relationship("UserVault")
-
-
 class ClipJob(Base):
     __tablename__ = "clip_jobs"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     file_id: Mapped[str] = mapped_column(String(12), nullable=False, unique=True)
     viewer_id: Mapped[str] = mapped_column(String(16), nullable=False, index=True)
+    # Drive the placeholder .md was created on. Required for the
+    # duplicate-URL probe (``GET /clips``) so a viewer cannot reveal
+    # clips on a drive they're not currently viewing.
+    drive: Mapped[str] = mapped_column(String(128), nullable=False, index=True)
     url: Mapped[str] = mapped_column(String(4096), nullable=False)
     status: Mapped[str] = mapped_column(String(16), nullable=False, default="fetching")
     # fetching | ready | failed
@@ -94,24 +61,22 @@ class ClipJob(Base):
 
 
 class NoteOrigin(Base):
-    """Mirror of a Vault ``.md`` note's frontmatter.
+    """Mirror of a Knowledge ``.md`` note's frontmatter.
 
-    ``(vault_id, note_path)`` is the PK so a rename or move invalidates
-    the row naturally. The frontmatter scanner refreshes ``last_synced_at``
-    whenever it reconciles the cache against file mtime.
+    ``(drive, note_path)`` is the PK so a rename or move invalidates the
+    row naturally. ``note_path`` is the drive-relative path to the .md
+    file. The frontmatter scanner refreshes ``last_synced_at`` whenever
+    it reconciles the cache against file mtime.
     """
 
     __tablename__ = "note_origins"
 
-    vault_id: Mapped[int] = mapped_column(
-        ForeignKey("user_vaults.id", ondelete="CASCADE"),
-        primary_key=True,
-    )
+    drive: Mapped[str] = mapped_column(String(128), primary_key=True)
     note_path: Mapped[str] = mapped_column(String(4096), primary_key=True)
     # Cached core ``File.id`` of this .md. ``file_id`` is stable across
     # path renames in core, so storing it avoids a per-lookup Internal
-    # API hop. The scanner (Step C) refreshes this when the .md moves
-    # between Vault subfolders and updates note_path alongside.
+    # API hop. The scanner refreshes this when the .md moves between
+    # subfolders and updates note_path alongside.
     note_file_id: Mapped[str] = mapped_column(String(12), nullable=False)
     origin: Mapped[Optional[str]] = mapped_column(String(32), nullable=True)
     # Carries the frontmatter ``created`` value (spec 2026-04-24 renamed
@@ -156,13 +121,13 @@ class NoteOriginSource(Base):
     __tablename__ = "note_origin_sources"
     __table_args__ = (
         ForeignKeyConstraint(
-            ["vault_id", "note_path"],
-            ["note_origins.vault_id", "note_origins.note_path"],
+            ["drive", "note_path"],
+            ["note_origins.drive", "note_origins.note_path"],
             ondelete="CASCADE",
         ),
     )
 
-    vault_id: Mapped[int] = mapped_column(primary_key=True)
+    drive: Mapped[str] = mapped_column(String(128), primary_key=True)
     note_path: Mapped[str] = mapped_column(String(4096), primary_key=True)
     source_file_id: Mapped[str] = mapped_column(
         String(12), primary_key=True, index=True

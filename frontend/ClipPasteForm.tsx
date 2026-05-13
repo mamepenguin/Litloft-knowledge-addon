@@ -3,13 +3,12 @@
 import { useState, type FormEvent } from "react";
 import { useTranslations } from "next-intl";
 import { Loader2 } from "lucide-react";
-import { createClipFromHtml, type ClipJob, type Vault } from "./api";
+import { createClipFromHtml, type ClipJob } from "./api";
 
 // Shared cancel label across clip dialogs — matches duplicate/cancel.
 
 interface Props {
   drive: string;
-  vault: Vault;
   url: string;
   subfolder: string;
   onSaved: (job: ClipJob) => void;
@@ -18,7 +17,6 @@ interface Props {
 
 export default function ClipPasteForm({
   drive,
-  vault,
   url,
   subfolder,
   onSaved,
@@ -38,7 +36,6 @@ export default function ClipPasteForm({
     try {
       const job = await createClipFromHtml(drive, {
         url,
-        vault_id: vault.id,
         subfolder: subfolder || null,
         html,
       });

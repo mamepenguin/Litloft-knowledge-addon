@@ -6,30 +6,29 @@ import { Loader2 } from "lucide-react";
 import {
   createClip,
   findClipsByUrl,
-  listVaultFolders,
+  listKnowledgeFolders,
   type ClipJob,
   type CoreFolderItem,
-  type Vault,
 } from "./api";
 
-function subfolderKey(vaultId: number): string {
-  return `knowledge:lastSubfolder:${vaultId}`;
+function subfolderKey(drive: string): string {
+  return `knowledge:lastSubfolder:${drive}`;
 }
 
-function loadLastSubfolder(vaultId: number): string {
+function loadLastSubfolder(drive: string): string {
   if (typeof window === "undefined") return "";
   try {
-    return window.localStorage.getItem(subfolderKey(vaultId)) ?? "";
+    return window.localStorage.getItem(subfolderKey(drive)) ?? "";
   } catch {
     return "";
   }
 }
 
-function saveLastSubfolder(vaultId: number, value: string): void {
+function saveLastSubfolder(drive: string, value: string): void {
   if (typeof window === "undefined") return;
   try {
-    if (value) window.localStorage.setItem(subfolderKey(vaultId), value);
-    else window.localStorage.removeItem(subfolderKey(vaultId));
+    if (value) window.localStorage.setItem(subfolderKey(drive), value);
+    else window.localStorage.removeItem(subfolderKey(drive));
   } catch {
     // ignore quota / disabled storage
   }
@@ -43,7 +42,6 @@ export interface ClipDuplicateMatch {
 
 interface Props {
   drive: string;
-  vault: Vault;
   initialUrl?: string;
   initialTitle?: string;
   autoSubmit?: boolean;
@@ -53,7 +51,6 @@ interface Props {
 
 export default function ClipInput({
   drive,
-  vault,
   initialUrl = "",
   initialTitle = "",
   autoSubmit = false,
@@ -67,7 +64,7 @@ export default function ClipInput({
   // a readable filename instead of a timestamped stub.
   const [titleHint] = useState(initialTitle);
   const [subfolder, setSubfolder] = useState<string>(() =>
-    loadLastSubfolder(vault.id),
+    loadLastSubfolder(drive),
   );
   const [folders, setFolders] = useState<CoreFolderItem[]>([]);
   const [submitting, setSubmitting] = useState(false);
@@ -77,7 +74,7 @@ export default function ClipInput({
     let cancelled = false;
     (async () => {
       try {
-        const items = await listVaultFolders(drive, vault.path);
+        const items = await listKnowledgeFolders(drive, "");
         if (!cancelled) setFolders(items);
       } catch {
         // Folders list is optional — empty list just means "root only".
@@ -86,7 +83,7 @@ export default function ClipInput({
     return () => {
       cancelled = true;
     };
-  }, [drive, vault.path]);
+  }, [drive]);
 
   const submit = useCallback(
     async (overrideUrl?: string) => {
@@ -95,18 +92,17 @@ export default function ClipInput({
       setSubmitting(true);
       setError(null);
       try {
-        const existing = await findClipsByUrl(drive, vault.id, targetUrl);
+        const existing = await findClipsByUrl(drive, targetUrl);
         if (existing.length > 0) {
           onDuplicate({ existing, url: targetUrl, subfolder });
           return;
         }
         const job = await createClip(drive, {
           url: targetUrl,
-          vault_id: vault.id,
           subfolder: subfolder || null,
           title: titleHint || null,
         });
-        saveLastSubfolder(vault.id, subfolder);
+        saveLastSubfolder(drive, subfolder);
         setUrl("");
         onClipSubmitted(job);
       } catch (e) {
@@ -115,7 +111,7 @@ export default function ClipInput({
         setSubmitting(false);
       }
     },
-    [drive, onClipSubmitted, onDuplicate, subfolder, titleHint, url, vault.id],
+    [drive, onClipSubmitted, onDuplicate, subfolder, titleHint, url],
   );
 
   useEffect(() => {

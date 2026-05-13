@@ -3,7 +3,7 @@
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { useTranslations } from "next-intl";
-import { listVaults, searchVault, type SearchHit } from "./api";
+import { searchKnowledge, type SearchHit } from "./api";
 
 export interface AutocompleteHit extends SearchHit {
   /**
@@ -24,60 +24,22 @@ export interface WikiLinkSelection {
 
 interface Props {
   drive: string;
-  /**
-   * Vault ID for ``searchVault``. The host doesn't always know this
-   * (e.g. inline-mounted editor in the file detail page); when 0 the
-   * autocomplete still calls searchVault — the test mocks it directly
-   * and production will be wired up once the editor has a vault prop.
-   */
-  vaultId: number;
   /** Text typed AFTER ``[[`` (the active query, may be empty). */
   query: string;
-  /**
-   * Fired when the user picks an option (Enter / Shift+Enter / click).
-   * ``shift`` distinguishes the two insertion forms.
-   */
   onSelect: (hit: WikiLinkSelection, shift: boolean) => void;
-  /**
-   * Fired on Esc / Backspace-past-trigger so the host can both close
-   * the popup and (for Esc) keep the typed ``[[`` in the textarea.
-   */
   onClose: () => void;
-  /** Optional ref so the host can imperatively trigger keyboard nav. */
   externalKey?: number;
-  /**
-   * Viewport-space anchor point (the caret position right after the
-   * ``[[`` trigger). When provided, the popup is rendered with
-   * ``position: fixed`` and placed directly below the caret; if it
-   * would extend past the viewport bottom, it flips above. When
-   * ``null``/omitted, the popup falls back to its legacy in-flow
-   * absolute positioning so existing callers don't regress.
-   */
   anchor?: { top: number; left: number; lineHeight: number } | null;
 }
 
 const DEBOUNCE_MS = 100;
 
-/**
- * Wiki-link autocomplete dropdown. Spec 2026-05-12 §3.9.
- *
- * Renders an ARIA listbox of ``.md`` notes in the active vault, filtered
- * by the current query (debounced 100 ms). Owned by the editor host so
- * keyboard events flow through the textarea — the host calls
- * ``handleKeyDown(event)`` to forward ArrowDown / ArrowUp / Enter / Esc.
- *
- * Exposed via an imperative handle pattern (the host attaches a ref to
- * a ``WikiLinkAutocompleteHandle``) so the editor doesn't need to
- * juggle two sources of truth for "which option is highlighted right
- * now".
- */
 export interface WikiLinkAutocompleteHandle {
   handleKeyDown: (e: KeyboardEvent | React.KeyboardEvent) => boolean;
 }
 
 export const WikiLinkAutocomplete = function WikiLinkAutocomplete({
   drive,
-  vaultId,
   query,
   onSelect,
   onClose,
@@ -92,58 +54,16 @@ export const WikiLinkAutocomplete = function WikiLinkAutocomplete({
   hitsRef.current = hits;
   highlightRef.current = highlight;
 
-  // The backend /search endpoint requires vault_id >= 1. When the host
-  // mounts the autocomplete without a valid vault id (e.g. the inline
-  // file-detail editor doesn't know the active vault), discover the
-  // active one ourselves via /vaults and reuse it for subsequent
-  // fetches.
-  const [effectiveVaultId, setEffectiveVaultId] = useState<number>(
-    vaultId > 0 ? vaultId : 0,
-  );
-  useEffect(() => {
-    if (vaultId > 0) {
-      setEffectiveVaultId(vaultId);
-      return;
-    }
-    let cancelled = false;
-    listVaults(drive)
-      .then((res) => {
-        if (cancelled) return;
-        const fallback =
-          res.active_vault_id ?? res.vaults[0]?.id ?? 0;
-        setEffectiveVaultId(fallback);
-      })
-      .catch(() => {
-        if (!cancelled) setEffectiveVaultId(0);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [drive, vaultId]);
-
-  // Debounce searchVault calls so a burst of keystrokes doesn't fan
-  // out to the network. The very first fetch (empty query, popup just
-  // opened) runs synchronously so the listbox is populated by the
-  // time the host's ``waitFor("wiki-link-autocomplete")`` resolves.
   const firstFetchRef = useRef(true);
   useEffect(() => {
-    if (effectiveVaultId < 1) {
-      // No vault yet — keep the listbox empty rather than hitting the
-      // endpoint with vault_id=0 (which rejects with 422).
-      return;
-    }
     if (query.length === 0) {
-      // The /search endpoint requires q.min_length=1; firing with an
-      // empty query (the moment ``[[`` is typed before any chars) would
-      // 422 on every keystroke. Keep the popup open showing the empty
-      // state so the user knows to start typing.
       setHits([]);
       setHighlight(0);
       return;
     }
     let cancelled = false;
     function run() {
-      searchVault(drive, effectiveVaultId, query)
+      searchKnowledge(drive, query)
         .then((res) => {
           if (cancelled) return;
           setHits(res.results as AutocompleteHit[]);
@@ -168,9 +88,8 @@ export const WikiLinkAutocomplete = function WikiLinkAutocomplete({
       cancelled = true;
       clearTimeout(handle);
     };
-  }, [drive, effectiveVaultId, query]);
+  }, [drive, query]);
 
-  // Expose keyboard handling to the host.
   useEffect(() => {
     if (!handleRef) return;
     handleRef.current = {
@@ -217,17 +136,8 @@ export const WikiLinkAutocomplete = function WikiLinkAutocomplete({
     };
   }, [handleRef, onSelect, onClose]);
 
-  // After mount, measure the popup and flip above the caret when there
-  // isn't enough room below. Recomputed whenever the anchor moves or
-  // the result list changes (which alters the popup's height).
   const popupRef = useRef<HTMLDivElement | null>(null);
 
-  // Dismiss on pointer activity outside the popup. Critical on mobile,
-  // where ``Esc`` isn't available — without this the user has no way
-  // to close the popup other than typing ``]`` or a newline. We listen
-  // in the capture phase so the close fires before any inner handler
-  // (the option's ``onMouseDown`` calls ``preventDefault`` and runs
-  // ``onSelect`` regardless, so it's safe to also see the event here).
   useEffect(() => {
     const onPointerDown = (e: MouseEvent | TouchEvent) => {
       const el = popupRef.current;
@@ -296,8 +206,6 @@ export const WikiLinkAutocomplete = function WikiLinkAutocomplete({
                 role="option"
                 aria-selected={isActive}
                 onMouseDown={(e) => {
-                  // Stop the textarea from losing focus before our
-                  // click handler fires.
                   e.preventDefault();
                   onSelect(
                     { basename, mdId: hit.md_id },
@@ -319,12 +227,6 @@ export const WikiLinkAutocomplete = function WikiLinkAutocomplete({
     </div>
   );
 
-  // When the popup is caret-anchored we must escape ancestor
-  // ``transform`` / ``contain`` / ``overflow`` rules — when the editor
-  // is inline-mounted inside FileDetailContent, sibling sections
-  // (e.g. "Generate detailed summary") otherwise cover the popup. The
-  // legacy in-flow path keeps the existing positioning so callers that
-  // rely on the relative parent don't regress.
   if (anchor && typeof document !== "undefined") {
     return createPortal(popup, document.body);
   }

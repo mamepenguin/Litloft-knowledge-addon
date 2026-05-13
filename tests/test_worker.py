@@ -22,7 +22,11 @@ def _insert_job(session_factory, url="https://ok.example/", viewer="v1"):
     s = session_factory()
     try:
         job = ClipJob(
-            file_id="abc123", viewer_id=viewer, url=url, status="fetching"
+            file_id="abc123",
+            viewer_id=viewer,
+            drive="test-drive",
+            url=url,
+            status="fetching",
         )
         s.add(job)
         s.commit()
@@ -122,18 +126,18 @@ def test_reclaim_stale_jobs(session_factory):
     s = session_factory()
     try:
         expired = ClipJob(
-            file_id="xxx", viewer_id="v1", url="https://ok.example/",
-            status="fetching",
+            file_id="xxx", viewer_id="v1", drive="test-drive",
+            url="https://ok.example/", status="fetching",
             lease_until=datetime.utcnow() - timedelta(minutes=30),
         )
         fresh = ClipJob(
-            file_id="yyy", viewer_id="v1", url="https://ok.example/",
-            status="fetching",
+            file_id="yyy", viewer_id="v1", drive="test-drive",
+            url="https://ok.example/", status="fetching",
             lease_until=datetime.utcnow() + timedelta(minutes=5),
         )
         done = ClipJob(
-            file_id="zzz", viewer_id="v1", url="https://ok.example/",
-            status="ready",
+            file_id="zzz", viewer_id="v1", drive="test-drive",
+            url="https://ok.example/", status="ready",
         )
         s.add_all([expired, fresh, done])
         s.commit()

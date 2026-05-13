@@ -4,14 +4,12 @@ import { useEffect, useState } from "react";
 import { useTranslations } from "next-intl";
 import { ArrowRight, FileText } from "lucide-react";
 import {
-  listVaultFiles,
+  listKnowledgeFiles,
   type CoreFileItem,
-  type Vault,
 } from "./api";
 
 interface Props {
   drive: string;
-  vault: Vault;
   reloadKey?: number;
   onSelectFile: (f: CoreFileItem) => void;
 }
@@ -34,7 +32,6 @@ function formatTimestamp(iso: string, locale: string): string {
 
 export default function EmptyState({
   drive,
-  vault,
   reloadKey = 0,
   onSelectFile,
 }: Props) {
@@ -45,7 +42,7 @@ export default function EmptyState({
     let cancelled = false;
     (async () => {
       try {
-        const res = await listVaultFiles(drive, vault.path);
+        const res = await listKnowledgeFiles(drive, "");
         if (cancelled) return;
         const sorted = [...res.data].sort((a, b) => {
           const at = a.updated_at || a.created_at || "";
@@ -60,7 +57,7 @@ export default function EmptyState({
     return () => {
       cancelled = true;
     };
-  }, [drive, vault.path, reloadKey]);
+  }, [drive, reloadKey]);
 
   const locale =
     typeof navigator !== "undefined" ? navigator.language : "en-US";
@@ -80,7 +77,7 @@ export default function EmptyState({
             <span className="h-px flex-1 bg-bg-border" aria-hidden />
             <span className="inline-flex items-center gap-1.5 rounded-full border border-bg-border bg-bg-card px-2.5 py-1 text-[11px] font-medium normal-case text-text-primary">
               <span className="inline-block h-1.5 w-1.5 rounded-full bg-accent" />
-              {vault.label}
+              {drive}
             </span>
           </div>
           <h1 className="text-[2rem] font-semibold leading-[1.2] text-text-primary md:text-[2.4rem]">

@@ -1,23 +1,3 @@
-export interface Vault {
-  id: number;
-  label: string;
-  drive: string;
-  path: string;
-  is_active: boolean;
-  created_at: string;
-}
-
-export interface VaultListResponse {
-  vaults: Vault[];
-  active_vault_id: number | null;
-}
-
-export interface VaultCreateBody {
-  label: string;
-  drive: string;
-  path?: string;
-}
-
 const KNOWLEDGE_BASE = "/api/addons/knowledge";
 
 function driveHeaders(drive: string): Record<string, string> {
@@ -47,40 +27,7 @@ async function request<T>(
   return res.json() as Promise<T>;
 }
 
-export function listVaults(drive: string): Promise<VaultListResponse> {
-  return request<VaultListResponse>(drive, "/vaults");
-}
-
-export function createVault(
-  drive: string,
-  body: VaultCreateBody,
-): Promise<Vault> {
-  return request<Vault>(drive, "/vaults", {
-    method: "POST",
-    body: JSON.stringify(body),
-  });
-}
-
-export function updateVault(
-  drive: string,
-  id: number,
-  label: string,
-): Promise<Vault> {
-  return request<Vault>(drive, `/vaults/${id}`, {
-    method: "PUT",
-    body: JSON.stringify({ label }),
-  });
-}
-
-export function deleteVault(drive: string, id: number): Promise<void> {
-  return request<void>(drive, `/vaults/${id}`, { method: "DELETE" });
-}
-
-export function activateVault(drive: string, id: number): Promise<Vault> {
-  return request<Vault>(drive, `/vaults/${id}/activate`, { method: "POST" });
-}
-
-// ---- Core API (for file list inside a Vault folder) ----
+// ---- Core API (for file list in drive) ----
 
 export interface CoreDrive {
   name: string;
@@ -122,7 +69,6 @@ export interface ClipJob {
 
 export interface ClipCreateBody {
   url: string;
-  vault_id: number;
   subfolder?: string | null;
   title?: string | null;
 }
@@ -153,14 +99,13 @@ export function createClipFromHtml(
 
 export async function findClipsByUrl(
   drive: string,
-  vaultId: number,
   url: string,
 ): Promise<ClipJob[]> {
-  const qs = new URLSearchParams({ vault_id: String(vaultId), url });
+  const qs = new URLSearchParams({ url });
   return request<ClipJob[]>(drive, `/clips?${qs}`);
 }
 
-// ---- Vault-scoped search ----
+// ---- Drive-scoped search ----
 
 export interface SearchHit {
   file_id: string;
@@ -171,20 +116,16 @@ export interface SearchHit {
 
 export interface SearchResponse {
   query: string;
-  vault_id: number;
+  drive: string;
   results: SearchHit[];
   truncated: boolean;
 }
 
-export async function searchVault(
+export async function searchKnowledge(
   drive: string,
-  vaultId: number,
   query: string,
 ): Promise<SearchResponse> {
-  const qs = new URLSearchParams({
-    vault_id: String(vaultId),
-    q: query,
-  });
+  const qs = new URLSearchParams({ q: query });
   const res = await fetch(`${KNOWLEDGE_BASE}/search?${qs}`, {
     credentials: "include",
     headers: driveHeaders(drive),
@@ -326,7 +267,7 @@ export interface CoreFolderItem {
   thumbnail_file_id: string | null;
 }
 
-export async function listVaultFolders(
+export async function listKnowledgeFolders(
   drive: string,
   path: string,
 ): Promise<CoreFolderItem[]> {
@@ -360,7 +301,7 @@ export async function createFolder(
   return res.json();
 }
 
-export async function listVaultFiles(
+export async function listKnowledgeFiles(
   drive: string,
   path: string,
   page = 1,

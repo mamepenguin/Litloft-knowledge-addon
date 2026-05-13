@@ -3,12 +3,11 @@
 The knowledge addon does not run its own authentication — it trusts the
 ``lit_viewer`` cookie forwarded by the Generic Addon Proxy. A null or
 empty cookie means the user hasn't set a profile yet and must be shown
-the "please set a nickname" bootstrap UI before they can use Vaults.
+the "please set a nickname" bootstrap UI before they can use knowledge.
 
 Hash algorithm mirrors Litloft core's ``nickname_to_viewer_id`` so that
-the same person gets the same viewer_id across core and addon — this is
-what makes per-user Vault scoping join correctly with the core's
-watch-history-style identifiers, should we ever cross-reference.
+the same person gets the same viewer_id across core and addon, should
+we ever cross-reference identifiers.
 """
 import hashlib
 import os

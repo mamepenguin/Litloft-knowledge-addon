@@ -160,7 +160,6 @@ def fake_internal(monkeypatch):
     import app.routers.distill as distill
     import app.routers.notes as notes_router
     import app.routers.tags as tags
-    import app.routers.vaults as vaults
 
     FakeInternalClient.accessible_drives_override = ["test-drive", "media"]
     FakeInternalClient.create_text_file_collisions = set()
@@ -173,7 +172,6 @@ def fake_internal(monkeypatch):
     FakeInternalClient.raise_on_text_content = {}
     FakeInternalClient.captured_tag_syncs = []
     FakeInternalClient.raise_on_tag_sync = {}
-    monkeypatch.setattr(vaults, "InternalClient", FakeInternalClient)
     monkeypatch.setattr(distill, "InternalClient", FakeInternalClient)
     monkeypatch.setattr(notes_router, "InternalClient", FakeInternalClient)
     monkeypatch.setattr(tags, "InternalClient", FakeInternalClient)

@@ -12,7 +12,7 @@ from datetime import UTC, datetime, timedelta
 
 import pytest
 
-from app.models import NoteOrigin, UserVault
+from app.models import NoteOrigin
 
 
 def _seed_note_origin(
@@ -21,17 +21,8 @@ def _seed_note_origin(
     note_file_id: str,
     tags_synced_at: datetime | None = None,
 ) -> None:
-    vault = UserVault(
-        viewer_id="v0000000000000000",
-        label="T",
-        drive="test-drive",
-        path="Vault",
-    )
-    session.add(vault)
-    session.commit()
-    session.refresh(vault)
     row = NoteOrigin(
-        vault_id=vault.id,
+        drive="test-drive",
         note_path="n.md",
         note_file_id=note_file_id,
         origin="manual",
@@ -117,7 +108,7 @@ class TestResyncTags:
     def test_works_for_untracked_md(self, client, fake_internal):
         """A .md that was never distilled/clipped has no note_origin row.
         The endpoint should still project tags (the user is editing a
-        plain Vault note) without 404-ing on the missing row.
+        plain note) without 404-ing on the missing row.
         """
         fake_internal.file_text_override = {
             "fMd000000005": "---\ntags: [personal]\n---\n"

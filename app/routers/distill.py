@@ -1,8 +1,8 @@
-"""Promote an intelligence detailed_summary (or similar) into a Vault note.
+"""Promote an intelligence detailed_summary (or similar) into a Knowledge note.
 
-This is the backend half of Phase 3 Step B. The flow:
+Flow:
 
-  1. Validate Vault ownership (``viewer_id + drive + id`` must line up).
+  1. Resolve drive from the ``X-Lit-Drive`` header.
   2. Look up the source file via core Internal API and require same drive.
   3. Compose frontmatter + body markdown.
   4. Resolve path collisions by appending ``-2``, ``-3``, … to the stem
@@ -36,7 +36,6 @@ from app.models import (
     FileActiveSummary,
     NoteOrigin,
     NoteOriginSource,
-    UserVault,
 )
 from app.schemas import DistillRequest, DistillResponse, NoteOriginOut
 from app.services.frontmatter import compose, iso_z
@@ -53,23 +52,6 @@ def _require_drive(drive: str | None) -> str:
     if not drive:
         raise HTTPException(status_code=400, detail="Drive context required")
     return unquote(drive)
-
-
-def _get_vault_or_404(
-    db: Session, vault_id: int, viewer_id: str, drive: str
-) -> UserVault:
-    vault = (
-        db.query(UserVault)
-        .filter(
-            UserVault.id == vault_id,
-            UserVault.viewer_id == viewer_id,
-            UserVault.drive == drive,
-        )
-        .first()
-    )
-    if vault is None:
-        raise HTTPException(status_code=404, detail="Vault not found")
-    return vault
 
 
 def _sanitise_filename(name: str) -> str:
@@ -98,10 +80,8 @@ def _sanitise_folder(folder: str) -> str:
     return "/".join(parts)
 
 
-def _join_vault_path(vault: UserVault, folder: str, filename: str) -> str:
+def _join_path(folder: str, filename: str) -> str:
     pieces: list[str] = []
-    if vault.path:
-        pieces.append(vault.path.strip("/"))
     if folder:
         pieces.append(folder)
     pieces.append(filename)
@@ -151,7 +131,6 @@ async def distill(
     x_hv_drive: Annotated[str | None, Header(alias="X-Lit-Drive")] = None,
 ) -> DistillResponse:
     drive = _require_drive(x_hv_drive)
-    vault = _get_vault_or_404(db, body.vault_id, viewer_id, drive)
 
     client = InternalClient(cookie_header=cookie)
 
@@ -187,7 +166,7 @@ async def distill(
     created: dict | None = None
     final_filename = filename
     for attempt in range(1, _COLLISION_CAP + 1):
-        rel_path = _join_vault_path(vault, folder, final_filename)
+        rel_path = _join_path(folder, final_filename)
         try:
             created = await client.create_text_file(drive, rel_path, markdown)
             break
@@ -207,7 +186,7 @@ async def distill(
         )
 
     note_file_id = created["id"]
-    note_rel_path = _join_vault_path(vault, folder, final_filename)
+    note_rel_path = _join_path(folder, final_filename)
 
     # Register the relation in core. If it fails after the .md is
     # already written, surface a 502 — the file is harmless on its own
@@ -249,15 +228,9 @@ async def distill(
         pointer.summary_note_id = note_file_id
         pointer.set_at = datetime.now(timezone.utc)
 
-    vault_rel_note_path = (
-        note_rel_path[len(vault.path) + 1 :]
-        if vault.path and note_rel_path.startswith(vault.path + "/")
-        else note_rel_path
-    )
-
     origin_row = NoteOrigin(
-        vault_id=vault.id,
-        note_path=vault_rel_note_path,
+        drive=drive,
+        note_path=note_rel_path,
         note_file_id=note_file_id,
         origin=body.origin,
         approved_at=approved_at,
@@ -266,8 +239,8 @@ async def distill(
     db.add(origin_row)
     db.add(
         NoteOriginSource(
-            vault_id=vault.id,
-            note_path=vault_rel_note_path,
+            drive=drive,
+            note_path=note_rel_path,
             source_file_id=body.source_file_id,
         )
     )
@@ -284,7 +257,6 @@ async def distill(
     await client.emit_addon_event(
         "knowledge.distilled.created",
         {
-            "vault_id": vault.id,
             "note_file_id": note_file_id,
             "source_file_id": body.source_file_id,
         },
@@ -294,7 +266,6 @@ async def distill(
     return DistillResponse(
         note_file_id=note_file_id,
         note_path=note_rel_path,
-        vault_id=vault.id,
     )
 
 
@@ -308,47 +279,37 @@ async def notes_by_source_file(
     viewer_id: Annotated[str, Depends(get_viewer_id)],
     x_hv_drive: Annotated[str | None, Header(alias="X-Lit-Drive")] = None,
 ) -> list[NoteOriginOut]:
-    """Return every Vault note that references ``source_file_id``.
+    """Return every Knowledge note that references ``source_file_id``.
 
-    Only Vaults belonging to the current viewer **on the current drive**
-    are considered — cross-drive lookups are silently empty even if the
-    frontend happens to know a file id from another drive. This
-    preserves the drive-boundary rule (hako `cRNeIvcbhz449BwTmof5m`).
+    Only notes on the current drive are considered — cross-drive lookups
+    are silently empty even if the frontend happens to know a file id
+    from another drive. This preserves the drive-boundary rule
+    (hako `cRNeIvcbhz449BwTmof5m`).
     """
     drive = _require_drive(x_hv_drive)
 
     rows = (
-        db.query(NoteOrigin, UserVault)
-        .join(UserVault, UserVault.id == NoteOrigin.vault_id)
+        db.query(NoteOrigin)
         .join(
             NoteOriginSource,
-            (NoteOriginSource.vault_id == NoteOrigin.vault_id)
+            (NoteOriginSource.drive == NoteOrigin.drive)
             & (NoteOriginSource.note_path == NoteOrigin.note_path),
         )
         .filter(
             NoteOriginSource.source_file_id == source_file_id,
-            UserVault.viewer_id == viewer_id,
-            UserVault.drive == drive,
+            NoteOrigin.drive == drive,
         )
         .all()
     )
 
-    result: list[NoteOriginOut] = []
-    for origin, vault in rows:
-        full_path = (
-            f"{vault.path}/{origin.note_path}"
-            if vault.path
-            else origin.note_path
+    return [
+        NoteOriginOut(
+            note_file_id=origin.note_file_id,
+            drive=origin.drive,
+            path=origin.note_path,
+            origin=origin.origin,
+            approved_at=origin.approved_at,
+            health=origin.health,
         )
-        result.append(
-            NoteOriginOut(
-                note_file_id=origin.note_file_id,
-                vault_id=vault.id,
-                drive=vault.drive,
-                path=full_path,
-                origin=origin.origin,
-                approved_at=origin.approved_at,
-                health=origin.health,
-            )
-        )
-    return result
+        for origin in rows
+    ]

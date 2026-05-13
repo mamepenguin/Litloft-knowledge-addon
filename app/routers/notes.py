@@ -4,10 +4,10 @@ Used by the Ask → Knowledge save flow (spec
 2026-05-06-knowledge-ask-citation-links.md). Unlike ``/distill`` (which
 composes the Markdown from an intelligence detailed_summary), this
 endpoint accepts a fully-composed ``content`` string from the frontend
-and writes it verbatim into the Vault.
+and writes it verbatim into the drive.
 
 Flow:
-  1. Validate Vault ownership.
+  1. Resolve drive from the ``X-Lit-Drive`` header.
   2. Resolve path, handle collisions.
   3. Write the .md via core ``POST /api/drives/{drive}/files``.
   4. Register ``file_relations`` for each ``source_file_id`` so citations
@@ -31,8 +31,7 @@ from app.internal_client import InternalAPIError, InternalClient
 from app.models import NoteOrigin, NoteOriginSource
 from app.routers.distill import (
     _COLLISION_CAP,
-    _get_vault_or_404,
-    _join_vault_path,
+    _join_path,
     _next_collision_candidate,
     _require_drive,
     _sanitise_filename,
@@ -54,7 +53,6 @@ async def create_note(
     x_hv_drive: Annotated[str | None, Header(alias="X-Lit-Drive")] = None,
 ) -> DistillResponse:
     drive = _require_drive(x_hv_drive)
-    vault = _get_vault_or_404(db, body.vault_id, viewer_id, drive)
 
     client = InternalClient(cookie_header=cookie)
 
@@ -65,7 +63,7 @@ async def create_note(
     created: dict | None = None
     final_filename = filename
     for attempt in range(1, _COLLISION_CAP + 1):
-        rel_path = _join_vault_path(vault, folder, final_filename)
+        rel_path = _join_path(folder, final_filename)
         try:
             created = await client.create_text_file(drive, rel_path, body.content)
             break
@@ -83,7 +81,7 @@ async def create_note(
         )
 
     note_file_id = created["id"]
-    note_rel_path = _join_vault_path(vault, folder, final_filename)
+    note_rel_path = _join_path(folder, final_filename)
     approved_at = datetime.now(timezone.utc)
 
     # Register file_relations for each cited source file.
@@ -110,16 +108,9 @@ async def create_note(
                 viewer_id, src_id, note_file_id, e,
             )
 
-    # Queryable cache for the file-detail "related notes" panel.
-    vault_rel_note_path = (
-        note_rel_path[len(vault.path) + 1:]
-        if vault.path and note_rel_path.startswith(vault.path + "/")
-        else note_rel_path
-    )
-
     origin_row = NoteOrigin(
-        vault_id=vault.id,
-        note_path=vault_rel_note_path,
+        drive=drive,
+        note_path=note_rel_path,
         note_file_id=note_file_id,
         origin="ask_answer",
         approved_at=approved_at,
@@ -129,8 +120,8 @@ async def create_note(
     for src_id in confirmed_source_ids:
         db.add(
             NoteOriginSource(
-                vault_id=vault.id,
-                note_path=vault_rel_note_path,
+                drive=drive,
+                note_path=note_rel_path,
                 source_file_id=src_id,
             )
         )
@@ -139,7 +130,6 @@ async def create_note(
     await client.emit_addon_event(
         "knowledge.note.created",
         {
-            "vault_id": vault.id,
             "note_file_id": note_file_id,
             "source_file_ids": body.source_file_ids,
         },
@@ -149,5 +139,4 @@ async def create_note(
     return DistillResponse(
         note_file_id=note_file_id,
         note_path=note_rel_path,
-        vault_id=vault.id,
     )

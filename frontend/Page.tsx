@@ -13,18 +13,15 @@ import { isInlineKnowledgeEditorEnabled } from "@/lib/featureFlags";
 import {
   createTextFile,
   deleteFolderApi,
-  listVaults,
   restoreFile,
   trashFile,
   type ClipJob,
   type CoreFileItem,
   type CoreFolderItem,
-  type Vault,
 } from "./api";
 import QuickSwitcher, { recordRecent } from "./QuickSwitcher";
 import FolderView from "./FolderView";
 import { usePins } from "./hooks/usePins";
-import VaultSetup from "./VaultSetup";
 import Sidebar from "./Sidebar";
 import Editor from "./Editor";
 import ClipDuplicateDialog from "./ClipDuplicateDialog";
@@ -57,8 +54,6 @@ function saveSidebarHidden(hidden: boolean): void {
 
 type Mode =
   | { kind: "loading" }
-  | { kind: "setup" }
-  | { kind: "addNew" }
   | { kind: "list" }
   | { kind: "folder"; path: string; name: string }
   | { kind: "edit"; file: CoreFileItem };
@@ -71,24 +66,24 @@ async function fetchFileMeta(fileId: string): Promise<CoreFileItem | null> {
   return res.json();
 }
 
-function lastFileKey(vaultId: number): string {
-  return `knowledge:lastFile:${vaultId}`;
+function lastFileKey(drive: string): string {
+  return `knowledge:lastFile:${drive}`;
 }
 
-function loadLastFileId(vaultId: number): string | null {
+function loadLastFileId(drive: string): string | null {
   if (typeof window === "undefined") return null;
   try {
-    return window.localStorage.getItem(lastFileKey(vaultId));
+    return window.localStorage.getItem(lastFileKey(drive));
   } catch {
     return null;
   }
 }
 
-function saveLastFileId(vaultId: number, fileId: string | null): void {
+function saveLastFileId(drive: string, fileId: string | null): void {
   if (typeof window === "undefined") return;
   try {
-    if (fileId) window.localStorage.setItem(lastFileKey(vaultId), fileId);
-    else window.localStorage.removeItem(lastFileKey(vaultId));
+    if (fileId) window.localStorage.setItem(lastFileKey(drive), fileId);
+    else window.localStorage.removeItem(lastFileKey(drive));
   } catch {
     // ignore quota / disabled storage
   }
@@ -119,13 +114,10 @@ export default function KnowledgePage() {
   const editParam = searchParams.get("edit");
 
   const [mode, setMode] = useState<Mode>({ kind: "loading" });
-  const [vaults, setVaults] = useState<Vault[]>([]);
-  const [activeId, setActiveId] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [reloadKey, setReloadKey] = useState(0);
 
-  // Pins — initialized with 0, updated once activeId is known
-  const pins = usePins(activeId ?? 0);
+  const pins = usePins(drive ?? "");
   const [sidebarHidden, setSidebarHidden] = useState<boolean>(() =>
     loadSidebarHidden(),
   );
@@ -148,9 +140,6 @@ export default function KnowledgePage() {
   const [switcherOpen, setSwitcherOpen] = useState(false);
   const searchInputRef = useRef<HTMLInputElement | null>(null);
 
-  // Clip modal state. `clipInit` is seeded once from bookmarklet query
-  // params and cleared on close/submit so re-opening the modal does not
-  // re-trigger auto-submit.
   const [clipOpen, setClipOpen] = useState(false);
   const [helpOpen, setHelpOpen] = useState(false);
   const [clipInit, setClipInit] = useState<ClipInit>(() => ({
@@ -161,7 +150,6 @@ export default function KnowledgePage() {
 
   useEffect(() => {
     if (clipInit.url) setClipOpen(true);
-    // Only on first mount — subsequent searchParams changes must not reopen.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -218,12 +206,12 @@ export default function KnowledgePage() {
     });
   }, []);
 
-  const activeIdRef = useRef<number | null>(null);
-  activeIdRef.current = activeId;
+  const driveRef = useRef<string | null>(null);
+  driveRef.current = drive;
 
   const navigateMode = useCallback((next: Mode) => {
-    if (next.kind === "edit" && activeIdRef.current !== null) {
-      recordRecent(activeIdRef.current, next.file);
+    if (next.kind === "edit" && driveRef.current) {
+      recordRecent(driveRef.current, next.file);
     }
     if (typeof window !== "undefined") {
       const url = new URL(window.location.href);
@@ -281,14 +269,8 @@ export default function KnowledgePage() {
 
   const handleDelete = useCallback(
     async (file: CoreFileItem) => {
-      // Optimistic: switch out of the editor immediately. Even on API
-      // failure the file still exists in the sidebar, so the user can
-      // re-open it by clicking — no need to force-reopen.
       navigateMode({ kind: "list" });
-      setActiveId((prev) => {
-        if (prev !== null) saveLastFileId(prev, null);
-        return prev;
-      });
+      if (drive) saveLastFileId(drive, null);
       setReloadKey((k) => k + 1);
       pins.unpin(file.id);
       try {
@@ -303,7 +285,7 @@ export default function KnowledgePage() {
         });
       }
     },
-    [pins, navigateMode],
+    [pins, navigateMode, drive],
   );
 
   const handleDeleteFolder = useCallback(
@@ -353,8 +335,7 @@ export default function KnowledgePage() {
       // inline-editor flag is on and the legacy ``?edit={id}``
       // deep-link is hit, bounce to the canonical 2-pane URL so the
       // file opens in ``KnowledgeEditSection`` inside ``FileDetailContent``
-      // rather than the standalone Knowledge route. We keep the legacy
-      // route fully functional when the flag is off.
+      // rather than the standalone Knowledge route.
       if (editParam && isInlineKnowledgeEditorEnabled()) {
         const target = await fetchFileMeta(editParam);
         if (
@@ -368,9 +349,6 @@ export default function KnowledgePage() {
           return;
         }
       }
-      const res = await listVaults(drive);
-      setVaults(res.vaults);
-      setActiveId(res.active_vault_id);
       if (editParam) {
         const file = await fetchFileMeta(editParam);
         if (file) {
@@ -378,21 +356,18 @@ export default function KnowledgePage() {
           return;
         }
       }
-      const activeVaultId = res.active_vault_id ?? res.vaults[0]?.id ?? null;
-      if (activeVaultId !== null) {
-        const lastId = loadLastFileId(activeVaultId);
+      if (drive) {
+        const lastId = loadLastFileId(drive);
         if (lastId) {
           const file = await fetchFileMeta(lastId);
           if (file) {
             navigateMode({ kind: "edit", file });
             return;
           }
-          saveLastFileId(activeVaultId, null);
+          saveLastFileId(drive, null);
         }
       }
-      navigateMode(
-        res.vaults.length === 0 ? { kind: "setup" } : { kind: "list" },
-      );
+      navigateMode({ kind: "list" });
     } catch (e) {
       setError((e as Error).message);
     }
@@ -452,9 +427,9 @@ export default function KnowledgePage() {
 
   const selectedFileId = mode.kind === "edit" ? mode.file.id : null;
   useEffect(() => {
-    if (activeId === null) return;
-    saveLastFileId(activeId, selectedFileId);
-  }, [activeId, selectedFileId]);
+    if (!drive) return;
+    saveLastFileId(drive, selectedFileId);
+  }, [drive, selectedFileId]);
 
   const fetchingClipsCount = useMemo(() => {
     let n = 0;
@@ -467,7 +442,6 @@ export default function KnowledgePage() {
       if (prev) saveSidebarHidden(false);
       return false;
     });
-    // Defer focus until the sidebar finishes mounting/un-hiding.
     requestAnimationFrame(() => {
       searchInputRef.current?.focus();
       searchInputRef.current?.select();
@@ -476,20 +450,17 @@ export default function KnowledgePage() {
 
   const handleCreateNote = useCallback(async () => {
     if (!drive) return;
-    const active = vaults.find((v) => v.id === activeId) ?? vaults[0];
-    if (!active) return;
     try {
       const name = untitledFilename();
-      const path = active.path ? `${active.path}/${name}` : name;
-      const file = await createTextFile(drive, { path, content: "" });
+      const file = await createTextFile(drive, { path: name, content: "" });
       setReloadKey((k) => k + 1);
       navigateMode({ kind: "edit", file });
     } catch (e) {
       setError((e as Error).message);
     }
-  }, [drive, vaults, activeId, navigateMode]);
+  }, [drive, navigateMode]);
 
-  const shortcutsEnabled = mode.kind !== "loading" && mode.kind !== "setup" && mode.kind !== "addNew";
+  const shortcutsEnabled = mode.kind !== "loading";
 
   useShortcuts(
     "knowledge",
@@ -509,7 +480,7 @@ export default function KnowledgePage() {
       </div>
     );
   }
-  if (mode.kind === "loading") {
+  if (mode.kind === "loading" || !drive) {
     return (
       <div className="flex min-h-[60vh] items-center justify-center text-sm text-text-muted">
         {t("loading")}
@@ -517,25 +488,6 @@ export default function KnowledgePage() {
     );
   }
 
-  if (mode.kind === "setup" || mode.kind === "addNew") {
-    return (
-      <VaultSetup
-        drive={drive}
-        onCreated={(v) => {
-          setVaults((prev) => [...prev, v]);
-          setActiveId(v.id);
-          navigateMode({ kind: "list" });
-        }}
-        onCancel={
-          mode.kind === "addNew"
-            ? () => navigateMode({ kind: "list" })
-            : undefined
-        }
-      />
-    );
-  }
-
-  const active = vaults.find((v) => v.id === activeId) ?? vaults[0];
   const selectedFile = mode.kind === "edit" ? mode.file : null;
   const folderMode = mode.kind === "folder" ? mode : null;
 
@@ -561,7 +513,6 @@ export default function KnowledgePage() {
 
   const closeClip = () => {
     setClipOpen(false);
-    // Clear one-shot prefill so a subsequent open starts blank.
     if (clipInit.url || clipInit.autoSubmit) {
       setClipInit({ url: "", title: "", autoSubmit: false });
     }
@@ -582,41 +533,32 @@ export default function KnowledgePage() {
 
   return (
     <div className="flex h-[calc(var(--app-height,100dvh)-56px)] overflow-hidden bg-bg-primary">
-      {active && (
-        <div
-          data-testid="knowledge-sidebar-wrapper"
-          className={sidebarWrapperClass}
-        >
-          <Sidebar
-            drive={drive}
-            vaults={vaults}
-            active={active}
-            selectedFileId={selectedFile?.id ?? null}
-            selectedFolderPath={folderMode?.path ?? null}
-            reloadKey={reloadKey}
-            fetchingClipsCount={fetchingClipsCount}
-            onSwitchVault={(v) => {
-              setActiveId(v.id);
-              navigateMode({ kind: "list" });
-            }}
-            onAddVault={() => navigateMode({ kind: "addNew" })}
-            onSelectFile={(f) => navigateMode({ kind: "edit", file: f })}
-            onOpenFolder={(path, name) =>
-              navigateMode({ kind: "folder", path, name })
-            }
-            onOpenClip={() => setClipOpen(true)}
-            onOpenClipHelp={() => setHelpOpen(true)}
-            pins={pins.pins}
-            onPin={pins.pin}
-            onUnpin={pins.unpin}
-            isPinned={pins.isPinned}
-            onPinReorder={pins.reorder}
-            onRequestDelete={handleDelete}
-            onRequestDeleteFolder={handleDeleteFolder}
-            searchInputRef={searchInputRef}
-          />
-        </div>
-      )}
+      <div
+        data-testid="knowledge-sidebar-wrapper"
+        className={sidebarWrapperClass}
+      >
+        <Sidebar
+          drive={drive}
+          selectedFileId={selectedFile?.id ?? null}
+          selectedFolderPath={folderMode?.path ?? null}
+          reloadKey={reloadKey}
+          fetchingClipsCount={fetchingClipsCount}
+          onSelectFile={(f) => navigateMode({ kind: "edit", file: f })}
+          onOpenFolder={(path, name) =>
+            navigateMode({ kind: "folder", path, name })
+          }
+          onOpenClip={() => setClipOpen(true)}
+          onOpenClipHelp={() => setHelpOpen(true)}
+          pins={pins.pins}
+          onPin={pins.pin}
+          onUnpin={pins.unpin}
+          isPinned={pins.isPinned}
+          onPinReorder={pins.reorder}
+          onRequestDelete={handleDelete}
+          onRequestDeleteFolder={handleDeleteFolder}
+          searchInputRef={searchInputRef}
+        />
+      </div>
       <main
         data-testid="knowledge-main-wrapper"
         className={mainWrapperClass}
@@ -626,7 +568,6 @@ export default function KnowledgePage() {
             fileId={selectedFile.id}
             filename={selectedFile.filename}
             drive={selectedFile.drive}
-            vaultId={activeId ?? undefined}
             sidebarHidden={sidebarHidden}
             onToggleSidebar={toggleSidebar}
             onBack={handleEditorBack}
@@ -640,10 +581,9 @@ export default function KnowledgePage() {
             }}
             onDelete={() => handleDelete(selectedFile)}
           />
-        ) : folderMode && active ? (
+        ) : folderMode ? (
           <FolderView
             drive={drive}
-            vault={active}
             path={folderMode.path}
             name={folderMode.name}
             sidebarHidden={sidebarHidden}
@@ -655,42 +595,37 @@ export default function KnowledgePage() {
             }
             onReload={() => setReloadKey((k) => k + 1)}
           />
-        ) : active ? (
+        ) : (
           <EmptyState
             drive={drive}
-            vault={active}
             reloadKey={reloadKey}
             onSelectFile={(f) => navigateMode({ kind: "edit", file: f })}
           />
-        ) : null}
+        )}
       </main>
-      {active && (
-        <ClipModal
-          drive={drive}
-          vault={active}
-          open={clipOpen}
-          onClose={closeClip}
-          prefillUrl={clipInit.url}
-          prefillTitle={clipInit.title}
-          autoSubmit={clipInit.autoSubmit}
-          recentJobs={recentJobs}
-          onSubmitted={(job, url, subfolder) => {
-            registerJob(job, url, subfolder);
-            setClipInit({ url: "", title: "", autoSubmit: false });
-          }}
-          onDuplicate={setDuplicateMatch}
-          onRetryPaste={(rj) => setPasteRetry(rj)}
-        />
-      )}
+      <ClipModal
+        drive={drive}
+        open={clipOpen}
+        onClose={closeClip}
+        prefillUrl={clipInit.url}
+        prefillTitle={clipInit.title}
+        autoSubmit={clipInit.autoSubmit}
+        recentJobs={recentJobs}
+        onSubmitted={(job, url, subfolder) => {
+          registerJob(job, url, subfolder);
+          setClipInit({ url: "", title: "", autoSubmit: false });
+        }}
+        onDuplicate={setDuplicateMatch}
+        onRetryPaste={(rj) => setPasteRetry(rj)}
+      />
       <BookmarkletDialog
         drive={drive}
         open={helpOpen}
         onClose={() => setHelpOpen(false)}
       />
-      {duplicateMatch && active && (
+      {duplicateMatch && (
         <ClipDuplicateDialog
           drive={drive}
-          vault={active}
           url={duplicateMatch.url}
           subfolder={duplicateMatch.subfolder}
           existing={duplicateMatch.existing}
@@ -741,24 +676,20 @@ export default function KnowledgePage() {
           </div>
         </div>
       )}
-      {active && (
-        <QuickSwitcher
-          drive={drive}
-          vault={active}
-          open={switcherOpen}
-          onClose={() => setSwitcherOpen(false)}
-          onSelect={(file) => {
-            setSwitcherOpen(false);
-            navigateMode({ kind: "edit", file });
-          }}
-        />
-      )}
-      {pasteRetry && active && (
+      <QuickSwitcher
+        drive={drive}
+        open={switcherOpen}
+        onClose={() => setSwitcherOpen(false)}
+        onSelect={(file) => {
+          setSwitcherOpen(false);
+          navigateMode({ kind: "edit", file });
+        }}
+      />
+      {pasteRetry && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 px-4">
           <div className="w-full max-w-2xl">
             <ClipPasteForm
               drive={drive}
-              vault={active}
               url={pasteRetry.url}
               subfolder={pasteRetry.subfolder}
               onSaved={(job) => {

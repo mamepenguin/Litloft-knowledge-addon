@@ -5,9 +5,6 @@
     "scope": "drive",
     "href": "/drive/{drive}/addons/knowledge",
     "slots": {
-        "sidebar-sections": [
-            {"id": "knowledge-vault-summary", "label": "Active Vault", "priority": 10}
-        ],
         "file-detail-sections": [
             {"id": "knowledge-edit", "label": "Edit Note", "priority": 5}
         ],
@@ -25,21 +22,6 @@
         "target_default": "http://knowledge:8200",
         "health_check": "/health",
         "routes": [
-            {
-                "path": "/vaults",
-                "methods": ["GET", "POST"],
-                "response_filter": null
-            },
-            {
-                "path": "/vaults/{vault_id}",
-                "methods": ["GET", "PUT", "DELETE"],
-                "response_filter": null
-            },
-            {
-                "path": "/vaults/{vault_id}/activate",
-                "methods": ["POST"],
-                "response_filter": null
-            },
             {
                 "path": "/clips",
                 "methods": ["GET", "POST"],

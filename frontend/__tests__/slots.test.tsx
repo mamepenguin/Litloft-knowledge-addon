@@ -1,29 +1,20 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { cleanup, render, screen, waitFor } from "@testing-library/react";
+import { cleanup, render, screen } from "@testing-library/react";
 
 // Stub useTranslations before importing components that use it.
 vi.mock("next-intl", () => ({
   useTranslations: (ns: string) => (key: string, vars?: Record<string, unknown>) => {
     const map: Record<string, string> = {
-      "knowledge.sidebar.activePrefix": `Active: ${vars?.label ?? ""}`,
       "knowledge.editSection.title": "Knowledge",
       "knowledge.editSection.description": "Open this note in the Markdown editor.",
       "knowledge.editSection.openEditor": "Open editor",
     };
+    void vars;
     return map[`${ns}.${key}`] ?? `${ns}.${key}`;
   },
 }));
 
-// Drive context: KnowledgeVaultSummary is drive-scoped and pulls the
-// current drive from ``CurrentDriveProvider``. The test shell doesn't
-// mount a <Provider/>, so we stub the hook to return a fixed value.
-let _mockDrive: string | null = "test-drive";
-vi.mock("@/components/CurrentDriveProvider", () => ({
-  useCurrentDrive: () => _mockDrive,
-}));
-
 const KnowledgeEditSection = (await import("../KnowledgeEditSection")).default;
-const KnowledgeVaultSummary = (await import("../KnowledgeVaultSummary")).default;
 
 function wrap(ui: React.ReactElement) {
   return ui;
@@ -90,56 +81,6 @@ describe("KnowledgeEditSection", () => {
     const { container } = render(
       wrap(<KnowledgeEditSection fileId="f3" drive="d" />),
     );
-    await new Promise((r) => setTimeout(r, 20));
-    expect(container.innerHTML).toBe("");
-  });
-});
-
-describe("KnowledgeVaultSummary", () => {
-  beforeEach(() => {
-    vi.unstubAllGlobals();
-    _mockDrive = "test-drive";
-  });
-  afterEach(() => {
-    cleanup();
-    vi.restoreAllMocks();
-  });
-
-  it("renders nothing when no current drive", async () => {
-    _mockDrive = null;
-    stubFetch({});
-    const { container } = render(wrap(<KnowledgeVaultSummary />));
-    await new Promise((r) => setTimeout(r, 20));
-    expect(container.innerHTML).toBe("");
-  });
-
-  it("renders active vault label", async () => {
-    stubFetch({
-      "/api/addons/knowledge/vaults": {
-        vaults: [
-          {
-            id: 1,
-            label: "Work",
-            drive: "d",
-            path: "N",
-            is_active: true,
-            created_at: "",
-          },
-        ],
-        active_vault_id: 1,
-      },
-    });
-    render(wrap(<KnowledgeVaultSummary />));
-    await waitFor(() => {
-      expect(screen.getByText(/Active:\s*Work/)).toBeTruthy();
-    });
-  });
-
-  it("renders nothing when no active vault", async () => {
-    stubFetch({
-      "/api/addons/knowledge/vaults": { vaults: [], active_vault_id: null },
-    });
-    const { container } = render(wrap(<KnowledgeVaultSummary />));
     await new Promise((r) => setTimeout(r, 20));
     expect(container.innerHTML).toBe("");
   });

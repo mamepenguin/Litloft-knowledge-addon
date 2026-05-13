@@ -41,21 +41,12 @@ vi.mock("@/components/MarkdownPreview", () => ({
 
 const Page = (await import("../Page")).default;
 
-const vault = {
-  id: 1,
-  label: "Work",
-  drive: "test-drive",
-  path: "Notes",
-  is_active: true,
-  created_at: "",
-};
-
 const fileA = {
   id: "file-a",
   filename: "a.md",
   title: "A",
   drive: "test-drive",
-  folder_path: "Notes",
+  folder_path: "",
   file_type: "document",
   mime_type: "text/markdown",
   thumbnail_url: "",
@@ -80,18 +71,15 @@ function stubFetch(handler: (url: string) => { ok: boolean; status: number; body
 }
 
 function defaultHandler(url: string) {
-  if (url.includes("/api/addons/knowledge/vaults")) {
+  if (url.match(/\/api\/drives\/[^/]+\/folders/)) {
+    return { ok: true, status: 200, body: [] };
+  }
+  if (url.match(/\/api\/drives\/[^/]+\/files\?/)) {
     return {
       ok: true,
       status: 200,
-      body: { vaults: [vault], active_vault_id: 1 },
+      body: { data: [fileA], meta: { total: 1, page: 1, limit: 100 } },
     };
-  }
-  if (url.match(/\/api\/addons\/knowledge\/folders/)) {
-    return { ok: true, status: 200, body: [] };
-  }
-  if (url.match(/\/api\/addons\/knowledge\/files\?/)) {
-    return { ok: true, status: 200, body: { data: [fileA], total: 1 } };
   }
   if (url.match(/\/api\/files\/[^/]+\/stream$/)) {
     return {
@@ -154,6 +142,13 @@ describe("KnowledgePage sidebar toggle & mobile layout", () => {
     await waitFor(() => {
       expect(container.querySelector("aside")).toBeTruthy();
     });
+  });
+
+  it("renders drive-scoped file list when no file is selected", async () => {
+    stubFetch(defaultHandler);
+    render(<Page />);
+    // The sidebar shows files from the drive root via listKnowledgeFiles.
+    expect(await screen.findByText("a")).toBeTruthy();
   });
 
   it("persists sidebar-hidden state to localStorage via editor toggle", async () => {
@@ -268,7 +263,7 @@ describe("KnowledgePage sidebar toggle & mobile layout", () => {
     });
     const target = _routerReplace.mock.calls[0][0] as string;
     const url = new URL(`http://localhost${target}`);
-    expect(url.pathname).toBe("/drive/test-drive/Notes");
+    expect(url.pathname).toBe("/drive/test-drive");
     expect(url.searchParams.get("file")).toBe("file-a");
     expect(url.searchParams.get("edit")).toBe("1");
   });

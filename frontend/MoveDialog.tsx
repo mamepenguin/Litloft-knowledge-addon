@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { Folder, X } from "lucide-react";
 import { useTranslations } from "next-intl";
-import { listVaultFolders, type CoreFolderItem } from "./api";
+import { listKnowledgeFolders } from "./api";
 
 interface FlatFolder {
   path: string;
@@ -21,7 +21,7 @@ async function fetchAllFolders(
     const item = queue.shift();
     if (!item) break;
     try {
-      const folders = await listVaultFolders(drive, item.path);
+      const folders = await listKnowledgeFolders(drive, item.path);
       for (const f of folders) {
         result.push({ path: f.path, name: f.name, depth: item.depth + 1 });
         queue.push({ path: f.path, depth: item.depth + 1 });

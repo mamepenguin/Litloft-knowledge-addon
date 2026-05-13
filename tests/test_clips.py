@@ -4,7 +4,7 @@ We stub both the worker and InternalClient so no real network or
 filesystem writes happen. What this file guards:
 
 - URL validation happens BEFORE we create a placeholder
-- vault ownership check
+- drive header is required
 - pasted-HTML path bypasses the worker and writes directly
 """
 from __future__ import annotations
@@ -12,7 +12,7 @@ from __future__ import annotations
 import pytest
 
 from app.auth import nickname_to_viewer_id
-from app.models import ClipJob, UserVault
+from app.models import ClipJob
 from tests.conftest import FakeInternalClient
 
 
@@ -57,26 +57,12 @@ def stub_dns(monkeypatch):
     monkeypatch.setattr(socket, "getaddrinfo", fake)
 
 
-def _seed_vault(knowledge_db, viewer_id):
-    s = knowledge_db()
-    try:
-        v = UserVault(viewer_id=viewer_id, label="L", drive="test-drive", path="Notes")
-        s.add(v)
-        s.commit()
-        s.refresh(v)
-        return v.id
-    finally:
-        s.close()
-
-
 def test_create_clip_rejects_bad_scheme(
     client, knowledge_db, fake_clips_internal, fake_worker, viewer_cookie
 ):
-    vid = nickname_to_viewer_id("alice")
-    vault_id = _seed_vault(knowledge_db, vid)
     r = client.post(
         "/clips",
-        json={"url": "file:///etc/passwd", "vault_id": vault_id},
+        json={"url": "file:///etc/passwd"},
         headers={"Cookie": viewer_cookie, "X-Lit-Drive": "test-drive"},
     )
     assert r.status_code == 400
@@ -86,11 +72,9 @@ def test_create_clip_rejects_bad_scheme(
 def test_create_clip_rejects_docker_host(
     client, knowledge_db, fake_clips_internal, fake_worker, viewer_cookie
 ):
-    vid = nickname_to_viewer_id("alice")
-    vault_id = _seed_vault(knowledge_db, vid)
     r = client.post(
         "/clips",
-        json={"url": "http://backend:8000/", "vault_id": vault_id},
+        json={"url": "http://backend:8000/"},
         headers={"Cookie": viewer_cookie, "X-Lit-Drive": "test-drive"},
     )
     assert r.status_code == 400
@@ -100,10 +84,9 @@ def test_create_clip_happy_path(
     client, knowledge_db, fake_clips_internal, fake_worker, viewer_cookie, stub_dns
 ):
     vid = nickname_to_viewer_id("alice")
-    vault_id = _seed_vault(knowledge_db, vid)
     r = client.post(
         "/clips",
-        json={"url": "https://ok.example/post", "vault_id": vault_id},
+        json={"url": "https://ok.example/post"},
         headers={"Cookie": viewer_cookie, "X-Lit-Drive": "test-drive"},
     )
     assert r.status_code == 202, r.text
@@ -120,48 +103,19 @@ def test_create_clip_happy_path(
     assert len(jobs) == 1
     assert jobs[0].status == "fetching"
     assert jobs[0].viewer_id == vid
+    assert jobs[0].drive == "test-drive"
 
     # Worker received the task
     assert len(fake_worker.enqueued) == 1
     assert fake_worker.enqueued[0].url == "https://ok.example/post"
 
 
-def test_create_clip_vault_ownership(
-    client, knowledge_db, fake_clips_internal, fake_worker, viewer_cookie, stub_dns
-):
-    # Vault belongs to "bob", cookie is "alice" → 404
-    bob_id = nickname_to_viewer_id("bob")
-    vault_id = _seed_vault(knowledge_db, bob_id)
-    r = client.post(
-        "/clips",
-        json={"url": "https://ok.example/", "vault_id": vault_id},
-        headers={"Cookie": viewer_cookie, "X-Lit-Drive": "test-drive"},
-    )
-    assert r.status_code == 404
-
-
-def test_create_clip_drive_mismatch_404(
-    client, knowledge_db, fake_clips_internal, fake_worker, viewer_cookie, stub_dns
-):
-    """Vault lives in test-drive; request arrives with X-Lit-Drive=media."""
-    vid = nickname_to_viewer_id("alice")
-    vault_id = _seed_vault(knowledge_db, vid)
-    r = client.post(
-        "/clips",
-        json={"url": "https://ok.example/", "vault_id": vault_id},
-        headers={"Cookie": viewer_cookie, "X-Lit-Drive": "media"},
-    )
-    assert r.status_code == 404
-
-
 def test_create_clip_missing_drive_header_400(
     client, knowledge_db, fake_clips_internal, fake_worker, viewer_cookie
 ):
-    vid = nickname_to_viewer_id("alice")
-    vault_id = _seed_vault(knowledge_db, vid)
     r = client.post(
         "/clips",
-        json={"url": "https://ok.example/", "vault_id": vault_id},
+        json={"url": "https://ok.example/"},
         headers={"Cookie": viewer_cookie},
     )
     assert r.status_code == 400
@@ -170,8 +124,6 @@ def test_create_clip_missing_drive_header_400(
 def test_pasted_html_skips_worker(
     client, knowledge_db, fake_clips_internal, fake_worker, viewer_cookie, stub_dns
 ):
-    vid = nickname_to_viewer_id("alice")
-    vault_id = _seed_vault(knowledge_db, vid)
     html = (
         "<html><head><title>Manual</title></head><body>"
         "<article><h1>Hi</h1><p>" + ("body text " * 50) + "</p></article>"
@@ -179,7 +131,7 @@ def test_pasted_html_skips_worker(
     )
     r = client.post(
         "/clips/pasted",
-        json={"url": "https://ok.example/", "vault_id": vault_id, "html": html},
+        json={"url": "https://ok.example/", "html": html},
         headers={"Cookie": viewer_cookie, "X-Lit-Drive": "test-drive"},
     )
     assert r.status_code == 201, r.text
@@ -198,14 +150,61 @@ def test_pasted_html_skips_worker(
 def test_pasted_html_rejects_bad_url(
     client, knowledge_db, fake_clips_internal, fake_worker, viewer_cookie
 ):
-    vid = nickname_to_viewer_id("alice")
-    vault_id = _seed_vault(knowledge_db, vid)
     r = client.post(
         "/clips/pasted",
-        json={"url": "javascript:alert(1)", "vault_id": vault_id, "html": "<p>hi</p>"},
+        json={"url": "javascript:alert(1)", "html": "<p>hi</p>"},
         headers={"Cookie": viewer_cookie, "X-Lit-Drive": "test-drive"},
     )
     assert r.status_code == 400
+
+
+def test_search_clips_is_drive_scoped(client, knowledge_db, viewer_cookie):
+    """GET /clips must not leak ClipJobs across drives.
+
+    The same viewer with clips on drive A and drive B should only see
+    their drive A clips when querying with ``X-Lit-Drive: A`` — drive
+    is the security boundary.
+    """
+    from app.auth import nickname_to_viewer_id
+
+    vid = nickname_to_viewer_id("alice")
+    s = knowledge_db()
+    try:
+        s.add_all([
+            ClipJob(
+                file_id="fA1", viewer_id=vid, drive="test-drive",
+                url="https://ok.example/post", status="ready",
+            ),
+            ClipJob(
+                file_id="fB1", viewer_id=vid, drive="media",
+                url="https://ok.example/post", status="ready",
+            ),
+        ])
+        s.commit()
+    finally:
+        s.close()
+
+    # Query from drive A — should only see drive A's job
+    r = client.get(
+        "/clips",
+        params={"url": "https://ok.example/post"},
+        headers={"Cookie": viewer_cookie, "X-Lit-Drive": "test-drive"},
+    )
+    assert r.status_code == 200, r.text
+    jobs = r.json()
+    assert len(jobs) == 1
+    assert jobs[0]["file_id"] == "fA1"
+
+    # Query from drive B — should only see drive B's job
+    r = client.get(
+        "/clips",
+        params={"url": "https://ok.example/post"},
+        headers={"Cookie": viewer_cookie, "X-Lit-Drive": "media"},
+    )
+    assert r.status_code == 200, r.text
+    other = r.json()
+    assert len(other) == 1
+    assert other[0]["file_id"] == "fB1"
 
 
 class TestFrontmatterSchema:

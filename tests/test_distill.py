@@ -1,4 +1,4 @@
-"""Tests for POST /distill — the detailed_summary → Vault promotion path."""
+"""Tests for POST /distill — the detailed_summary → Knowledge promotion path."""
 from __future__ import annotations
 
 import pytest
@@ -7,34 +7,13 @@ from app.models import (
     FileActiveSummary,
     NoteOrigin,
     NoteOriginSource,
-    UserVault,
 )
 from app.services.frontmatter import parse
-
-
-@pytest.fixture()
-def alice_vault(knowledge_db):
-    from app.auth import nickname_to_viewer_id
-
-    Session = knowledge_db
-    s = Session()
-    viewer_id = nickname_to_viewer_id("alice")
-    v = UserVault(
-        viewer_id=viewer_id,
-        label="Notes",
-        drive="test-drive",
-        path="Notes",
-    )
-    s.add(v)
-    s.commit()
-    s.refresh(v)
-    return v
 
 
 def _distill_payload(**overrides):
     payload = {
         "source_file_id": "src1",
-        "vault_id": 0,  # caller fills in
         "folder": "AI-Drafts",
         "filename": "vid-summary.md",
         "title": "vid.mkv の詳細要約",
@@ -47,17 +26,16 @@ def _distill_payload(**overrides):
 
 class TestDistillHappyPath:
     def test_creates_note_with_frontmatter_and_registers_relations(
-        self, client, fake_internal, alice_vault, viewer_cookie
+        self, client, fake_internal, viewer_cookie
     ):
         res = client.post(
             "/distill",
-            json=_distill_payload(vault_id=alice_vault.id),
+            json=_distill_payload(),
             headers={"Cookie": viewer_cookie, "X-Lit-Drive": "test-drive"},
         )
         assert res.status_code == 201, res.text
         body = res.json()
-        assert body["vault_id"] == alice_vault.id
-        assert body["note_path"] == "Notes/AI-Drafts/vid-summary.md"
+        assert body["note_path"] == "AI-Drafts/vid-summary.md"
         assert body["note_file_id"]
 
         # Relation registered in core. The active_summary pointer is
@@ -84,11 +62,11 @@ class TestDistillHappyPath:
             assert row.drive == "test-drive"
 
     def test_emits_distilled_created_ws_event(
-        self, client, fake_internal, alice_vault, viewer_cookie
+        self, client, fake_internal, viewer_cookie
     ):
         res = client.post(
             "/distill",
-            json=_distill_payload(vault_id=alice_vault.id),
+            json=_distill_payload(),
             headers={"Cookie": viewer_cookie, "X-Lit-Drive": "test-drive"},
         )
         assert res.status_code == 201, res.text
@@ -107,7 +85,6 @@ class TestDistillHappyPath:
         )
         assert distilled["drive"] == "test-drive"
         assert distilled["data"] == {
-            "vault_id": alice_vault.id,
             "note_file_id": note_file_id,
             "source_file_id": "src1",
         }
@@ -121,11 +98,11 @@ class TestDistillHappyPath:
         }
 
     def test_frontmatter_contains_required_fields(
-        self, client, fake_internal, alice_vault, viewer_cookie
+        self, client, fake_internal, viewer_cookie
     ):
         res = client.post(
             "/distill",
-            json=_distill_payload(vault_id=alice_vault.id),
+            json=_distill_payload(),
             headers={"Cookie": viewer_cookie, "X-Lit-Drive": "test-drive"},
         )
         assert res.status_code == 201, res.text
@@ -151,18 +128,18 @@ class TestDistillHappyPath:
         assert parsed.body.startswith("# vid.mkv の詳細要約")
 
     def test_note_origins_rows_persisted(
-        self, client, fake_internal, alice_vault, viewer_cookie, knowledge_db
+        self, client, fake_internal, viewer_cookie, knowledge_db
     ):
         res = client.post(
             "/distill",
-            json=_distill_payload(vault_id=alice_vault.id),
+            json=_distill_payload(),
             headers={"Cookie": viewer_cookie, "X-Lit-Drive": "test-drive"},
         )
         assert res.status_code == 201
 
         s = knowledge_db()
         origin = s.query(NoteOrigin).one()
-        assert origin.vault_id == alice_vault.id
+        assert origin.drive == "test-drive"
         assert origin.note_path == "AI-Drafts/vid-summary.md"
         assert origin.origin == "detailed_summary"
         assert origin.health == "healthy"
@@ -170,37 +147,38 @@ class TestDistillHappyPath:
         assert len(sources) == 1
         assert sources[0].source_file_id == "src1"
         assert sources[0].note_path == "AI-Drafts/vid-summary.md"
+        assert sources[0].drive == "test-drive"
 
 
 class TestDistillCollisions:
     def test_collision_appends_suffix(
-        self, client, fake_internal, alice_vault, viewer_cookie, knowledge_db
+        self, client, fake_internal, viewer_cookie, knowledge_db
     ):
         # Make the first candidate collide; the router should retry
         # ``vid-summary-2.md``.
         fake_internal.create_text_file_collisions = {
-            "Notes/AI-Drafts/vid-summary.md"
+            "AI-Drafts/vid-summary.md"
         }
 
         res = client.post(
             "/distill",
-            json=_distill_payload(vault_id=alice_vault.id),
+            json=_distill_payload(),
             headers={"Cookie": viewer_cookie, "X-Lit-Drive": "test-drive"},
         )
         assert res.status_code == 201, res.text
-        assert res.json()["note_path"] == "Notes/AI-Drafts/vid-summary-2.md"
+        assert res.json()["note_path"] == "AI-Drafts/vid-summary-2.md"
 
         s = knowledge_db()
         origin = s.query(NoteOrigin).one()
         assert origin.note_path == "AI-Drafts/vid-summary-2.md"
 
     def test_many_collisions_yields_409(
-        self, client, fake_internal, alice_vault, viewer_cookie
+        self, client, fake_internal, viewer_cookie
     ):
         fake_internal.create_text_file_always_fails = 409
         res = client.post(
             "/distill",
-            json=_distill_payload(vault_id=alice_vault.id),
+            json=_distill_payload(),
             headers={"Cookie": viewer_cookie, "X-Lit-Drive": "test-drive"},
         )
         assert res.status_code == 409
@@ -208,27 +186,17 @@ class TestDistillCollisions:
 
 class TestDistillGuards:
     def test_missing_drive_header_rejected(
-        self, client, fake_internal, alice_vault, viewer_cookie
-    ):
-        res = client.post(
-            "/distill",
-            json=_distill_payload(vault_id=alice_vault.id),
-            headers={"Cookie": viewer_cookie},
-        )
-        assert res.status_code == 400
-
-    def test_unknown_vault_rejected(
         self, client, fake_internal, viewer_cookie
     ):
         res = client.post(
             "/distill",
-            json=_distill_payload(vault_id=9999),
-            headers={"Cookie": viewer_cookie, "X-Lit-Drive": "test-drive"},
+            json=_distill_payload(),
+            headers={"Cookie": viewer_cookie},
         )
-        assert res.status_code == 404
+        assert res.status_code == 400
 
     def test_cross_drive_source_rejected(
-        self, client, fake_internal, alice_vault, viewer_cookie
+        self, client, fake_internal, viewer_cookie
     ):
         fake_internal.file_info_override["src1"] = {
             "id": "src1",
@@ -237,40 +205,38 @@ class TestDistillGuards:
         }
         res = client.post(
             "/distill",
-            json=_distill_payload(vault_id=alice_vault.id),
+            json=_distill_payload(),
             headers={"Cookie": viewer_cookie, "X-Lit-Drive": "test-drive"},
         )
         assert res.status_code == 400
 
     def test_readonly_drive_returns_403(
-        self, client, fake_internal, alice_vault, viewer_cookie
+        self, client, fake_internal, viewer_cookie
     ):
         fake_internal.create_text_file_always_fails = 403
         res = client.post(
             "/distill",
-            json=_distill_payload(vault_id=alice_vault.id),
+            json=_distill_payload(),
             headers={"Cookie": viewer_cookie, "X-Lit-Drive": "test-drive"},
         )
         assert res.status_code == 403
 
     def test_path_traversal_in_folder_rejected(
-        self, client, fake_internal, alice_vault, viewer_cookie
+        self, client, fake_internal, viewer_cookie
     ):
         res = client.post(
             "/distill",
-            json=_distill_payload(vault_id=alice_vault.id, folder="../secret"),
+            json=_distill_payload(folder="../secret"),
             headers={"Cookie": viewer_cookie, "X-Lit-Drive": "test-drive"},
         )
         assert res.status_code == 400
 
     def test_slash_in_filename_rejected(
-        self, client, fake_internal, alice_vault, viewer_cookie
+        self, client, fake_internal, viewer_cookie
     ):
         res = client.post(
             "/distill",
-            json=_distill_payload(
-                vault_id=alice_vault.id, filename="sub/file.md"
-            ),
+            json=_distill_payload(filename="sub/file.md"),
             headers={"Cookie": viewer_cookie, "X-Lit-Drive": "test-drive"},
         )
         assert res.status_code == 400
@@ -280,11 +246,11 @@ class TestReverseLookup:
     """GET /notes/by_source_file/{source_file_id}."""
 
     def test_returns_promoted_notes_for_source(
-        self, client, fake_internal, alice_vault, viewer_cookie
+        self, client, fake_internal, viewer_cookie
     ):
         res = client.post(
             "/distill",
-            json=_distill_payload(vault_id=alice_vault.id),
+            json=_distill_payload(),
             headers={"Cookie": viewer_cookie, "X-Lit-Drive": "test-drive"},
         )
         assert res.status_code == 201
@@ -299,15 +265,14 @@ class TestReverseLookup:
         assert len(body) == 1
         entry = body[0]
         assert entry["note_file_id"] == created["note_file_id"]
-        assert entry["vault_id"] == alice_vault.id
         assert entry["drive"] == "test-drive"
-        assert entry["path"] == "Notes/AI-Drafts/vid-summary.md"
+        assert entry["path"] == "AI-Drafts/vid-summary.md"
         assert entry["origin"] == "detailed_summary"
         assert "origin_ref" not in entry
         assert entry["health"] == "healthy"
 
     def test_empty_list_when_no_matches(
-        self, client, fake_internal, alice_vault, viewer_cookie
+        self, client, fake_internal, viewer_cookie
     ):
         res = client.get(
             "/notes/by_source_file/unknown-src",
@@ -316,14 +281,14 @@ class TestReverseLookup:
         assert res.status_code == 200
         assert res.json() == []
 
-    def test_excludes_other_drive_vaults(
-        self, client, fake_internal, alice_vault, viewer_cookie, knowledge_db
+    def test_excludes_other_drives(
+        self, client, fake_internal, viewer_cookie, knowledge_db
     ):
         """A distill recorded against ``test-drive`` is invisible to a
         caller claiming ``media`` — drive boundary enforced at query time."""
         res = client.post(
             "/distill",
-            json=_distill_payload(vault_id=alice_vault.id),
+            json=_distill_payload(),
             headers={"Cookie": viewer_cookie, "X-Lit-Drive": "test-drive"},
         )
         assert res.status_code == 201
@@ -336,7 +301,7 @@ class TestReverseLookup:
         assert res2.json() == []
 
     def test_missing_drive_header_rejected(
-        self, client, fake_internal, alice_vault, viewer_cookie
+        self, client, fake_internal, viewer_cookie
     ):
         res = client.get(
             "/notes/by_source_file/src1",

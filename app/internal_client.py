@@ -1,8 +1,8 @@
 """Thin HTTP client over Litloft core's Internal API.
 
 Used by the knowledge addon to discover which drives the current user
-can access (so we can validate Vault registrations) and to perform the
-core-side file operations we don't duplicate ourselves
+can access and to perform the core-side file operations we don't
+duplicate ourselves
 (``POST /api/drives/{drive}/files``, ``PUT /api/files/{id}/content``).
 
 The caller's Cookie string is passed through as the authorization

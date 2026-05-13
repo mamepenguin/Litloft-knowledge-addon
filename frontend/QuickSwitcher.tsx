@@ -10,10 +10,9 @@ import {
 import { useTranslations } from "next-intl";
 import { FileText, Search } from "lucide-react";
 import {
-  searchVault,
+  searchKnowledge,
   type CoreFileItem,
   type SearchHit,
-  type Vault,
 } from "./api";
 
 const RECENT_LIMIT = 50;
@@ -28,14 +27,14 @@ interface RecentEntry {
   openedAt: number;
 }
 
-function recentKey(vaultId: number): string {
-  return `knowledge:recentFiles:${vaultId}`;
+function recentKey(drive: string): string {
+  return `knowledge:recentFiles:${drive}`;
 }
 
-function loadRecents(vaultId: number): RecentEntry[] {
+function loadRecents(drive: string): RecentEntry[] {
   if (typeof window === "undefined") return [];
   try {
-    const raw = window.localStorage.getItem(recentKey(vaultId));
+    const raw = window.localStorage.getItem(recentKey(drive));
     if (!raw) return [];
     const arr = JSON.parse(raw) as RecentEntry[];
     return Array.isArray(arr) ? arr : [];
@@ -44,11 +43,11 @@ function loadRecents(vaultId: number): RecentEntry[] {
   }
 }
 
-function saveRecents(vaultId: number, recents: RecentEntry[]): void {
+function saveRecents(drive: string, recents: RecentEntry[]): void {
   if (typeof window === "undefined") return;
   try {
     window.localStorage.setItem(
-      recentKey(vaultId),
+      recentKey(drive),
       JSON.stringify(recents.slice(0, RECENT_LIMIT)),
     );
   } catch {
@@ -56,8 +55,8 @@ function saveRecents(vaultId: number, recents: RecentEntry[]): void {
   }
 }
 
-export function recordRecent(vaultId: number, file: CoreFileItem): void {
-  const existing = loadRecents(vaultId);
+export function recordRecent(drive: string, file: CoreFileItem): void {
+  const existing = loadRecents(drive);
   const filtered = existing.filter((e) => e.fileId !== file.id);
   const next: RecentEntry[] = [
     {
@@ -70,7 +69,7 @@ export function recordRecent(vaultId: number, file: CoreFileItem): void {
     },
     ...filtered,
   ];
-  saveRecents(vaultId, next);
+  saveRecents(drive, next);
 }
 
 interface SwitcherItem {
@@ -100,7 +99,6 @@ function hitToItem(h: SearchHit): SwitcherItem {
 
 interface Props {
   drive: string;
-  vault: Vault;
   open: boolean;
   onClose: () => void;
   onSelect: (file: CoreFileItem) => void;
@@ -108,7 +106,6 @@ interface Props {
 
 export default function QuickSwitcher({
   drive,
-  vault,
   open,
   onClose,
   onSelect,
@@ -123,9 +120,8 @@ export default function QuickSwitcher({
   const listRef = useRef<HTMLUListElement | null>(null);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const recents = useMemo(() => loadRecents(vault.id), [vault.id, open]);
+  const recents = useMemo(() => loadRecents(drive), [drive, open]);
 
-  // Reset state when (re)opening
   useEffect(() => {
     if (!open) return;
     setQuery("");
@@ -136,7 +132,6 @@ export default function QuickSwitcher({
     });
   }, [open, recents]);
 
-  // Run server search on query change
   useEffect(() => {
     if (!open) return;
     if (debounceRef.current) clearTimeout(debounceRef.current);
@@ -148,7 +143,7 @@ export default function QuickSwitcher({
     setSearching(true);
     debounceRef.current = setTimeout(async () => {
       try {
-        const res = await searchVault(drive, vault.id, query.trim());
+        const res = await searchKnowledge(drive, query.trim());
         setItems(res.results.map(hitToItem));
         setSelectedIndex(0);
       } catch {
@@ -160,9 +155,8 @@ export default function QuickSwitcher({
     return () => {
       if (debounceRef.current) clearTimeout(debounceRef.current);
     };
-  }, [query, drive, vault.id, open, recents]);
+  }, [query, drive, open, recents]);
 
-  // Scroll selected item into view (guarded — jsdom lacks scrollIntoView)
   useEffect(() => {
     const list = listRef.current;
     if (!list) return;
@@ -180,13 +174,13 @@ export default function QuickSwitcher({
         });
         if (!res.ok) return;
         const file = (await res.json()) as CoreFileItem;
-        recordRecent(vault.id, file);
+        recordRecent(drive, file);
         onSelect(file);
       } catch {
         // ignore — user can retry
       }
     },
-    [vault.id, onSelect],
+    [drive, onSelect],
   );
 
   const handleKeyDown = useCallback(

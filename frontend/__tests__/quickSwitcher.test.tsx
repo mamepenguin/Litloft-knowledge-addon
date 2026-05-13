@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { cleanup, fireEvent, render, screen, waitFor, act } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import QuickSwitcher, { recordRecent } from "../QuickSwitcher";
-import type { CoreFileItem, Vault } from "../api";
+import type { CoreFileItem } from "../api";
 
 vi.mock("next-intl", () => ({
   useTranslations:
@@ -10,22 +10,15 @@ vi.mock("next-intl", () => ({
       key,
 }));
 
-const vault: Vault = {
-  id: 7,
-  label: "Test",
-  drive: "test-drive",
-  path: "vault",
-  is_active: true,
-  created_at: "2026-04-25T00:00:00Z",
-};
+const DRIVE = "test-drive";
 
 function makeFile(id: string, filename: string, title?: string): CoreFileItem {
   return {
     id,
     filename,
     title: title ?? filename,
-    drive: "test-drive",
-    folder_path: "vault",
+    drive: DRIVE,
+    folder_path: "",
     file_type: "text",
     mime_type: "text/markdown",
     thumbnail_url: "",
@@ -67,8 +60,7 @@ describe("QuickSwitcher", () => {
   it("shows empty-recents message when no history and query empty", () => {
     render(
       <QuickSwitcher
-        drive="test-drive"
-        vault={vault}
+        drive={DRIVE}
         open
         onClose={() => {}}
         onSelect={() => {}}
@@ -78,12 +70,11 @@ describe("QuickSwitcher", () => {
   });
 
   it("renders recents when present", () => {
-    recordRecent(vault.id, makeFile("f1", "alpha.md", "Alpha"));
-    recordRecent(vault.id, makeFile("f2", "beta.md", "Beta"));
+    recordRecent(DRIVE, makeFile("f1", "alpha.md", "Alpha"));
+    recordRecent(DRIVE, makeFile("f2", "beta.md", "Beta"));
     render(
       <QuickSwitcher
-        drive="test-drive"
-        vault={vault}
+        drive={DRIVE}
         open
         onClose={() => {}}
         onSelect={() => {}}
@@ -96,7 +87,7 @@ describe("QuickSwitcher", () => {
     expect(items[1]).toHaveTextContent("Alpha");
   });
 
-  it("calls searchVault and renders results when typing", async () => {
+  it("calls searchKnowledge and renders results when typing", async () => {
     vi.useRealTimers();
     const fetchMock = vi.fn(async (input: RequestInfo) => {
       const url = String(input);
@@ -106,7 +97,7 @@ describe("QuickSwitcher", () => {
           status: 200,
           json: async () => ({
             query: "ab",
-            vault_id: vault.id,
+            drive: DRIVE,
             results: [
               { file_id: "h1", filename: "abacus.md", title: "Abacus", snippet: "" },
             ],
@@ -119,8 +110,7 @@ describe("QuickSwitcher", () => {
     vi.stubGlobal("fetch", fetchMock);
     render(
       <QuickSwitcher
-        drive="test-drive"
-        vault={vault}
+        drive={DRIVE}
         open
         onClose={() => {}}
         onSelect={() => {}}
@@ -136,8 +126,8 @@ describe("QuickSwitcher", () => {
 
   it("ArrowDown moves selection and Enter selects", async () => {
     vi.useRealTimers();
-    recordRecent(vault.id, makeFile("f1", "alpha.md", "Alpha"));
-    recordRecent(vault.id, makeFile("f2", "beta.md", "Beta"));
+    recordRecent(DRIVE, makeFile("f1", "alpha.md", "Alpha"));
+    recordRecent(DRIVE, makeFile("f2", "beta.md", "Beta"));
     const onSelect = vi.fn();
     const fileFetched = makeFile("f1", "alpha.md", "Alpha");
     const fetchMock = vi.fn(async () => ({
@@ -148,8 +138,7 @@ describe("QuickSwitcher", () => {
     vi.stubGlobal("fetch", fetchMock);
     render(
       <QuickSwitcher
-        drive="test-drive"
-        vault={vault}
+        drive={DRIVE}
         open
         onClose={() => {}}
         onSelect={onSelect}
@@ -166,8 +155,7 @@ describe("QuickSwitcher", () => {
     const onClose = vi.fn();
     render(
       <QuickSwitcher
-        drive="test-drive"
-        vault={vault}
+        drive={DRIVE}
         open
         onClose={onClose}
         onSelect={() => {}}
@@ -180,16 +168,16 @@ describe("QuickSwitcher", () => {
 
   it("recordRecent dedupes and caps at limit", () => {
     for (let i = 0; i < 60; i++) {
-      recordRecent(vault.id, makeFile(`f${i}`, `n${i}.md`));
+      recordRecent(DRIVE, makeFile(`f${i}`, `n${i}.md`));
     }
     const stored = JSON.parse(
-      window.localStorage.getItem(`knowledge:recentFiles:${vault.id}`)!,
+      window.localStorage.getItem(`knowledge:recentFiles:${DRIVE}`)!,
     );
     expect(stored).toHaveLength(50);
     // Re-recording an existing entry moves it to top, doesn't duplicate
-    recordRecent(vault.id, makeFile("f10", "n10.md"));
+    recordRecent(DRIVE, makeFile("f10", "n10.md"));
     const re = JSON.parse(
-      window.localStorage.getItem(`knowledge:recentFiles:${vault.id}`)!,
+      window.localStorage.getItem(`knowledge:recentFiles:${DRIVE}`)!,
     );
     expect(re[0].fileId).toBe("f10");
     expect(re.filter((e: { fileId: string }) => e.fileId === "f10")).toHaveLength(1);

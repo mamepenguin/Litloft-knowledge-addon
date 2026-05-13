@@ -15,7 +15,7 @@ interface Props {
   /**
    * The folder the source note lives in. Used as the default
    * destination so a click on an unresolved link doesn't scatter
-   * notes across the vault.
+   * notes across the drive.
    */
   defaultFolder: string;
   open: boolean;

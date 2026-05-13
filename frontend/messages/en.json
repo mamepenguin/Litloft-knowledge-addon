@@ -3,30 +3,14 @@
     "title": "Knowledge",
     "loading": "Loading...",
     "empty": {
-      "eyebrow": "Knowledge vault",
+      "eyebrow": "Knowledge",
       "title": "Pick a note to start reading",
       "description": "Pick a note from the sidebar, or create a new one to start writing.",
       "recentHeading": "Recently edited",
       "recentEmpty": "No notes yet.",
       "statsNotes": "{count} notes",
-      "statsEmpty": "Empty vault",
-      "shortcutSearch": "Search",
-      "vaultLabel": "Vault"
-    },
-    "setup": {
-      "title": "Create a Vault",
-      "description": "The Knowledge addon organizes notes inside a Vault (a folder on one of your drives). Let's create your first Vault.",
-      "labelField": "Label",
-      "labelPlaceholder": "e.g. Personal notes",
-      "driveField": "Drive",
-      "pathField": "Folder path (relative to drive root)",
-      "create": "Create",
-      "creating": "Creating...",
-      "cancel": "Cancel"
-    },
-    "switcher": {
-      "none": "No Vault selected",
-      "addNew": "Add new Vault"
+      "statsEmpty": "No notes yet",
+      "shortcutSearch": "Search"
     },
     "quickSwitcher": {
       "title": "Open note",

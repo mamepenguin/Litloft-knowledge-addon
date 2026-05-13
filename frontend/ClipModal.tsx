@@ -4,7 +4,7 @@ import { useEffect } from "react";
 import { useTranslations } from "next-intl";
 import { Link2, X } from "lucide-react";
 import ClipInput, { type ClipDuplicateMatch } from "./ClipInput";
-import type { ClipJob, Vault } from "./api";
+import type { ClipJob } from "./api";
 
 export interface RecentJob {
   status: "fetching" | "ready" | "failed";
@@ -16,7 +16,6 @@ export interface RecentJob {
 
 interface Props {
   drive: string;
-  vault: Vault;
   open: boolean;
   onClose: () => void;
   prefillUrl?: string;
@@ -34,7 +33,6 @@ interface Props {
 
 export default function ClipModal({
   drive,
-  vault,
   open,
   onClose,
   prefillUrl = "",
@@ -92,7 +90,6 @@ export default function ClipModal({
         <div className="flex flex-col gap-4 px-5 py-4">
           <ClipInput
             drive={drive}
-            vault={vault}
             initialUrl={prefillUrl}
             initialTitle={prefillTitle}
             autoSubmit={autoSubmit}

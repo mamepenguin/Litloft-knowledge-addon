@@ -4,14 +4,14 @@ import { useCallback, useState } from "react";
 
 export type SortMode = "updated_desc" | "created_desc" | "name_asc";
 
-function sortStorageKey(vaultId: number): string {
-  return `knowledge:sort:${vaultId}`;
+function sortStorageKey(drive: string): string {
+  return `knowledge:sort:${drive}`;
 }
 
-function loadSortMode(vaultId: number): SortMode {
+function loadSortMode(drive: string): SortMode {
   if (typeof window === "undefined") return "updated_desc";
   try {
-    const raw = window.localStorage.getItem(sortStorageKey(vaultId));
+    const raw = window.localStorage.getItem(sortStorageKey(drive));
     if (raw === "updated_desc" || raw === "created_desc" || raw === "name_asc") {
       return raw;
     }
@@ -21,17 +21,17 @@ function loadSortMode(vaultId: number): SortMode {
   }
 }
 
-function saveSortMode(vaultId: number, mode: SortMode): void {
+function saveSortMode(drive: string, mode: SortMode): void {
   if (typeof window === "undefined") return;
   try {
-    window.localStorage.setItem(sortStorageKey(vaultId), mode);
+    window.localStorage.setItem(sortStorageKey(drive), mode);
   } catch {
     // ignore quota / disabled storage
   }
 }
 
-export function useSortMode(vaultId: number) {
-  const [sortMode, setSortMode] = useState<SortMode>(() => loadSortMode(vaultId));
+export function useSortMode(drive: string) {
+  const [sortMode, setSortMode] = useState<SortMode>(() => loadSortMode(drive));
 
   const cycleSortMode = useCallback(() => {
     setSortMode((prev) => {
@@ -41,10 +41,10 @@ export function useSortMode(vaultId: number) {
           : prev === "created_desc"
             ? "name_asc"
             : "updated_desc";
-      saveSortMode(vaultId, next);
+      saveSortMode(drive, next);
       return next;
     });
-  }, [vaultId]);
+  }, [drive]);
 
   return { sortMode, cycleSortMode };
 }

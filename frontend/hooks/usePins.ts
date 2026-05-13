@@ -7,21 +7,21 @@ export interface PinnedNote {
   id: string;
   filename: string;
   title: string;
-  vaultId: number;
+  drive: string;
 }
 
-function storageKey(vaultId: number): string {
-  return `knowledge:pins:${vaultId}`;
+function storageKey(drive: string): string {
+  return `knowledge:pins:${drive}`;
 }
 
-function collapsedKey(vaultId: number): string {
-  return `knowledge:pins:collapsed:${vaultId}`;
+function collapsedKey(drive: string): string {
+  return `knowledge:pins:collapsed:${drive}`;
 }
 
-function loadPins(vaultId: number): PinnedNote[] {
+function loadPins(drive: string): PinnedNote[] {
   if (typeof window === "undefined") return [];
   try {
-    const raw = window.localStorage.getItem(storageKey(vaultId));
+    const raw = window.localStorage.getItem(storageKey(drive));
     if (!raw) return [];
     return JSON.parse(raw) as PinnedNote[];
   } catch {
@@ -29,61 +29,61 @@ function loadPins(vaultId: number): PinnedNote[] {
   }
 }
 
-function savePins(vaultId: number, pins: PinnedNote[]): void {
+function savePins(drive: string, pins: PinnedNote[]): void {
   if (typeof window === "undefined") return;
   try {
-    window.localStorage.setItem(storageKey(vaultId), JSON.stringify(pins));
+    window.localStorage.setItem(storageKey(drive), JSON.stringify(pins));
   } catch {
     // ignore quota / disabled storage
   }
 }
 
-export function loadPinsCollapsed(vaultId: number): boolean {
+export function loadPinsCollapsed(drive: string): boolean {
   if (typeof window === "undefined") return false;
   try {
-    return window.localStorage.getItem(collapsedKey(vaultId)) === "1";
+    return window.localStorage.getItem(collapsedKey(drive)) === "1";
   } catch {
     return false;
   }
 }
 
-export function savePinsCollapsed(vaultId: number, collapsed: boolean): void {
+export function savePinsCollapsed(drive: string, collapsed: boolean): void {
   if (typeof window === "undefined") return;
   try {
-    if (collapsed) window.localStorage.setItem(collapsedKey(vaultId), "1");
-    else window.localStorage.removeItem(collapsedKey(vaultId));
+    if (collapsed) window.localStorage.setItem(collapsedKey(drive), "1");
+    else window.localStorage.removeItem(collapsedKey(drive));
   } catch {
     // ignore quota / disabled storage
   }
 }
 
-export function usePins(vaultId: number) {
-  const [pins, setPins] = useState<PinnedNote[]>(() => loadPins(vaultId));
+export function usePins(drive: string) {
+  const [pins, setPins] = useState<PinnedNote[]>(() => loadPins(drive));
 
   const pin = useCallback(
     (file: CoreFileItem) => {
       setPins((prev) => {
         if (prev.some((p) => p.id === file.id)) return prev;
         const next: PinnedNote[] = [
-          { id: file.id, filename: file.filename, title: file.title, vaultId },
+          { id: file.id, filename: file.filename, title: file.title, drive },
           ...prev,
         ];
-        savePins(vaultId, next);
+        savePins(drive, next);
         return next;
       });
     },
-    [vaultId],
+    [drive],
   );
 
   const unpin = useCallback(
     (fileId: string) => {
       setPins((prev) => {
         const next = prev.filter((p) => p.id !== fileId);
-        savePins(vaultId, next);
+        savePins(drive, next);
         return next;
       });
     },
-    [vaultId],
+    [drive],
   );
 
   const isPinned = useCallback(
@@ -100,11 +100,11 @@ export function usePins(vaultId: number) {
         const next = [...prev];
         const [item] = next.splice(fromIndex, 1);
         next.splice(toIndex, 0, item);
-        savePins(vaultId, next);
+        savePins(drive, next);
         return next;
       });
     },
-    [vaultId],
+    [drive],
   );
 
   const updatePinTitle = useCallback(
@@ -113,11 +113,11 @@ export function usePins(vaultId: number) {
         const next = prev.map((p) =>
           p.id === fileId ? { ...p, filename: newFilename, title: newTitle } : p,
         );
-        savePins(vaultId, next);
+        savePins(drive, next);
         return next;
       });
     },
-    [vaultId],
+    [drive],
   );
 
   return { pins, pin, unpin, isPinned, reorder, updatePinTitle };

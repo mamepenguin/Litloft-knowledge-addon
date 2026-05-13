@@ -26,7 +26,7 @@ interface Props {
  * frontmatter block via `showFrontmatter={false}`.
  *
  * Drive-scoped: the edit link points at the drive-prefixed knowledge
- * URL so the user lands in the same drive's Vault context.
+ * URL so the user lands in the same drive's knowledge context.
  */
 export default function ActiveSummarySection({
   fileId: _fileId,

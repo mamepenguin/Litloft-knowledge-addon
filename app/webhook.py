@@ -39,30 +39,30 @@ HEALTH_ORPHANED = "orphaned"
 
 @dataclass
 class _NoteKey:
-    vault_id: int
+    drive: str
     note_path: str
 
-    def as_tuple(self) -> tuple[int, str]:
-        return (self.vault_id, self.note_path)
+    def as_tuple(self) -> tuple[str, str]:
+        return (self.drive, self.note_path)
 
 
 def _load_affected_notes(
     session: Session, source_file_ids: list[str]
 ) -> list[_NoteKey]:
-    """Return every (vault_id, note_path) that references any of the IDs."""
+    """Return every (drive, note_path) that references any of the IDs."""
     if not source_file_ids:
         return []
     rows = session.execute(
-        select(NoteOriginSource.vault_id, NoteOriginSource.note_path)
+        select(NoteOriginSource.drive, NoteOriginSource.note_path)
         .where(NoteOriginSource.source_file_id.in_(source_file_ids))
         .distinct()
     ).all()
-    return [_NoteKey(vault_id=r[0], note_path=r[1]) for r in rows]
+    return [_NoteKey(drive=r[0], note_path=r[1]) for r in rows]
 
 
 def _sources_for_notes(
     session: Session, notes: list[_NoteKey]
-) -> dict[tuple[int, str], list[str]]:
+) -> dict[tuple[str, str], list[str]]:
     if not notes:
         return {}
     keys = [n.as_tuple() for n in notes]
@@ -70,18 +70,18 @@ def _sources_for_notes(
 
     rows = session.execute(
         select(
-            NoteOriginSource.vault_id,
+            NoteOriginSource.drive,
             NoteOriginSource.note_path,
             NoteOriginSource.source_file_id,
         ).where(
             sql_tuple(
-                NoteOriginSource.vault_id, NoteOriginSource.note_path
+                NoteOriginSource.drive, NoteOriginSource.note_path
             ).in_(keys)
         )
     ).all()
-    by_note: dict[tuple[int, str], list[str]] = {}
-    for vid, path, fid in rows:
-        by_note.setdefault((vid, path), []).append(fid)
+    by_note: dict[tuple[str, str], list[str]] = {}
+    for drv, path, fid in rows:
+        by_note.setdefault((drv, path), []).append(fid)
     return by_note
 
 
@@ -113,7 +113,7 @@ def _update_health(
         result = (
             session.query(NoteOrigin)
             .filter(
-                NoteOrigin.vault_id == note.vault_id,
+                NoteOrigin.drive == note.drive,
                 NoteOrigin.note_path == note.note_path,
             )
             .update(

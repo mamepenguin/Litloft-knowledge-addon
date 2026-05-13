@@ -1,9 +1,9 @@
-"""Vault-scoped full-text search.
+"""Drive-scoped full-text search.
 
-This is a substring search, not a search index — small personal vaults
-don't need a Lucene. We list the vault's files via the core, fetch each
-one's content, strip frontmatter, and test for the query. Results are
-capped so a runaway vault can't wedge the worker event loop.
+This is a substring search, not a search index — small personal drives
+don't need a Lucene. We list the drive's text files via the core, fetch
+each one's content, strip frontmatter, and test for the query. Results
+are capped so a runaway drive can't wedge the worker event loop.
 
 Per spec, the Generic Addon Proxy filters ``results[].file_id`` against
 the viewer's drive access as a defense-in-depth; we rely on the
@@ -18,12 +18,9 @@ from typing import Annotated
 from urllib.parse import unquote
 
 from fastapi import APIRouter, Depends, Header, HTTPException, Query
-from sqlalchemy.orm import Session
 
 from app.auth import get_viewer_id
-from app.database import get_db
 from app.internal_client import InternalAPIError, InternalClient
-from app.models import UserVault
 from app.schemas import SearchHit, SearchResponse
 from app.services.textsearch import find_snippet, matches, strip_frontmatter
 
@@ -43,19 +40,6 @@ def _require_drive(drive: str | None) -> str:
     # Frontend percent-encodes the header so non-ASCII drive names
     # survive HTTP transit (header values are ISO-8859-1).
     return unquote(drive)
-
-
-def _get_vault_or_404(
-    db: Session, vault_id: int, viewer_id: str, drive: str
-) -> UserVault:
-    vault = db.query(UserVault).filter(
-        UserVault.id == vault_id,
-        UserVault.viewer_id == viewer_id,
-        UserVault.drive == drive,
-    ).first()
-    if vault is None:
-        raise HTTPException(status_code=404, detail="Vault not found")
-    return vault
 
 
 async def _fetch_and_match(
@@ -82,21 +66,18 @@ async def _fetch_and_match(
 
 
 @router.get("", response_model=SearchResponse)
-async def search_vault(
-    vault_id: int = Query(..., ge=1),
+async def search_drive(
     q: str = Query(..., min_length=1, max_length=200),
-    db: Session = Depends(get_db),
     viewer_id: str = Depends(get_viewer_id),
     cookie: Annotated[str | None, Header(alias="Cookie")] = None,
     x_hv_drive: Annotated[str | None, Header(alias="X-Lit-Drive")] = None,
 ):
     drive = _require_drive(x_hv_drive)
-    vault = _get_vault_or_404(db, vault_id, viewer_id, drive)
 
     client = InternalClient(cookie_header=cookie)
     try:
         all_files = await client.list_drive_files(
-            vault.drive, vault.path, limit=_MAX_SCAN_FILES
+            drive, "", limit=_MAX_SCAN_FILES
         )
     except InternalAPIError as e:
         raise HTTPException(status_code=502, detail=str(e))
@@ -116,5 +97,5 @@ async def search_vault(
         truncated = True
 
     return SearchResponse(
-        query=q, vault_id=vault_id, results=hits, truncated=truncated
+        query=q, drive=drive, results=hits, truncated=truncated
     )

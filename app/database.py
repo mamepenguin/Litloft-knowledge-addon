@@ -1,4 +1,4 @@
-"""SQLite-backed storage for Vault registrations and webclip job state.
+"""SQLite-backed storage for note origin cache and webclip job state.
 
 knowledge owns its own DB — it never writes to the Litloft core DB. The
 schema is managed by ``init_schema()`` (CREATE IF NOT EXISTS) called from
@@ -40,28 +40,47 @@ engine = _engine_for(str(DB_PATH))
 SessionLocal = sessionmaker(bind=engine, autoflush=False, autocommit=False, future=True)
 
 
-def _migrate_user_vault_state_to_drive_scope() -> None:
-    """Drop the legacy ``user_vault_state`` table when it predates the
-    drive-scoped PK.
+def _migrate_drop_vault_tables() -> None:
+    """Drop legacy ``user_vaults`` and ``user_vault_state`` tables.
 
-    The spec (2026-04-14-knowledge-drive-scope) accepts resetting active
-    Vault selection: a user's real Vault rows live in ``user_vaults`` and
-    survive; active pointers are cheap to re-pick per drive. We check for
-    the ``drive`` column and drop the table if it's missing so the
-    subsequent ``create_all`` rebuilds it with the composite PK.
+    The vault concept has been removed entirely (drives are the only
+    scope). The tables are dropped wholesale because no backwards
+    compatibility is needed and the data is replayable from frontmatter.
     """
     insp = inspect(engine)
-    if "user_vault_state" not in insp.get_table_names():
+    existing = set(insp.get_table_names())
+    for table in ("user_vault_state", "user_vaults"):
+        if table in existing:
+            with engine.begin() as conn:
+                conn.execute(text(f"DROP TABLE {table}"))
+            logger.info("knowledge: dropped legacy %s table", table)
+
+
+def _migrate_note_origins_to_drive_scope() -> None:
+    """Replace ``note_origins.vault_id`` with ``note_origins.drive``.
+
+    Drops the legacy ``note_origins`` and ``note_origin_sources`` tables
+    wholesale — the historical ``drive`` value cannot be recovered from
+    ``vault_id`` once ``user_vaults`` is gone, and the frontmatter
+    scanner will repopulate both tables from ``.md`` files on its next
+    pass. ``Base.metadata.create_all`` (called right after) recreates
+    them with the new schema.
+    """
+    insp = inspect(engine)
+    if "note_origins" not in insp.get_table_names():
         return
-    cols = {c["name"] for c in insp.get_columns("user_vault_state")}
+    cols = {c["name"] for c in insp.get_columns("note_origins")}
     if "drive" in cols:
         return
+    if "vault_id" not in cols:
+        return
     logger.warning(
-        "knowledge: migrating user_vault_state to drive-scoped schema "
-        "(dropping legacy table; active Vault selection will reset)"
+        "knowledge: migrating note_origins to drive-scoped schema "
+        "(dropping legacy rows; scanner will rebuild from frontmatter)"
     )
     with engine.begin() as conn:
-        conn.execute(text("DROP TABLE user_vault_state"))
+        conn.execute(text("DROP TABLE IF EXISTS note_origin_sources"))
+        conn.execute(text("DROP TABLE note_origins"))
 
 
 def _migrate_drop_note_origin_ref() -> None:
@@ -92,6 +111,32 @@ def _migrate_drop_note_origin_ref() -> None:
         )
 
 
+def _migrate_clip_jobs_add_drive() -> None:
+    """Add ``clip_jobs.drive`` if the column is missing.
+
+    Drops legacy rows because the historical ``drive`` value cannot be
+    recovered from `(viewer_id, url)` alone, and we'd rather lose the
+    duplicate-URL probe history than misattribute existing rows to the
+    wrong drive (which would violate the drive boundary).
+    """
+    insp = inspect(engine)
+    if "clip_jobs" not in insp.get_table_names():
+        return
+    cols = {c["name"] for c in insp.get_columns("clip_jobs")}
+    if "drive" in cols:
+        return
+    logger.warning(
+        "knowledge: clip_jobs is missing `drive` — clearing legacy rows "
+        "(drive cannot be recovered from viewer_id+url)"
+    )
+    with engine.begin() as conn:
+        conn.execute(text("DELETE FROM clip_jobs"))
+        conn.execute(
+            text("ALTER TABLE clip_jobs ADD COLUMN drive VARCHAR(128) NOT NULL DEFAULT ''")
+        )
+        conn.execute(text("CREATE INDEX IF NOT EXISTS ix_clip_jobs_drive ON clip_jobs(drive)"))
+
+
 def _migrate_add_tags_synced_at() -> None:
     """Add ``note_origins.tags_synced_at`` if the column is missing.
 
@@ -115,7 +160,9 @@ def _migrate_add_tags_synced_at() -> None:
 
 def init_schema() -> None:
     """Create all tables if not present. Safe to call on every startup."""
-    _migrate_user_vault_state_to_drive_scope()
+    _migrate_note_origins_to_drive_scope()
+    _migrate_drop_vault_tables()
+    _migrate_clip_jobs_add_drive()
     Base.metadata.create_all(bind=engine)
     _migrate_drop_note_origin_ref()
     _migrate_add_tags_synced_at()

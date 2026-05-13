@@ -9,14 +9,7 @@ vi.mock("next-intl", () => ({
 }));
 
 const Sidebar = (await import("../Sidebar")).default;
-const vault = {
-  id: 1,
-  label: "Vault",
-  drive: "v",
-  path: "",
-  is_active: true,
-  created_at: "",
-};
+const DRIVE = "v";
 
 type FolderRow = {
   name: string;
@@ -75,7 +68,7 @@ function makeFile(id: string, filename: string, folder = ""): FileRow {
     id,
     filename,
     title: "",
-    drive: "v",
+    drive: DRIVE,
     folder_path: folder,
     file_type: "document",
     mime_type: "text/markdown",
@@ -121,12 +114,8 @@ describe("Sidebar tree", () => {
     });
     render(
       <Sidebar
-        drive="v"
-        vaults={[vault]}
-        active={vault}
+        drive={DRIVE}
         selectedFileId={null}
-        onSwitchVault={noop}
-        onAddVault={noop}
         onSelectFile={noop}
         onOpenClip={noop}
         onOpenClipHelp={noop}
@@ -149,12 +138,8 @@ describe("Sidebar tree", () => {
     });
     render(
       <Sidebar
-        drive="v"
-        vaults={[vault]}
-        active={vault}
+        drive={DRIVE}
         selectedFileId={null}
-        onSwitchVault={noop}
-        onAddVault={noop}
         onSelectFile={noop}
         onOpenClip={noop}
         onOpenClipHelp={noop}
@@ -181,7 +166,7 @@ describe("Sidebar tree", () => {
   });
 
   it("restores expanded folders from localStorage and prefetches their contents", async () => {
-    storage.set("knowledge:tree:1:expanded", JSON.stringify(["sub"]));
+    storage.set(`knowledge:tree:${DRIVE}:expanded`, JSON.stringify(["sub"]));
     stubTree({
       "": {
         folders: [{ name: "sub", path: "sub", file_count: 1, thumbnail_file_id: null }],
@@ -194,12 +179,8 @@ describe("Sidebar tree", () => {
     });
     render(
       <Sidebar
-        drive="v"
-        vaults={[vault]}
-        active={vault}
+        drive={DRIVE}
         selectedFileId={null}
-        onSwitchVault={noop}
-        onAddVault={noop}
         onSelectFile={noop}
         onOpenClip={noop}
         onOpenClipHelp={noop}

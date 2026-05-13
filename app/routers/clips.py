@@ -1,14 +1,14 @@
 """Webclip ingestion endpoints.
 
 Flow:
-  1. Client POSTs a URL + vault_id.
+  1. Client POSTs a URL (+ optional subfolder/title).
   2. We SSRF-validate the URL up front. A structural rejection here
      avoids creating an on-disk placeholder for a URL we'd never
      fetch anyway.
   3. We synthesize a tentative filename from the URL, then ask the
      core to create a placeholder ``.md`` with a ``status: fetching``
      frontmatter. The core owns the drive, so this is how we land a
-     file in the user's vault while observing drive access control.
+     file in the drive while observing drive access control.
   4. We persist a ClipJob row and hand the task to the worker. The
      response returns right away — the UI tails a WebSocket for
      ``knowledge.clip.ready`` to know when to refresh.
@@ -25,13 +25,13 @@ from datetime import datetime, timezone
 from typing import Annotated
 from urllib.parse import unquote
 
-from fastapi import APIRouter, Cookie, Depends, Header, HTTPException, Query
+from fastapi import APIRouter, Depends, Header, HTTPException, Query
 from sqlalchemy.orm import Session
 
 from app.auth import get_viewer_id
 from app.database import get_db
 from app.internal_client import InternalAPIError, InternalClient
-from app.models import ClipJob, UserVault
+from app.models import ClipJob
 from app.sanitize import build_frontmatter, slugify_filename
 from app.schemas import ClipCreate, ClipJobOut, ClipPasted
 from app.services.extractor import ExtractedArticle, extract_article, sanitize_pasted_html
@@ -92,30 +92,15 @@ def _require_drive(drive: str | None) -> str:
     return unquote(drive)
 
 
-def _get_vault_or_404(
-    db: Session, vault_id: int, viewer_id: str, drive: str
-) -> UserVault:
-    vault = db.query(UserVault).filter(
-        UserVault.id == vault_id,
-        UserVault.viewer_id == viewer_id,
-        UserVault.drive == drive,
-    ).first()
-    if vault is None:
-        raise HTTPException(status_code=404, detail="Vault not found")
-    return vault
+def _join_path(subfolder: str | None, filename: str) -> str:
+    """Compose ``{subfolder}/{filename}`` with clean separators.
 
-
-def _join_vault_path(vault: UserVault, subfolder: str | None, filename: str) -> str:
-    """Compose ``{vault.path}/{subfolder}/{filename}`` with clean separators.
-
-    ``vault.path`` and ``subfolder`` are both optional; missing segments
-    are elided instead of leaving empty path components. The core does
-    the authoritative resolution, this just avoids double slashes that
-    the core would reject.
+    ``subfolder`` is optional; missing segments are elided instead of
+    leaving empty path components. The core does the authoritative
+    resolution, this just avoids double slashes that the core would
+    reject.
     """
     parts: list[str] = []
-    if vault.path:
-        parts.append(vault.path.strip("/"))
     if subfolder:
         parts.append(subfolder.strip("/"))
     parts.append(filename)
@@ -124,14 +109,14 @@ def _join_vault_path(vault: UserVault, subfolder: str | None, filename: str) -> 
 
 async def _create_placeholder(
     client: InternalClient,
-    vault: UserVault,
+    drive: str,
     url: str,
     subfolder: str | None = None,
     title: str | None = None,
 ) -> tuple[dict, str]:
     """Create the fetching-state placeholder .md. Returns (file, etag).
 
-    ``subfolder`` is Vault-relative; None or empty means the Vault root.
+    ``subfolder`` is drive-relative; None or empty means the drive root.
     ``title`` is an optional page-title hint — when provided the file
     lands with a readable name; otherwise we use a timestamped stub and
     rely on rename-on-ready to upgrade it after extraction.
@@ -141,19 +126,19 @@ async def _create_placeholder(
     if subfolder:
         validate_relative_path(subfolder)
     slug = _placeholder_slug(title)
-    rel_path = _join_vault_path(vault, subfolder, slug)
+    rel_path = _join_path(subfolder, slug)
     content = _initial_content(url)
     try:
-        created = await client.create_text_file(vault.drive, rel_path, content)
+        created = await client.create_text_file(drive, rel_path, content)
     except InternalAPIError as e:
         # 409: filename collision. Retry once with a timestamp suffix.
         if e.status_code == 409:
             ts = datetime.now(timezone.utc).strftime("%Y%m%d-%H%M%S")
             slug2 = slug[:-3] + f"-{ts}.md"
-            rel_path = _join_vault_path(vault, subfolder, slug2)
+            rel_path = _join_path(subfolder, slug2)
             try:
                 created = await client.create_text_file(
-                    vault.drive, rel_path, content
+                    drive, rel_path, content
                 )
             except InternalAPIError as e2:
                 raise HTTPException(status_code=502, detail=str(e2))
@@ -167,22 +152,23 @@ async def search_clips(
     db: Annotated[Session, Depends(get_db)],
     viewer_id: Annotated[str, Depends(get_viewer_id)],
     url: Annotated[str, Query(min_length=1, max_length=4000)],
-    vault_id: Annotated[int, Query()],
     x_hv_drive: Annotated[str | None, Header(alias="X-Lit-Drive")] = None,
 ):
-    """Look up existing ClipJobs for a URL within a Vault.
+    """Look up existing ClipJobs for a URL within the current drive.
 
     Used by the frontend to detect duplicate URL submissions before
-    POSTing a new clip. Drive is verified to protect against
-    cross-drive viewer_id leakage — a viewer with access to drive A
-    cannot probe drive B's Vault IDs through this endpoint.
+    POSTing a new clip. The query is scoped to ``(viewer_id, drive)``
+    so a viewer cannot probe whether they clipped the same URL on a
+    different drive — drive is the security boundary.
     """
     drive = _require_drive(x_hv_drive)
-    # Ensures viewer owns the Vault and it lives on the requested drive.
-    _get_vault_or_404(db, vault_id, viewer_id, drive)
     jobs = (
         db.query(ClipJob)
-        .filter(ClipJob.viewer_id == viewer_id, ClipJob.url == url)
+        .filter(
+            ClipJob.viewer_id == viewer_id,
+            ClipJob.drive == drive,
+            ClipJob.url == url,
+        )
         .order_by(ClipJob.id.desc())
         .limit(10)
         .all()
@@ -210,16 +196,15 @@ async def create_clip(
     except BlockedURL as e:
         raise HTTPException(status_code=400, detail=f"URL rejected: {e}")
 
-    vault = _get_vault_or_404(db, body.vault_id, viewer_id, drive)
-
     client = InternalClient(cookie_header=cookie)
-    created, etag = await _create_placeholder(
-        client, vault, body.url, subfolder=body.subfolder, title=body.title
+    created, _etag = await _create_placeholder(
+        client, drive, body.url, subfolder=body.subfolder, title=body.title
     )
 
     job = ClipJob(
         file_id=created["id"],
         viewer_id=viewer_id,
+        drive=drive,
         url=body.url,
         status="fetching",
     )
@@ -236,11 +221,8 @@ async def create_clip(
             viewer_id=viewer_id,
             url=body.url,
             cookie_header=cookie or "",
-            drive=vault.drive,
+            drive=drive,
         ))
-    # Stash the initial etag on the job's error column? No — use a
-    # dedicated handler that computes from content we just wrote.
-    # Callers publish via on_done hook using InternalClient + PUT.
 
     return ClipJobOut(job_id=job.id, file_id=created["id"], status="fetching")
 
@@ -261,8 +243,6 @@ async def create_clip_from_html(
     except BlockedURL as e:
         raise HTTPException(status_code=400, detail=f"URL rejected: {e}")
 
-    vault = _get_vault_or_404(db, body.vault_id, viewer_id, drive)
-
     # Sanitize and extract synchronously — no network involved.
     safe_html = sanitize_pasted_html(body.html)
     try:
@@ -272,7 +252,7 @@ async def create_clip_from_html(
 
     client = InternalClient(cookie_header=cookie)
     created, initial_etag = await _create_placeholder(
-        client, vault, body.url, subfolder=body.subfolder, title=body.title
+        client, drive, body.url, subfolder=body.subfolder, title=body.title
     )
 
     # Overwrite placeholder with the extracted markdown immediately.
@@ -287,6 +267,7 @@ async def create_clip_from_html(
     job = ClipJob(
         file_id=created["id"],
         viewer_id=viewer_id,
+        drive=drive,
         url=body.url,
         status="ready",
     )

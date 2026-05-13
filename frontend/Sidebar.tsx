@@ -10,10 +10,8 @@ import {
 } from "react";
 import {
   ArrowUpDown,
-  Check,
   ChevronDown,
   ChevronRight,
-  ChevronsUpDown,
   CircleHelp,
   FileText,
   FilePlus,
@@ -28,22 +26,20 @@ import {
 } from "lucide-react";
 import { useTranslations } from "next-intl";
 import {
-  activateVault,
   createFolder,
   createTextFile,
   deleteFolderApi,
-  listVaultFiles,
-  listVaultFolders,
+  listKnowledgeFiles,
+  listKnowledgeFolders,
   moveFile,
   moveFolder,
   renameFile,
   renameFolderApi,
-  searchVault,
+  searchKnowledge,
   trashFile,
   type CoreFileItem,
   type CoreFolderItem,
   type SearchHit,
-  type Vault,
 } from "./api";
 import ContextMenu, { type ContextAction } from "./ContextMenu";
 import MoveDialog from "./MoveDialog";
@@ -87,40 +83,32 @@ function isAncestorOrSelf(targetPath: string, dragged: DraggedItem): boolean {
 
 interface Props {
   drive: string;
-  vaults: Vault[];
-  active: Vault;
   selectedFileId: string | null;
   selectedFolderPath?: string | null;
   reloadKey?: number;
   fetchingClipsCount?: number;
-  onSwitchVault: (v: Vault) => void;
-  onAddVault: () => void;
   onSelectFile: (f: CoreFileItem) => void;
   onOpenFolder?: (path: string, name: string) => void;
   onOpenClip: () => void;
   onOpenClipHelp: () => void;
-  // Pins
   pins?: PinnedNote[];
   onPin?: (file: CoreFileItem) => void;
   onUnpin?: (fileId: string) => void;
   isPinned?: (fileId: string) => boolean;
   onPinReorder?: (from: number, to: number) => void;
-  // Delete notifications
   onRequestDelete?: (file: CoreFileItem) => void;
   onRequestDeleteFolder?: (folder: CoreFolderItem) => void;
-  // External ref to the search input — lets the parent focus it from a
-  // shortcut handler without coupling to internal Sidebar state.
   searchInputRef?: RefObject<HTMLInputElement | null>;
 }
 
-function expandedStorageKey(vaultId: number): string {
-  return `knowledge:tree:${vaultId}:expanded`;
+function expandedStorageKey(drive: string): string {
+  return `knowledge:tree:${drive}:expanded`;
 }
 
-function loadExpanded(vaultId: number, rootPath: string): Set<string> {
+function loadExpanded(drive: string, rootPath: string): Set<string> {
   if (typeof window === "undefined") return new Set([rootPath]);
   try {
-    const raw = window.localStorage.getItem(expandedStorageKey(vaultId));
+    const raw = window.localStorage.getItem(expandedStorageKey(drive));
     if (!raw) return new Set([rootPath]);
     const arr = JSON.parse(raw) as string[];
     return new Set([rootPath, ...arr]);
@@ -129,11 +117,11 @@ function loadExpanded(vaultId: number, rootPath: string): Set<string> {
   }
 }
 
-function saveExpanded(vaultId: number, set: Set<string>): void {
+function saveExpanded(drive: string, set: Set<string>): void {
   if (typeof window === "undefined") return;
   try {
     window.localStorage.setItem(
-      expandedStorageKey(vaultId),
+      expandedStorageKey(drive),
       JSON.stringify([...set]),
     );
   } catch {
@@ -143,14 +131,10 @@ function saveExpanded(vaultId: number, set: Set<string>): void {
 
 export default function Sidebar({
   drive,
-  vaults,
-  active,
   selectedFileId,
   selectedFolderPath,
   reloadKey = 0,
   fetchingClipsCount = 0,
-  onSwitchVault,
-  onAddVault,
   onSelectFile,
   onOpenFolder,
   onOpenClip,
@@ -168,15 +152,14 @@ export default function Sidebar({
   const tSearch = useTranslations("knowledge.search");
   const tSidebar = useTranslations("knowledge.sidebar");
   const tPins = useTranslations("knowledge.pins");
-  const tRename = useTranslations("knowledge.rename");
 
-  const rootPath = active.path;
+  const rootPath = "";
 
   const [contents, setContents] = useState<Map<string, Contents>>(new Map());
   const [loadingPaths, setLoadingPaths] = useState<Set<string>>(new Set());
   const [errors, setErrors] = useState<Map<string, string>>(new Map());
   const [expanded, setExpanded] = useState<Set<string>>(() =>
-    loadExpanded(active.id, rootPath),
+    loadExpanded(drive, rootPath),
   );
 
   const [query, setQuery] = useState("");
@@ -192,41 +175,33 @@ export default function Sidebar({
   const internalSearchInputRef = useRef<HTMLInputElement | null>(null);
   const searchInputRef = externalSearchInputRef ?? internalSearchInputRef;
 
-  // D&D state
   const [draggedItem, setDraggedItem] = useState<DraggedItem | null>(null);
   const [dropTargetPath, setDropTargetPath] = useState<string | null>(null);
   const [moving, setMoving] = useState(false);
 
-  // Context menu
   const { contextMenu, openContextMenu, closeContextMenu } = useContextMenu();
 
-  // Rename state
-  const [renamingId, setRenamingId] = useState<string | null>(null); // file id or folder path
+  const [renamingId, setRenamingId] = useState<string | null>(null);
 
-  // Sort
-  const { sortMode, cycleSortMode } = useSortMode(active.id);
+  const { sortMode, cycleSortMode } = useSortMode(drive);
 
-  // Move dialog
   const [moveTarget, setMoveTarget] = useState<ContextTarget | null>(null);
 
-  // Tag panel
   const [tagTarget, setTagTarget] = useState<{
     fileId: string;
     x: number;
     y: number;
   } | null>(null);
 
-  // Pins section collapsed
   const [pinsCollapsed, setPinsCollapsed] = useState(() =>
-    loadPinsCollapsed(active.id),
+    loadPinsCollapsed(drive),
   );
 
-  // Pin DnD
   const [draggedPinIndex, setDraggedPinIndex] = useState<number | null>(null);
 
   useEffect(() => {
-    saveExpanded(active.id, expanded);
-  }, [active.id, expanded]);
+    saveExpanded(drive, expanded);
+  }, [drive, expanded]);
 
   const loadPath = useCallback(
     async (path: string): Promise<void> => {
@@ -238,8 +213,8 @@ export default function Sidebar({
       });
       try {
         const [f, fd] = await Promise.all([
-          listVaultFiles(active.drive, path),
-          listVaultFolders(active.drive, path),
+          listKnowledgeFiles(drive, path),
+          listKnowledgeFolders(drive, path),
         ]);
         setContents((prev) => {
           const next = new Map(prev);
@@ -267,17 +242,17 @@ export default function Sidebar({
         });
       }
     },
-    [active.drive],
+    [drive],
   );
 
   useEffect(() => {
-    const persisted = loadExpanded(active.id, rootPath);
+    const persisted = loadExpanded(drive, rootPath);
     setExpanded(persisted);
     setContents(new Map());
     setErrors(new Map());
     for (const p of persisted) void loadPath(p);
     if (!persisted.has(rootPath)) void loadPath(rootPath);
-  }, [active.id, rootPath, reloadKey, loadPath]);
+  }, [drive, rootPath, reloadKey, loadPath]);
 
   useEffect(() => {
     if (pendingFolder !== null) folderInputRef.current?.focus();
@@ -293,7 +268,7 @@ export default function Sidebar({
     setSearching(true);
     const handle = setTimeout(async () => {
       try {
-        const res = await searchVault(drive, active.id, q);
+        const res = await searchKnowledge(drive, q);
         setHits(res.results);
         setSearchTruncated(res.truncated);
       } catch {
@@ -304,7 +279,7 @@ export default function Sidebar({
       }
     }, 300);
     return () => clearTimeout(handle);
-  }, [query, active.id, drive]);
+  }, [query, drive]);
 
   function toggleExpand(path: string): void {
     setExpanded((prev) => {
@@ -332,7 +307,7 @@ export default function Sidebar({
     const rel = parent ? `${parent}/${name}` : name;
     setCreating(true);
     try {
-      const created = await createTextFile(active.drive, {
+      const created = await createTextFile(drive, {
         path: rel,
         content: "",
       });
@@ -360,7 +335,7 @@ export default function Sidebar({
     const { parent } = pendingFolder;
     setCreating(true);
     try {
-      await createFolder(active.drive, parent, trimmed);
+      await createFolder(drive, parent, trimmed);
       setPendingFolder(null);
       await loadPath(parent);
       ensureExpanded(parent);
@@ -375,13 +350,12 @@ export default function Sidebar({
     }
   }
 
-  // D&D handlers
   async function handleDrop(dragged: DraggedItem, targetFolderPath: string): Promise<void> {
     setMoving(true);
     try {
       if (dragged.kind === "file") {
         if (dragged.item.folder_path === targetFolderPath) return;
-        await moveFile(dragged.item.id, active.drive, targetFolderPath);
+        await moveFile(dragged.item.id, drive, targetFolderPath);
         await Promise.all([
           loadPath(dragged.item.folder_path),
           loadPath(targetFolderPath),
@@ -391,7 +365,7 @@ export default function Sidebar({
           ? dragged.item.path.split("/").slice(0, -1).join("/")
           : rootPath;
         if (parentOfDragged === targetFolderPath) return;
-        await moveFolder(active.drive, dragged.item.path, targetFolderPath);
+        await moveFolder(drive, dragged.item.path, targetFolderPath);
         await Promise.all([
           loadPath(parentOfDragged),
           loadPath(targetFolderPath),
@@ -405,7 +379,6 @@ export default function Sidebar({
     }
   }
 
-  // Context menu action handler
   async function handleContextAction(action: ContextAction, target: ContextTarget): Promise<void> {
     if (target.kind === "file") {
       const file = target.item;
@@ -429,7 +402,6 @@ export default function Sidebar({
           onUnpin?.(file.id);
           break;
         case "tags":
-          // Tag panel position comes from contextMenu state which is already set
           if (contextMenu) {
             setTagTarget({ fileId: file.id, x: contextMenu.x + 200, y: contextMenu.y });
           }
@@ -476,7 +448,7 @@ export default function Sidebar({
                 const parentPath = folder.path.includes("/")
                   ? folder.path.split("/").slice(0, -1).join("/")
                   : rootPath;
-                await deleteFolderApi(active.drive, folder.path);
+                await deleteFolderApi(drive, folder.path);
                 await loadPath(parentPath);
               } catch {
                 // swallow
@@ -488,7 +460,6 @@ export default function Sidebar({
     }
   }
 
-  // Inline rename handlers
   async function commitRenameFile(id: string, newName: string, currentFolderPath: string): Promise<void> {
     const trimmed = newName.trim();
     if (!trimmed) {
@@ -516,7 +487,7 @@ export default function Sidebar({
       ? path.split("/").slice(0, -1).join("/")
       : rootPath;
     try {
-      await renameFolderApi(active.drive, path, trimmed);
+      await renameFolderApi(drive, path, trimmed);
       await loadPath(parentPath);
     } catch {
       // swallow rename error
@@ -525,14 +496,13 @@ export default function Sidebar({
     }
   }
 
-  // Move dialog handler
   async function handleMoveConfirm(targetPath: string): Promise<void> {
     if (!moveTarget) return;
     setMoveTarget(null);
     if (moveTarget.kind === "file") {
       const file = moveTarget.item;
       try {
-        await moveFile(file.id, active.drive, targetPath);
+        await moveFile(file.id, drive, targetPath);
         await Promise.all([loadPath(file.folder_path), loadPath(targetPath)]);
       } catch {
         // swallow
@@ -543,7 +513,7 @@ export default function Sidebar({
         ? folder.path.split("/").slice(0, -1).join("/")
         : rootPath;
       try {
-        await moveFolder(active.drive, folder.path, targetPath);
+        await moveFolder(drive, folder.path, targetPath);
         await Promise.all([loadPath(parentPath), loadPath(targetPath)]);
       } catch {
         // swallow
@@ -551,11 +521,10 @@ export default function Sidebar({
     }
   }
 
-  // Toggle pins collapsed
   function togglePinsCollapsed() {
     setPinsCollapsed((prev) => {
       const next = !prev;
-      savePinsCollapsed(active.id, next);
+      savePinsCollapsed(drive, next);
       return next;
     });
   }
@@ -566,13 +535,20 @@ export default function Sidebar({
 
   return (
     <aside className="flex h-full w-full flex-col border-r border-bg-border bg-bg-card">
-      <VaultHeader
-        drive={drive}
-        vaults={vaults}
-        active={active}
-        onSwitch={onSwitchVault}
-        onAddNew={onAddVault}
-      />
+      <div className="border-b border-bg-border px-3 py-3">
+        <div className="flex items-center gap-2">
+          <div className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg bg-accent/15 text-accent">
+            <span className="text-sm font-semibold">
+              {drive.slice(0, 1).toUpperCase()}
+            </span>
+          </div>
+          <div className="min-w-0 flex-1">
+            <div className="truncate text-sm font-semibold text-text-primary">
+              {drive}
+            </div>
+          </div>
+        </div>
+      </div>
 
       <div className="flex items-center gap-1 border-b border-bg-border px-2 py-1.5">
         <button
@@ -642,7 +618,7 @@ export default function Sidebar({
                 id: hit.file_id,
                 filename: hit.filename,
                 title: hit.title,
-                drive: active.drive,
+                drive,
                 folder_path: rootPath,
                 file_type: "document",
                 mime_type: "text/markdown",
@@ -681,7 +657,6 @@ export default function Sidebar({
               await handleDrop(draggedItem, rootPath);
             }}
           >
-            {/* Pins section */}
             {pins.length > 0 && (
               <div className="mb-1">
                 <button
@@ -727,7 +702,7 @@ export default function Sidebar({
                                 id: pin.id,
                                 filename: pin.filename,
                                 title: pin.title,
-                                drive: active.drive,
+                                drive,
                                 folder_path: rootPath,
                                 file_type: "document",
                                 mime_type: "text/markdown",
@@ -744,7 +719,7 @@ export default function Sidebar({
                                   id: pin.id,
                                   filename: pin.filename,
                                   title: pin.title,
-                                  drive: active.drive,
+                                  drive,
                                   folder_path: rootPath,
                                   file_type: "document",
                                   mime_type: "text/markdown",
@@ -778,7 +753,6 @@ export default function Sidebar({
               </div>
             )}
 
-            {/* Sort button row */}
             {!showSearch && (
               <div className="mb-1 flex items-center justify-end">
                 <button
@@ -876,7 +850,6 @@ export default function Sidebar({
         </div>
       )}
 
-      {/* Context Menu */}
       {contextMenu && (
         <ContextMenu
           menu={contextMenu}
@@ -890,10 +863,9 @@ export default function Sidebar({
         />
       )}
 
-      {/* Move Dialog */}
       {moveTarget && (
         <MoveDialog
-          drive={active.drive}
+          drive={drive}
           rootPath={rootPath}
           currentPath={
             moveTarget.kind === "file"
@@ -909,11 +881,10 @@ export default function Sidebar({
         />
       )}
 
-      {/* Tag Panel */}
       {tagTarget && (
         <TagPanel
           fileId={tagTarget.fileId}
-          drive={active.drive}
+          drive={drive}
           x={tagTarget.x}
           y={tagTarget.y}
           onClose={() => setTagTarget(null)}
@@ -1221,7 +1192,6 @@ function FolderRow({
         onDrop={(e) => void onDrop(e)}
         onContextMenu={onContextMenu}
       >
-        {/* Chevron button: expand/collapse only */}
         <button
           type="button"
           onClick={onToggle}
@@ -1236,7 +1206,6 @@ function FolderRow({
           )}
         </button>
 
-        {/* Folder name button: opens FolderView */}
         {isRenaming ? (
           <InlineRenameInput
             defaultValue={folder.name}
@@ -1260,7 +1229,6 @@ function FolderRow({
           </button>
         )}
 
-        {/* Hover action buttons */}
         <div className="flex items-center gap-0.5 opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100">
           <button
             type="button"
@@ -1383,107 +1351,6 @@ function FolderInputRow({
         placeholder={tFile("newFolderPlaceholder")}
         className="flex-1 bg-transparent text-sm text-text-primary placeholder:text-text-muted focus:outline-none"
       />
-    </div>
-  );
-}
-
-function VaultHeader({
-  drive,
-  vaults,
-  active,
-  onSwitch,
-  onAddNew,
-}: {
-  drive: string;
-  vaults: Vault[];
-  active: Vault;
-  onSwitch: (v: Vault) => void;
-  onAddNew: () => void;
-}) {
-  const t = useTranslations("knowledge.switcher");
-  const [open, setOpen] = useState(false);
-  const ref = useRef<HTMLDivElement | null>(null);
-
-  useEffect(() => {
-    if (!open) return;
-    const onDoc = (e: MouseEvent) => {
-      if (!ref.current?.contains(e.target as Node)) setOpen(false);
-    };
-    document.addEventListener("mousedown", onDoc);
-    return () => document.removeEventListener("mousedown", onDoc);
-  }, [open]);
-
-  async function handlePick(v: Vault) {
-    setOpen(false);
-    if (v.id === active.id) return;
-    const updated = await activateVault(drive, v.id);
-    onSwitch(updated);
-  }
-
-  return (
-    <div ref={ref} className="relative border-b border-bg-border">
-      <button
-        type="button"
-        onClick={() => setOpen((o) => !o)}
-        className="flex w-full items-center gap-2 px-3 py-3 text-left hover:bg-bg-elevated"
-      >
-        <div className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg bg-accent/15 text-accent">
-          <span className="text-sm font-semibold">
-            {active.label.slice(0, 1).toUpperCase()}
-          </span>
-        </div>
-        <div className="min-w-0 flex-1">
-          <div className="truncate text-sm font-semibold text-text-primary">
-            {active.label}
-          </div>
-          <div className="truncate text-xs text-text-muted">
-            {active.drive}
-            {active.path ? ` / ${active.path}` : ""}
-          </div>
-        </div>
-        <ChevronsUpDown size={14} className="flex-shrink-0 text-text-muted" />
-      </button>
-      {open && (
-        <div className="absolute left-2 right-2 top-full z-20 mt-1 overflow-hidden rounded-lg border border-bg-border bg-bg-elevated shadow-lg animate-fade-in-scale">
-          <ul className="max-h-72 overflow-y-auto py-1">
-            {vaults.map((v) => (
-              <li key={v.id}>
-                <button
-                  type="button"
-                  onClick={() => handlePick(v)}
-                  className="flex w-full items-start gap-2 px-3 py-2 text-left hover:bg-bg-primary/60"
-                >
-                  <div className="mt-0.5 flex h-4 w-4 flex-shrink-0 items-center justify-center">
-                    {v.id === active.id && (
-                      <Check size={14} className="text-accent" />
-                    )}
-                  </div>
-                  <div className="min-w-0 flex-1">
-                    <div className="truncate text-sm font-medium text-text-primary">
-                      {v.label}
-                    </div>
-                    <div className="truncate text-xs text-text-muted">
-                      {v.drive}
-                      {v.path ? ` / ${v.path}` : ""}
-                    </div>
-                  </div>
-                </button>
-              </li>
-            ))}
-          </ul>
-          <button
-            type="button"
-            onClick={() => {
-              setOpen(false);
-              onAddNew();
-            }}
-            className="flex w-full items-center gap-2 border-t border-bg-border px-3 py-2 text-sm font-medium text-accent hover:bg-bg-primary/60"
-          >
-            <Plus size={14} />
-            {t("addNew")}
-          </button>
-        </div>
-      )}
     </div>
   );
 }
