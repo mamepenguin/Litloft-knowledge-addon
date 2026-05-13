@@ -288,8 +288,13 @@ export default function Editor({
   // lands — the resolver re-runs against the new on-disk body, so we
   // re-pull to pick up freshly-added [[X]] targets. Errors degrade to
   // undefined (all wiki-links render as unresolved spans).
-  const savedAtKey =
-    saveState.kind === "saved" ? saveState.at : 0;
+  //
+  // The previous keying on `saveState.kind === "saved" ? at : 0`
+  // fetched twice per save: once when transitioning to "saving"
+  // (savedAtKey -> 0) and once when transitioning to "saved"
+  // (savedAtKey -> at). Bump a counter only on successful save so
+  // each save cycle triggers exactly one refetch.
+  const [savedRefetchSeq, setSavedRefetchSeq] = useState(0);
   useEffect(() => {
     let cancelled = false;
     getWikiResolutions(fileId)
@@ -302,18 +307,23 @@ export default function Editor({
     return () => {
       cancelled = true;
     };
-  }, [fileId, savedAtKey]);
+  }, [fileId, savedRefetchSeq]);
 
   const autoFocusedFileIdRef = useRef<string | null>(null);
+  // Depend on the boolean "content has loaded" rather than `content`
+  // itself so we don't re-evaluate on every keystroke. The effect only
+  // needs to fire once per file load transition; the ref guard handles
+  // re-mount idempotency.
+  const contentLoaded = content !== null;
   useEffect(() => {
     if (!autoFocus) return;
-    if (content === null) return;
+    if (!contentLoaded) return;
     if (autoFocusedFileIdRef.current === fileId) return;
     const ta = textareaRef.current;
     if (!ta) return;
     autoFocusedFileIdRef.current = fileId;
     ta.focus();
-  }, [autoFocus, content, fileId]);
+  }, [autoFocus, contentLoaded, fileId]);
 
   const performSave = useCallback(
     async (text: string) => {
@@ -323,6 +333,9 @@ export default function Editor({
         etagRef.current = newEtag;
         lastSavedRef.current = text;
         setSaveState({ kind: "saved", at: Date.now() });
+        // Trigger one wiki-resolutions refetch per successful save
+        // (see comment on the useEffect below).
+        setSavedRefetchSeq((s) => s + 1);
         // Propagate frontmatter tag changes to core File.tags without
         // waiting for the scanner's hourly pass. Every save fires this
         // (idempotent — the scanner just reparses frontmatter). The
@@ -420,10 +433,20 @@ export default function Editor({
       if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
       const latest = contentRef.current;
       if (latest !== null && latest !== lastSavedRef.current) {
-        performSave(latest);
+        // Fire-and-forget direct PUT instead of `performSave` — the
+        // component is unmounting, so its `setSaveState` calls would
+        // warn ("update on unmounted component") and have no UI to
+        // reflect anyway. We only care that the bytes reach disk.
+        void putFileContent(fileId, latest, etagRef.current).catch(() => {
+          // best-effort; the next mount refetches authoritative state
+        });
       }
     };
-  }, [performSave]);
+    // Intentionally key on `fileId` (not `performSave`) — we want the
+    // cleanup to run exactly when the editor unmounts or switches
+    // files, not on every callback identity change.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [fileId]);
 
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
