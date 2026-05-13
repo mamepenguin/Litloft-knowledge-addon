@@ -626,6 +626,7 @@ export default function KnowledgePage() {
             fileId={selectedFile.id}
             filename={selectedFile.filename}
             drive={selectedFile.drive}
+            vaultId={activeId ?? undefined}
             sidebarHidden={sidebarHidden}
             onToggleSidebar={toggleSidebar}
             onBack={handleEditorBack}

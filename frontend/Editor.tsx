@@ -35,6 +35,10 @@ import {
   putFileContent,
   renameFile,
 } from "./api";
+import {
+  getWikiResolutions,
+  type WikiResolveResult,
+} from "@/lib/api";
 import EditorToolbar, {
   applyEditorAction,
   type EditorAction,
@@ -64,6 +68,13 @@ interface Props {
    * not need to be plumbed.
    */
   drive: string;
+  /**
+   * Active vault id, used by the [[ wiki-link autocomplete to scope
+   * candidate search. Optional because the slot-injected file-detail
+   * editor does not know the active vault; in that case the
+   * autocomplete falls back to drive-scoped search.
+   */
+  vaultId?: number;
   /**
    * Optional in inline mode (no back button is rendered there); the
    * Knowledge ``Page.tsx`` host still passes a real handler.
@@ -124,6 +135,7 @@ const AUTOSAVE_DEBOUNCE_MS = 2000;
 
 export default function Editor({
   fileId,
+  vaultId,
   filename,
   drive,
   onBack,
@@ -189,6 +201,13 @@ export default function Editor({
   const effectiveFilename = filename ?? fetchedFilename ?? "";
   const [loadError, setLoadError] = useState<string | null>(null);
   const [saveState, setSaveState] = useState<SaveState>({ kind: "idle" });
+  // wiki-link resolutions for the preview pane — fetched on mount and
+  // re-fetched after each successful save (so newly-added [[X]] in the
+  // body get drawn as clickable links once the backend has indexed
+  // them). Optional: fetch failure degrades to all-unresolved spans.
+  const [wikiResolution, setWikiResolution] = useState<
+    Record<string, WikiResolveResult> | undefined
+  >(undefined);
   // When the chrome context is present, the host owns viewMode. Keep
   // a local state for the standalone fallback so this hook stays
   // unconditional (Rules of Hooks).
@@ -264,6 +283,26 @@ export default function Editor({
       cancelled = true;
     };
   }, [fileId]);
+
+  // Fetch wiki-link resolutions whenever the file changes or a save
+  // lands — the resolver re-runs against the new on-disk body, so we
+  // re-pull to pick up freshly-added [[X]] targets. Errors degrade to
+  // undefined (all wiki-links render as unresolved spans).
+  const savedAtKey =
+    saveState.kind === "saved" ? saveState.at : 0;
+  useEffect(() => {
+    let cancelled = false;
+    getWikiResolutions(fileId)
+      .then((r) => {
+        if (!cancelled) setWikiResolution(r);
+      })
+      .catch(() => {
+        if (!cancelled) setWikiResolution(undefined);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [fileId, savedAtKey]);
 
   const autoFocusedFileIdRef = useRef<string | null>(null);
   useEffect(() => {
@@ -841,6 +880,7 @@ export default function Editor({
               chrome={false}
               className="h-full"
               drive={drive}
+              wikiResolution={wikiResolution}
             />
           </div>
         </div>
@@ -849,7 +889,7 @@ export default function Editor({
       {wikiTrigger && (
         <WikiLinkAutocomplete
           drive={drive}
-          vaultId={0}
+          vaultId={vaultId ?? 0}
           query={wikiTrigger.query}
           onSelect={insertWikiLink}
           onClose={() => setWikiTrigger(null)}
