@@ -185,6 +185,78 @@ describe("Editor wiki-link autocomplete", () => {
     });
   });
 
+  it("anchors the popup at the [[ caret position with position:fixed", async () => {
+    defaultStream("hello ");
+    searchVaultMock.mockResolvedValue({
+      query: "",
+      vault_id: 1,
+      results: [makeHit("noteid000001", "Alpha.md", "Alpha")],
+      truncated: false,
+    });
+
+    render(<Editor fileId="f1" filename="note.md" drive="d" vaultId={1} inlineMode />);
+    const textarea = (await screen.findByLabelText(
+      "editArea",
+    )) as HTMLTextAreaElement;
+    await typeAtEnd(textarea, "[[a");
+
+    const popup = await screen.findByTestId("wiki-link-autocomplete");
+    // Caret-anchored mode renders the popup with position:fixed, top,
+    // and left inline styles. The exact numbers depend on layout; we
+    // only verify the mode is enabled (the legacy fallback uses
+    // ``position: absolute`` from a class, leaving inline style unset).
+    expect(popup.style.position).toBe("fixed");
+    expect(popup.style.top).not.toBe("");
+    expect(popup.style.left).not.toBe("");
+  });
+
+  it("closes when the user taps/clicks outside the popup", async () => {
+    defaultStream("hello ");
+    searchVaultMock.mockResolvedValue({
+      query: "",
+      vault_id: 1,
+      results: [makeHit("noteid000001", "Alpha.md", "Alpha")],
+      truncated: false,
+    });
+    render(<Editor fileId="f1" filename="note.md" drive="d" vaultId={1} inlineMode />);
+    const textarea = (await screen.findByLabelText(
+      "editArea",
+    )) as HTMLTextAreaElement;
+    await typeAtEnd(textarea, "[[a");
+    await screen.findByTestId("wiki-link-autocomplete");
+
+    // Click on the document body, outside the popup and the textarea.
+    act(() => {
+      fireEvent.mouseDown(document.body);
+    });
+    await waitFor(() => {
+      expect(screen.queryByTestId("wiki-link-autocomplete")).toBeNull();
+    });
+  });
+
+  it("does not close when clicking inside the popup (e.g. selecting an option)", async () => {
+    defaultStream("hello ");
+    searchVaultMock.mockResolvedValue({
+      query: "",
+      vault_id: 1,
+      results: [makeHit("noteid000001", "Alpha.md", "Alpha")],
+      truncated: false,
+    });
+    render(<Editor fileId="f1" filename="note.md" drive="d" vaultId={1} inlineMode />);
+    const textarea = (await screen.findByLabelText(
+      "editArea",
+    )) as HTMLTextAreaElement;
+    await typeAtEnd(textarea, "[[a");
+    const popup = await screen.findByTestId("wiki-link-autocomplete");
+
+    // A pointerdown on the popup body itself must not close it — the
+    // option's own onMouseDown is what should drive selection.
+    act(() => {
+      fireEvent.mouseDown(popup);
+    });
+    expect(screen.queryByTestId("wiki-link-autocomplete")).toBeInTheDocument();
+  });
+
   it("does not open the popup on a single `[`", async () => {
     defaultStream("");
     render(<Editor fileId="f1" filename="note.md" drive="d" vaultId={1} inlineMode />);

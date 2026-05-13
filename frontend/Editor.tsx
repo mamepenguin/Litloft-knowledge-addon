@@ -45,6 +45,7 @@ import EditorToolbar, {
 } from "./EditorToolbar";
 import FileLinkModal from "./FileLinkModal";
 import { applyIndent } from "./editorIndent";
+import { getCaretCoordinates } from "./textareaCaret";
 import {
   WikiLinkAutocomplete,
   type WikiLinkAutocompleteHandle,
@@ -264,6 +265,12 @@ export default function Editor({
     query: string;
   } | null>(null);
   const wikiAutocompleteRef = useRef<WikiLinkAutocompleteHandle | null>(null);
+  // Viewport-space anchor for the autocomplete popup. Recomputed
+  // whenever the trigger moves or the textarea scrolls / the viewport
+  // resizes. ``null`` falls the popup back to legacy in-flow placement.
+  const [wikiAnchor, setWikiAnchor] = useState<
+    { top: number; left: number; lineHeight: number } | null
+  >(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -517,6 +524,48 @@ export default function Editor({
     },
     [],
   );
+
+  // Compute the popup's viewport-space anchor whenever the trigger
+  // moves. Re-runs on textarea scroll and window resize so the popup
+  // follows the caret instead of getting stranded.
+  useEffect(() => {
+    if (!wikiTrigger) {
+      setWikiAnchor(null);
+      return;
+    }
+    const ta = textareaRef.current;
+    if (!ta) return;
+    const compute = () => {
+      const taLocal = textareaRef.current;
+      if (!taLocal) return;
+      // Anchor at the position of the opening ``[[`` — wikiTrigger.start
+      // is the offset right after ``[[``, so subtract 2 to land on the
+      // first ``[``.
+      const offset = Math.max(0, wikiTrigger.start - 2);
+      try {
+        const coords = getCaretCoordinates(taLocal, offset);
+        const rect = taLocal.getBoundingClientRect();
+        setWikiAnchor({
+          top: rect.top + coords.top,
+          left: rect.left + coords.left,
+          lineHeight: coords.height,
+        });
+      } catch {
+        setWikiAnchor(null);
+      }
+    };
+    compute();
+    const onScroll = () => compute();
+    const onResize = () => compute();
+    ta.addEventListener("scroll", onScroll);
+    window.addEventListener("resize", onResize);
+    window.addEventListener("scroll", onScroll, true);
+    return () => {
+      ta.removeEventListener("scroll", onScroll);
+      window.removeEventListener("resize", onResize);
+      window.removeEventListener("scroll", onScroll, true);
+    };
+  }, [wikiTrigger]);
 
   const handleContentChange = useCallback(
     (e: React.ChangeEvent<HTMLTextAreaElement>) => {
@@ -917,6 +966,7 @@ export default function Editor({
           onSelect={insertWikiLink}
           onClose={() => setWikiTrigger(null)}
           handleRef={wikiAutocompleteRef}
+          anchor={wikiAnchor}
         />
       )}
 

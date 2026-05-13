@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { useTranslations } from "next-intl";
 import { listVaults, searchVault, type SearchHit } from "./api";
 
@@ -44,6 +45,15 @@ interface Props {
   onClose: () => void;
   /** Optional ref so the host can imperatively trigger keyboard nav. */
   externalKey?: number;
+  /**
+   * Viewport-space anchor point (the caret position right after the
+   * ``[[`` trigger). When provided, the popup is rendered with
+   * ``position: fixed`` and placed directly below the caret; if it
+   * would extend past the viewport bottom, it flips above. When
+   * ``null``/omitted, the popup falls back to its legacy in-flow
+   * absolute positioning so existing callers don't regress.
+   */
+  anchor?: { top: number; left: number; lineHeight: number } | null;
 }
 
 const DEBOUNCE_MS = 100;
@@ -72,6 +82,7 @@ export const WikiLinkAutocomplete = function WikiLinkAutocomplete({
   onSelect,
   onClose,
   handleRef,
+  anchor,
 }: Props & { handleRef?: { current: WikiLinkAutocompleteHandle | null } }) {
   const t = useTranslations("knowledge.wikiAutocomplete");
   const [hits, setHits] = useState<AutocompleteHit[]>([]);
@@ -206,10 +217,65 @@ export const WikiLinkAutocomplete = function WikiLinkAutocomplete({
     };
   }, [handleRef, onSelect, onClose]);
 
-  return (
+  // After mount, measure the popup and flip above the caret when there
+  // isn't enough room below. Recomputed whenever the anchor moves or
+  // the result list changes (which alters the popup's height).
+  const popupRef = useRef<HTMLDivElement | null>(null);
+
+  // Dismiss on pointer activity outside the popup. Critical on mobile,
+  // where ``Esc`` isn't available — without this the user has no way
+  // to close the popup other than typing ``]`` or a newline. We listen
+  // in the capture phase so the close fires before any inner handler
+  // (the option's ``onMouseDown`` calls ``preventDefault`` and runs
+  // ``onSelect`` regardless, so it's safe to also see the event here).
+  useEffect(() => {
+    const onPointerDown = (e: MouseEvent | TouchEvent) => {
+      const el = popupRef.current;
+      if (!el) return;
+      const target = e.target as Node | null;
+      if (target && el.contains(target)) return;
+      onClose();
+    };
+    document.addEventListener("mousedown", onPointerDown, true);
+    document.addEventListener("touchstart", onPointerDown, true);
+    return () => {
+      document.removeEventListener("mousedown", onPointerDown, true);
+      document.removeEventListener("touchstart", onPointerDown, true);
+    };
+  }, [onClose]);
+  const [flipTop, setFlipTop] = useState<number | null>(null);
+  useLayoutEffect(() => {
+    if (!anchor) {
+      setFlipTop(null);
+      return;
+    }
+    const el = popupRef.current;
+    if (!el) return;
+    const popupHeight = el.offsetHeight;
+    const belowTop = anchor.top + anchor.lineHeight + 4;
+    if (belowTop + popupHeight <= window.innerHeight) {
+      setFlipTop(belowTop);
+    } else {
+      setFlipTop(Math.max(4, anchor.top - popupHeight - 4));
+    }
+  }, [anchor, hits.length]);
+
+  const positionedStyle: React.CSSProperties | undefined = anchor
+    ? {
+        position: "fixed",
+        top: flipTop ?? anchor.top + anchor.lineHeight + 4,
+        left: anchor.left,
+      }
+    : undefined;
+
+  const popup = (
     <div
+      ref={popupRef}
       data-testid="wiki-link-autocomplete"
-      className="absolute z-50 mt-1 max-h-64 w-72 overflow-auto rounded-xl border border-bg-border bg-bg-card shadow-lg"
+      style={positionedStyle}
+      className={`${
+        anchor ? "z-50" : "absolute z-50 mt-1"
+      } max-h-64 w-72 overflow-auto rounded-xl border border-bg-border bg-bg-card shadow-lg`}
     >
       <ul
         role="listbox"
@@ -252,4 +318,15 @@ export const WikiLinkAutocomplete = function WikiLinkAutocomplete({
       </ul>
     </div>
   );
+
+  // When the popup is caret-anchored we must escape ancestor
+  // ``transform`` / ``contain`` / ``overflow`` rules — when the editor
+  // is inline-mounted inside FileDetailContent, sibling sections
+  // (e.g. "Generate detailed summary") otherwise cover the popup. The
+  // legacy in-flow path keeps the existing positioning so callers that
+  // rely on the relative parent don't regress.
+  if (anchor && typeof document !== "undefined") {
+    return createPortal(popup, document.body);
+  }
+  return popup;
 };
