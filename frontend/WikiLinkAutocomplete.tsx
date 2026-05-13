@@ -121,6 +121,15 @@ export const WikiLinkAutocomplete = function WikiLinkAutocomplete({
       // endpoint with vault_id=0 (which rejects with 422).
       return;
     }
+    if (query.length === 0) {
+      // The /search endpoint requires q.min_length=1; firing with an
+      // empty query (the moment ``[[`` is typed before any chars) would
+      // 422 on every keystroke. Keep the popup open showing the empty
+      // state so the user knows to start typing.
+      setHits([]);
+      setHighlight(0);
+      return;
+    }
     let cancelled = false;
     function run() {
       searchVault(drive, effectiveVaultId, query)

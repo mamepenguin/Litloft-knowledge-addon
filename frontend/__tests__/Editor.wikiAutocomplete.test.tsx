@@ -166,7 +166,9 @@ describe("Editor wiki-link autocomplete", () => {
       "editArea",
     )) as HTMLTextAreaElement;
 
-    await typeAtEnd(textarea, "[[");
+    // The backend rejects q="" with 422 so we skip the fetch on empty
+    // query. Type one extra char so the autocomplete actually searches.
+    await typeAtEnd(textarea, "[[a");
 
     // The popup is identifiable by its listbox role + a known testid.
     await waitFor(() => {
@@ -176,7 +178,11 @@ describe("Editor wiki-link autocomplete", () => {
     });
     const list = screen.getByRole("listbox");
     expect(list).toBeInTheDocument();
-    expect(list.querySelectorAll("[role=option]").length).toBeGreaterThan(0);
+    await waitFor(() => {
+      expect(
+        list.querySelectorAll("[role=option]").length,
+      ).toBeGreaterThan(0);
+    });
   });
 
   it("does not open the popup on a single `[`", async () => {
@@ -215,7 +221,7 @@ describe("Editor wiki-link autocomplete", () => {
       "editArea",
     )) as HTMLTextAreaElement;
 
-    await typeAtEnd(textarea, "[[");
+    await typeAtEnd(textarea, "[[a");
     await waitFor(() => {
       expect(screen.getByTestId("wiki-link-autocomplete")).toBeInTheDocument();
     });
@@ -246,7 +252,7 @@ describe("Editor wiki-link autocomplete", () => {
     const textarea = (await screen.findByLabelText(
       "editArea",
     )) as HTMLTextAreaElement;
-    await typeAtEnd(textarea, "[[");
+    await typeAtEnd(textarea, "[[a");
     await waitFor(() =>
       expect(screen.getByTestId("wiki-link-autocomplete")).toBeInTheDocument(),
     );
@@ -278,7 +284,7 @@ describe("Editor wiki-link autocomplete", () => {
       "editArea",
     )) as HTMLTextAreaElement;
 
-    await typeAtEnd(textarea, "[[");
+    await typeAtEnd(textarea, "[[a");
     await waitFor(() =>
       expect(screen.getByTestId("wiki-link-autocomplete")).toBeInTheDocument(),
     );
@@ -316,7 +322,7 @@ describe("Editor wiki-link autocomplete", () => {
       "editArea",
     )) as HTMLTextAreaElement;
 
-    await typeAtEnd(textarea, "[[");
+    await typeAtEnd(textarea, "[[a");
     await waitFor(() =>
       expect(screen.getByTestId("wiki-link-autocomplete")).toBeInTheDocument(),
     );
@@ -344,7 +350,7 @@ describe("Editor wiki-link autocomplete", () => {
       "editArea",
     )) as HTMLTextAreaElement;
 
-    await typeAtEnd(textarea, "[[");
+    await typeAtEnd(textarea, "[[a");
     await waitFor(() =>
       expect(screen.getByTestId("wiki-link-autocomplete")).toBeInTheDocument(),
     );
@@ -353,9 +359,9 @@ describe("Editor wiki-link autocomplete", () => {
     await waitFor(() =>
       expect(screen.queryByTestId("wiki-link-autocomplete")).toBeNull(),
     );
-    // The user-typed [[ stays put -- Escape only dismisses the popup,
-    // it does not undo the typed characters.
-    expect(textarea.value).toMatch(/\[\[$/);
+    // The user-typed [[ + query chars stay put -- Escape only dismisses
+    // the popup, it does not undo the typed characters.
+    expect(textarea.value).toMatch(/\[\[a$/);
   });
 
   it("closes when the user backspaces past the [[ trigger", async () => {
@@ -372,7 +378,7 @@ describe("Editor wiki-link autocomplete", () => {
       "editArea",
     )) as HTMLTextAreaElement;
 
-    await typeAtEnd(textarea, "[[");
+    await typeAtEnd(textarea, "[[a");
     await waitFor(() =>
       expect(screen.getByTestId("wiki-link-autocomplete")).toBeInTheDocument(),
     );
@@ -397,7 +403,7 @@ describe("Editor wiki-link autocomplete", () => {
     const textarea = (await screen.findByLabelText(
       "editArea",
     )) as HTMLTextAreaElement;
-    await typeAtEnd(textarea, "[[");
+    await typeAtEnd(textarea, "[[a");
 
     await waitFor(() => {
       const popup = screen.getByTestId("wiki-link-autocomplete");
@@ -420,7 +426,7 @@ describe("Editor wiki-link autocomplete", () => {
       "editArea",
     )) as HTMLTextAreaElement;
 
-    await typeAtEnd(textarea, "[[");
+    await typeAtEnd(textarea, "[[a");
     // Burst of keystrokes within the debounce window.
     await typeAtEnd(textarea, "abcd");
 
