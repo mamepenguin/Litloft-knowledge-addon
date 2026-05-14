@@ -38,6 +38,11 @@
                 "response_filter": null
             },
             {
+                "path": "/note-from-file",
+                "methods": ["POST"],
+                "response_filter": null
+            },
+            {
                 "path": "/notes",
                 "methods": ["POST"],
                 "response_filter": null

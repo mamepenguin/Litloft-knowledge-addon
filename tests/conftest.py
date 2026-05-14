@@ -68,6 +68,8 @@ class FakeInternalClient:
     captured_text_writes: list[dict] = []
     # Source-file metadata returned by ``get_file`` (keyed on file_id).
     file_info_override: dict[str, dict] = {}
+    # If not None, ``get_file`` raises InternalAPIError with this status.
+    raise_on_get_file: int | None = None
 
     def __init__(self, cookie_header: str | None = None):
         self._cookie = cookie_header
@@ -96,6 +98,10 @@ class FakeInternalClient:
         return '"new-etag"'
 
     async def get_file(self, file_id):
+        from app.internal_client import InternalAPIError
+
+        if FakeInternalClient.raise_on_get_file is not None:
+            raise InternalAPIError(FakeInternalClient.raise_on_get_file, "forced")
         override = FakeInternalClient.file_info_override.get(file_id)
         if override is not None:
             return override
@@ -167,13 +173,17 @@ def fake_internal(monkeypatch):
     FakeInternalClient.captured_relations = []
     FakeInternalClient.captured_text_writes = []
     FakeInternalClient.file_info_override = {}
+    FakeInternalClient.raise_on_get_file = None
     FakeInternalClient.captured_addon_events = []
     FakeInternalClient.file_text_override = {}
     FakeInternalClient.raise_on_text_content = {}
     FakeInternalClient.captured_tag_syncs = []
     FakeInternalClient.raise_on_tag_sync = {}
+    import app.routers.note_from_file as note_from_file_router
+
     monkeypatch.setattr(distill, "InternalClient", FakeInternalClient)
     monkeypatch.setattr(notes_router, "InternalClient", FakeInternalClient)
+    monkeypatch.setattr(note_from_file_router, "InternalClient", FakeInternalClient)
     monkeypatch.setattr(tags, "InternalClient", FakeInternalClient)
     monkeypatch.setattr(active_summary, "InternalClient", FakeInternalClient)
     yield FakeInternalClient

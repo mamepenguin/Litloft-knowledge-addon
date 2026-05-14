@@ -228,6 +228,17 @@
     "wikiAutocomplete": {
       "placeholder": "ノートを検索...",
       "emptyState": "一致するノートがありません。"
+    },
+    "createNote": {
+      "button": "ノートを作成",
+      "creating": "作成中…",
+      "error": "ノートの作成に失敗しました",
+      "description": "このファイルにリンクされたノートを作成します"
+    },
+    "createNoteDialog": {
+      "title": "ノートを作成",
+      "folderPlaceholder": "フォルダ（空欄でドライブ直下）",
+      "creating": "作成中…"
     }
   }
 }

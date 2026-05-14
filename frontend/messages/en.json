@@ -228,6 +228,17 @@
     "wikiAutocomplete": {
       "placeholder": "Search notes...",
       "emptyState": "No matching notes."
+    },
+    "createNote": {
+      "button": "Create note",
+      "creating": "Creating…",
+      "error": "Failed to create note",
+      "description": "Create a new note linked to this file."
+    },
+    "createNoteDialog": {
+      "title": "Create note",
+      "folderPlaceholder": "Folder (leave empty for drive root)",
+      "creating": "Creating…"
     }
   }
 }

@@ -69,6 +69,19 @@ class NoteCreate(BaseModel):
     source_file_ids: list[str] = Field(default_factory=list, max_length=50)
 
 
+class NoteFromFileRequest(BaseModel):
+    """Create a Knowledge note linked to an existing file."""
+
+    source_file_id: str = Field(min_length=1, max_length=64)
+    filename: str = Field(default="Untitled.md", min_length=1, max_length=200)
+    folder: str = Field(default="", max_length=512)
+
+
+class NoteFromFileResponse(BaseModel):
+    note_file_id: str
+    note_path: str
+
+
 class NoteOriginOut(BaseModel):
     """Reverse-lookup entry: a Knowledge note whose frontmatter references a source."""
 

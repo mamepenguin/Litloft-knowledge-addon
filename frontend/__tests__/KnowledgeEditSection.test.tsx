@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { cleanup, render, screen, waitFor } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 
 vi.mock("next-intl", () => ({
   useTranslations:
@@ -8,8 +8,10 @@ vi.mock("next-intl", () => ({
       key,
 }));
 
+const mockRouterPush = vi.fn();
 vi.mock("next/navigation", () => ({
   useSearchParams: () => new URLSearchParams(globalThis.__editParam__ ?? ""),
+  useRouter: () => ({ push: mockRouterPush }),
 }));
 
 // Editor pulls in MarkdownPreview / useShortcuts / useDirty etc. The
@@ -48,12 +50,15 @@ const mdFile = {
   mime_type: "text/markdown",
   filename: "note.md",
 };
+const videoFile = { id: "f1", mime_type: "video/mp4", filename: "v.mp4" };
+const imageFile = { id: "f1", mime_type: "image/png", filename: "pic.png" };
+const textFile = { id: "f1", mime_type: "text/plain", filename: "note.txt" };
 
 function stubFileFetch(
   file: typeof mdFile | null,
-  options: { editorEnabled?: boolean } = {},
+  options: { editorEnabled?: boolean; noteFromFileOk?: boolean } = {},
 ) {
-  const { editorEnabled = true } = options;
+  const { editorEnabled = true, noteFromFileOk = true } = options;
   vi.stubGlobal(
     "fetch",
     vi.fn(async (input: RequestInfo | URL) => {
@@ -79,6 +84,16 @@ function stubFileFetch(
           }),
         } as Response;
       }
+      if (url.includes("/note-from-file")) {
+        if (!noteFromFileOk) {
+          return { ok: false, status: 502, json: async () => ({ detail: "server error" }) } as Response;
+        }
+        return {
+          ok: true,
+          status: 201,
+          json: async () => ({ note_file_id: "new-note-id", note_path: "Untitled.md" }),
+        } as Response;
+      }
       throw new Error(`stubFileFetch: unexpected url ${url}`);
     }),
   );
@@ -87,6 +102,7 @@ function stubFileFetch(
 beforeEach(() => {
   globalThis.__editParam__ = "";
   vi.unstubAllEnvs();
+  mockRouterPush.mockClear();
   _resetPolicyCache();
 });
 
@@ -113,19 +129,23 @@ describe("KnowledgeEditSection (flag false, default)", () => {
     expect(screen.queryByTestId("editor-stub")).toBeNull();
   });
 
-  it("renders nothing for non-editable mimes", async () => {
+  it("also shows Create note button alongside Edit for .md files", async () => {
     vi.stubEnv("NEXT_PUBLIC_INLINE_KNOWLEDGE_EDITOR", "false");
-    stubFileFetch({
-      id: "f1",
-      mime_type: "video/mp4",
-      filename: "v.mp4",
-    });
+    stubFileFetch(mdFile);
 
     render(<KnowledgeEditSection fileId="f1" drive="d" />);
-    // Wait for the fetch promise to settle then assert nothing rendered.
-    await waitFor(() => {
-      expect(globalThis.fetch).toHaveBeenCalled();
-    });
+    await screen.findByRole("link");
+
+    expect(screen.getByRole("button", { name: /button/i })).toBeTruthy();
+  });
+
+  it("renders Create note button for non-editable mimes (no editor, no link)", async () => {
+    vi.stubEnv("NEXT_PUBLIC_INLINE_KNOWLEDGE_EDITOR", "false");
+    stubFileFetch(videoFile);
+
+    render(<KnowledgeEditSection fileId="f1" drive="d" />);
+    await screen.findByRole("button", { name: /button/i });
+
     expect(screen.queryByRole("link")).toBeNull();
     expect(screen.queryByTestId("editor-stub")).toBeNull();
   });
@@ -140,6 +160,7 @@ describe("KnowledgeEditSection (flag false, default)", () => {
     });
     expect(screen.queryByRole("link")).toBeNull();
     expect(screen.queryByTestId("editor-stub")).toBeNull();
+    expect(screen.queryByRole("button")).toBeNull();
   });
 });
 
@@ -182,40 +203,30 @@ describe("KnowledgeEditSection (flag true)", () => {
     expect(stub.dataset.autoFocus).toBe("0");
   });
 
-  it("still suppresses rendering for non-editable mimes when the flag is on", async () => {
+  it("renders Create note button (no editor) for non-editable mimes when the flag is on", async () => {
     vi.stubEnv("NEXT_PUBLIC_INLINE_KNOWLEDGE_EDITOR", "true");
-    stubFileFetch({
-      id: "f1",
-      mime_type: "image/png",
-      filename: "pic.png",
-    });
+    stubFileFetch(imageFile);
 
     render(<KnowledgeEditSection fileId="f1" drive="d" />);
-    await waitFor(() => {
-      expect(globalThis.fetch).toHaveBeenCalled();
-    });
+    await screen.findByRole("button", { name: /button/i });
+
     expect(screen.queryByTestId("editor-stub")).toBeNull();
     expect(screen.queryByRole("link")).toBeNull();
   });
 
-  // C2: spec 2026-05-10 §3 — Markdown のみ編集対象。
-  it("does not render for text/plain (C2: markdown-only)", async () => {
+  // C2: spec 2026-05-10 §3 — editor は Markdown のみ。text/plain には出ない。
+  it("shows Create note button but no editor for text/plain (C2: editor markdown-only)", async () => {
     vi.stubEnv("NEXT_PUBLIC_INLINE_KNOWLEDGE_EDITOR", "true");
-    stubFileFetch({
-      id: "f1",
-      mime_type: "text/plain",
-      filename: "note.txt",
-    });
+    stubFileFetch(textFile);
 
     render(<KnowledgeEditSection fileId="f1" drive="d" />);
-    await waitFor(() => {
-      expect(globalThis.fetch).toHaveBeenCalled();
-    });
+    await screen.findByRole("button", { name: /button/i });
+
     expect(screen.queryByTestId("editor-stub")).toBeNull();
     expect(screen.queryByRole("link")).toBeNull();
   });
 
-  // D4: drives.json.addons.knowledge.editor === false → editor non-render.
+  // D4: drives.json.addons.knowledge.editor === false → nothing renders.
   it("does not render when per-drive policy disables the editor", async () => {
     vi.stubEnv("NEXT_PUBLIC_INLINE_KNOWLEDGE_EDITOR", "true");
     stubFileFetch(mdFile, { editorEnabled: false });
@@ -230,5 +241,23 @@ describe("KnowledgeEditSection (flag true)", () => {
     });
     expect(screen.queryByTestId("editor-stub")).toBeNull();
     expect(screen.queryByRole("link")).toBeNull();
+    expect(screen.queryByRole("button")).toBeNull();
+  });
+});
+
+describe("KnowledgeEditSection > Create note action", () => {
+  it("calls note-from-file API and navigates to the editor on click", async () => {
+    vi.stubEnv("NEXT_PUBLIC_INLINE_KNOWLEDGE_EDITOR", "false");
+    stubFileFetch(videoFile);
+
+    render(<KnowledgeEditSection fileId="f1" drive="d" />);
+    const btn = await screen.findByRole("button", { name: /button/i });
+
+    fireEvent.click(btn);
+    await waitFor(() => expect(mockRouterPush).toHaveBeenCalled());
+
+    expect(mockRouterPush).toHaveBeenCalledWith(
+      "/drive/d/addons/knowledge?edit=new-note-id",
+    );
   });
 });

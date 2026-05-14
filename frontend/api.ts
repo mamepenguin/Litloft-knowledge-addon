@@ -218,6 +218,36 @@ export async function createTextFile(
   return res.json();
 }
 
+export interface NoteFromFileResponse {
+  note_file_id: string;
+  note_path: string;
+}
+
+export async function createNoteFromFile(
+  drive: string,
+  sourceFileId: string,
+  opts: { filename?: string; folder?: string } = {},
+): Promise<NoteFromFileResponse> {
+  const res = await fetch("/api/addons/knowledge/note-from-file", {
+    method: "POST",
+    credentials: "include",
+    headers: {
+      "Content-Type": "application/json",
+      "X-Lit-Drive": encodeURIComponent(drive),
+    },
+    body: JSON.stringify({
+      source_file_id: sourceFileId,
+      ...(opts.filename ? { filename: opts.filename } : {}),
+      ...(opts.folder !== undefined ? { folder: opts.folder } : {}),
+    }),
+  });
+  if (!res.ok) {
+    const data = await res.json().catch(() => null);
+    throw new Error(data?.detail ?? `Error: ${res.status}`);
+  }
+  return res.json();
+}
+
 export async function trashFile(fileId: string): Promise<void> {
   const res = await fetch(`/api/files/${encodeURIComponent(fileId)}`, {
     method: "DELETE",

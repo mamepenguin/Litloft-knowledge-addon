@@ -8,20 +8,40 @@ vi.mock("next-intl", () => ({
       "knowledge.editSection.title": "Knowledge",
       "knowledge.editSection.description": "Open this note in the Markdown editor.",
       "knowledge.editSection.openEditor": "Open editor",
+      "knowledge.createNote.button": "Create note",
+      "knowledge.createNote.creating": "Creating…",
+      "knowledge.createNote.description": "Create a new note linked to this file.",
+      "knowledge.createNote.error": "Failed to create note",
     };
     void vars;
     return map[`${ns}.${key}`] ?? `${ns}.${key}`;
   },
 }));
 
-const KnowledgeEditSection = (await import("../KnowledgeEditSection")).default;
+vi.mock("next/navigation", () => ({
+  useSearchParams: () => new URLSearchParams(""),
+  useRouter: () => ({ push: vi.fn() }),
+}));
 
-function wrap(ui: React.ReactElement) {
-  return ui;
-}
+vi.mock("../Editor", () => ({
+  default: (props: { fileId: string; drive: string; inlineMode?: boolean }) => (
+    <div data-testid="editor-stub" data-file-id={props.fileId} />
+  ),
+}));
+
+const KnowledgeEditSection = (await import("../KnowledgeEditSection")).default;
 
 function stubFetch(mapping: Record<string, unknown>) {
   const fetchMock = vi.fn(async (url: string) => {
+    if (url.includes("/addon-policies")) {
+      return {
+        ok: true,
+        status: 200,
+        json: async () => ({
+          addons: { knowledge: { default: true, features: { editor: true } } },
+        }),
+      } as Response;
+    }
     const body = mapping[url];
     return {
       ok: body !== undefined,
@@ -36,10 +56,6 @@ function stubFetch(mapping: Record<string, unknown>) {
 describe("KnowledgeEditSection", () => {
   beforeEach(() => {
     vi.unstubAllGlobals();
-    // Legacy "open editor" link is only rendered when the inline-
-    // editor flag is off. PR-7 flipped the default to true, so these
-    // legacy-link tests opt out explicitly. The flag-true rendering
-    // (Editor inline) is covered in KnowledgeEditSection.test.tsx.
     vi.stubEnv("NEXT_PUBLIC_INLINE_KNOWLEDGE_EDITOR", "false");
   });
   afterEach(() => {
@@ -52,36 +68,34 @@ describe("KnowledgeEditSection", () => {
     stubFetch({
       "/api/files/f1": { id: "f1", mime_type: "text/markdown", filename: "a.md" },
     });
-    render(wrap(<KnowledgeEditSection fileId="f1" drive="d" />));
+    render(<KnowledgeEditSection fileId="f1" drive="d" />);
     const link = await screen.findByRole("link", { name: /open editor/i });
     expect(link.getAttribute("href")).toBe("/drive/d/addons/knowledge?edit=f1");
   });
 
-  it("renders nothing for non-text files", async () => {
+  it("renders Create note button for non-text files (no editor link)", async () => {
     stubFetch({
       "/api/files/f2": { id: "f2", mime_type: "video/mp4", filename: "x.mp4" },
     });
-    const { container } = render(wrap(<KnowledgeEditSection fileId="f2" drive="d" />));
-    await new Promise((r) => setTimeout(r, 20));
-    expect(container.innerHTML).toBe("");
+    render(<KnowledgeEditSection fileId="f2" drive="d" />);
+    await screen.findByRole("button", { name: /create note/i });
+    expect(screen.queryByRole("link")).toBeNull();
   });
 
   it("renders nothing when fetch fails", async () => {
     stubFetch({});
-    const { container } = render(wrap(<KnowledgeEditSection fileId="missing" drive="d" />));
+    const { container } = render(<KnowledgeEditSection fileId="missing" drive="d" />);
     await new Promise((r) => setTimeout(r, 20));
     expect(container.innerHTML).toBe("");
   });
 
-  // C2 採用 (spec 2026-05-10 §3): Markdown のみ編集対象。
-  it("does not render for text/plain (C2: markdown-only)", async () => {
+  // C2 採用 (spec 2026-05-10 §3): Markdown のみ編集対象。Create note ボタンは表示。
+  it("shows Create note button but no editor for text/plain (C2: editor markdown-only)", async () => {
     stubFetch({
       "/api/files/f3": { id: "f3", mime_type: "text/plain", filename: "n.txt" },
     });
-    const { container } = render(
-      wrap(<KnowledgeEditSection fileId="f3" drive="d" />),
-    );
-    await new Promise((r) => setTimeout(r, 20));
-    expect(container.innerHTML).toBe("");
+    render(<KnowledgeEditSection fileId="f3" drive="d" />);
+    await screen.findByRole("button", { name: /create note/i });
+    expect(screen.queryByRole("link")).toBeNull();
   });
 });
