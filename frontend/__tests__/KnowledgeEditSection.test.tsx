@@ -94,6 +94,9 @@ function stubFileFetch(
           json: async () => ({ note_file_id: "new-note-id", note_path: "Untitled.md" }),
         } as Response;
       }
+      if (url.includes("/folder-tree")) {
+        return { ok: true, status: 200, json: async () => [] } as Response;
+      }
       throw new Error(`stubFileFetch: unexpected url ${url}`);
     }),
   );
@@ -246,14 +249,20 @@ describe("KnowledgeEditSection (flag true)", () => {
 });
 
 describe("KnowledgeEditSection > Create note action", () => {
-  it("calls note-from-file API and navigates to the editor on click", async () => {
+  it("opens FileSaveDialog, then calls note-from-file API and navigates to the editor on save", async () => {
     vi.stubEnv("NEXT_PUBLIC_INLINE_KNOWLEDGE_EDITOR", "false");
     stubFileFetch(videoFile);
 
     render(<KnowledgeEditSection fileId="f1" drive="d" />);
     const btn = await screen.findByRole("button", { name: /button/i });
 
+    // Open the save dialog
     fireEvent.click(btn);
+
+    // The dialog renders with a save button (translation mock returns the key)
+    const saveBtn = await screen.findByRole("button", { name: /^save$/i });
+    fireEvent.click(saveBtn);
+
     await waitFor(() => expect(mockRouterPush).toHaveBeenCalled());
 
     expect(mockRouterPush).toHaveBeenCalledWith(
