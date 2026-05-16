@@ -80,6 +80,7 @@ export default function ConnectionsGraph({ drive }: Props) {
   // ----- Interactions ------------------------------------------------
   const [colorBy, setColorBy] = useState<ColorBy>("kind");
   const palette = useMemo(() => buildPalette(nodes, colorBy), [nodes, colorBy]);
+  const legendItems = useMemo(() => palette.legend(), [palette]);
 
   const [searchQuery, setSearchQuery] = useState("");
   // Debounce so the sub-graph layout doesn't recompute on every
@@ -253,7 +254,7 @@ export default function ConnectionsGraph({ drive }: Props) {
         className="flex items-center gap-1 text-left"
         aria-expanded={open}
       >
-        <p className="text-[11px] font-semibold uppercase tracking-wide text-text-muted">
+        <p className="text-[11px] font-semibold text-text-muted">
           {t("title")}
         </p>
         {open ? (
@@ -266,7 +267,7 @@ export default function ConnectionsGraph({ drive }: Props) {
       {open && (
         <div className="flex flex-col gap-3">
           {loading && (
-            <div className="h-16 animate-pulse rounded-2xl bg-bg-elevated" />
+            <div className="h-[420px] animate-pulse rounded-2xl bg-bg-elevated md:h-[560px]" />
           )}
           {error && (
             <p className="text-xs text-danger" role="alert">
@@ -298,12 +299,12 @@ export default function ConnectionsGraph({ drive }: Props) {
               )}
 
               {nodes.length > TOO_BIG_THRESHOLD && !focusedId && (
-                <p className="rounded-lg border border-accent-amber/30 bg-accent-amber/10 px-3 py-2 text-xs text-accent-amber">
+                <p className="rounded-xl border border-accent-amber/30 bg-accent-amber/10 px-3 py-2 text-xs text-accent-amber animate-fade-in">
                   {t("stats.tooBigWarning")}
                 </p>
               )}
 
-              <div className="relative overflow-hidden rounded-2xl border border-bg-border bg-bg-card">
+              <div className="relative overflow-hidden rounded-2xl border border-bg-border bg-bg-card animate-fade-in">
                 <svg
                   ref={attachRef}
                   viewBox={`0 0 ${PAN_ZOOM_VIEWBOX.width} ${PAN_ZOOM_VIEWBOX.height}`}
@@ -345,7 +346,7 @@ export default function ConnectionsGraph({ drive }: Props) {
                   </ZoomButton>
                 </div>
 
-                <div className="absolute left-3 bottom-3 rounded-lg border border-bg-border bg-bg-elevated px-2.5 py-1 text-[10px] tabular-nums text-text-muted">
+                <div className="absolute left-3 bottom-3 rounded-full border border-bg-border bg-bg-elevated px-2.5 py-1 text-[10px] tabular-nums text-text-muted">
                   {Math.round(pz.scale * 100)}%
                 </div>
 
@@ -359,6 +360,31 @@ export default function ConnectionsGraph({ drive }: Props) {
                   />
                 )}
               </div>
+
+              {legendItems.length > 0 && (
+                <ul
+                  className="flex flex-wrap items-center gap-x-3 gap-y-1 px-1"
+                  role="list"
+                >
+                  {legendItems.map((item) => (
+                    <li
+                      key={item.label}
+                      className="flex items-center gap-1.5 text-[11px] text-text-muted"
+                    >
+                      <span
+                        className="h-2.5 w-2.5 shrink-0 rounded-full border"
+                        style={{
+                          backgroundColor: item.color.fill,
+                          borderColor: item.color.stroke,
+                        }}
+                      />
+                      <span className="max-w-[140px] truncate">
+                        {item.label}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              )}
 
               <div className="flex items-center gap-3 px-1 text-[11px] text-text-muted">
                 <span>{t("stats.nodes", { count: nodes.length })}</span>

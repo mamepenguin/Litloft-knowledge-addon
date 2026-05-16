@@ -1,13 +1,13 @@
 /**
  * Color tokens for the connections graph by colorBy mode.
  *
- * Returns Tailwind-style HSL values. The component uses inline styles
- * (fill + stroke) because we have to color hundreds of nodes
- * dynamically — generating per-token CSS classes is overkill.
- *
- * Each token returns { fill, stroke } so node circles get a faint tinted
- * fill and a saturated stroke. The stroke is also used as the
- * drop-shadow color via SVG's `color` cascade.
+ * Colors come from the DESIGN.md §2.4 chart-only categorical scale
+ * (`--graph-cat-1..6`) — a sanctioned, warm-anchored data-viz palette,
+ * NOT the brand tokens. The component applies these as inline SVG
+ * fill/stroke because we color hundreds of nodes dynamically; per-token
+ * CSS classes would be overkill. Faint fills are derived from the same
+ * token via `color-mix` so light/dark theming stays automatic and no
+ * separate tint is hand-picked.
  */
 import type { GraphMimeKind, GraphNode } from "../api";
 
@@ -18,28 +18,36 @@ export interface PaletteColor {
   stroke: string;
 }
 
+function cat(n: 1 | 2 | 3 | 4 | 5 | 6): PaletteColor {
+  return {
+    fill: `color-mix(in srgb, var(--graph-cat-${n}) 16%, transparent)`,
+    stroke: `var(--graph-cat-${n})`,
+  };
+}
+
+// "Everything else" / flat mode. Uses the muted text token (not a 7th
+// hue) per DESIGN.md §2.4.
 const MUTED: PaletteColor = {
-  fill: "rgba(140,148,163,0.18)",
-  stroke: "var(--text-muted, #8b94a3)",
+  fill: "color-mix(in srgb, var(--text-muted) 18%, transparent)",
+  stroke: "var(--text-muted)",
 };
 
 const KIND_PALETTE: Record<GraphMimeKind, PaletteColor> = {
-  md:    { fill: "rgba(96,165,250,0.18)", stroke: "#60a5fa" },
-  video: { fill: "rgba(45,212,191,0.18)", stroke: "#2dd4bf" },
-  image: { fill: "rgba(245,158,11,0.18)", stroke: "#f59e0b" },
-  pdf:   { fill: "rgba(167,139,250,0.18)", stroke: "#a78bfa" },
-  other: { fill: "rgba(251,113,133,0.14)", stroke: "#fb7185" },
+  md: cat(1), // coral
+  video: cat(2), // green
+  image: cat(3), // ochre
+  pdf: cat(4), // plum
+  other: cat(5), // olive
 };
 
 // Up to 6 distinct tag/folder palettes; everything else falls back to muted.
-// Picked from the same hue family as the kind palette to stay visually coherent.
 const ROTATIONAL_PALETTE: PaletteColor[] = [
-  { fill: "rgba(167,139,250,0.18)", stroke: "#a78bfa" },
-  { fill: "rgba(34,211,238,0.18)",  stroke: "#22d3ee" },
-  { fill: "rgba(52,211,153,0.18)",  stroke: "#34d399" },
-  { fill: "rgba(245,158,11,0.18)",  stroke: "#f59e0b" },
-  { fill: "rgba(96,165,250,0.18)",  stroke: "#60a5fa" },
-  { fill: "rgba(251,113,133,0.18)", stroke: "#fb7185" },
+  cat(1),
+  cat(2),
+  cat(3),
+  cat(4),
+  cat(5),
+  cat(6),
 ];
 
 /**
@@ -71,10 +79,10 @@ export function buildPalette(nodes: GraphNode[], mode: ColorBy): Palette {
       colorFor: (n) => KIND_PALETTE[n.mime_kind] ?? MUTED,
       legend: () => [
         { label: "Markdown", color: KIND_PALETTE.md },
-        { label: "Video",    color: KIND_PALETTE.video },
-        { label: "Image",    color: KIND_PALETTE.image },
-        { label: "PDF",      color: KIND_PALETTE.pdf },
-        { label: "Other",    color: KIND_PALETTE.other },
+        { label: "Video", color: KIND_PALETTE.video },
+        { label: "Image", color: KIND_PALETTE.image },
+        { label: "PDF", color: KIND_PALETTE.pdf },
+        { label: "Other", color: KIND_PALETTE.other },
       ],
     };
   }

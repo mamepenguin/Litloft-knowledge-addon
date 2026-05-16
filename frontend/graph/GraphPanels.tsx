@@ -24,11 +24,11 @@ export function GraphDetailCard({
   const noteCount = inEdges.filter((e) => e.kind === "note_source").length;
   const relCount = inEdges.filter((e) => e.kind === "related").length;
   return (
-    <div className="pointer-events-auto absolute right-3 top-3 w-64 rounded-2xl border border-bg-border bg-bg-elevated p-3 text-xs shadow-lg">
+    <div className="pointer-events-auto absolute right-3 top-3 w-64 rounded-2xl border border-bg-border bg-bg-elevated p-3 text-xs shadow-lg animate-fade-in">
       <p className="mb-1 text-sm font-semibold text-text-primary break-words">
         {node.title}
       </p>
-      <p className="mb-2 font-mono text-[10px] text-text-dim break-all">
+      <p className="mb-2 font-mono text-[10px] text-text-muted break-anywhere">
         {node.path}
       </p>
       {node.tags.length > 0 && (
@@ -55,8 +55,7 @@ export function GraphDetailCard({
         <button
           type="button"
           onClick={onCenter}
-          className="flex flex-1 items-center justify-center gap-1.5 rounded-lg px-2.5 py-1.5 text-[11px] font-medium hover:opacity-90"
-          style={{ backgroundColor: "#60a5fa", color: "#0a0a0a" }}
+          className="flex flex-1 items-center justify-center gap-1.5 rounded-xl bg-accent px-2.5 py-1.5 text-[11px] font-medium text-white transition-colors hover:bg-accent-hover"
         >
           <Crosshair size={12} strokeWidth={2} />
           {t("focus.centerHere")}
@@ -64,7 +63,7 @@ export function GraphDetailCard({
         <button
           type="button"
           onClick={onOpen}
-          className="flex-1 rounded-lg border border-bg-border bg-bg-card px-2.5 py-1.5 text-[11px] text-text-primary hover:bg-bg-border"
+          className="flex-1 rounded-xl border border-bg-border bg-bg-card px-2.5 py-1.5 text-[11px] text-text-primary transition-colors hover:bg-bg-elevated"
         >
           {t("detail.open")}
         </button>
@@ -84,8 +83,8 @@ export function GraphOrphanPanel({
 }) {
   const router = useRouter();
   return (
-    <div className="rounded-2xl border border-dashed border-bg-border bg-bg-card/40 p-3.5">
-      <p className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-text-muted">
+    <div className="rounded-2xl border border-dashed border-bg-border bg-bg-elevated p-3.5 animate-fade-in">
+      <p className="mb-2 text-[11px] font-semibold text-text-muted">
         {t("orphans.heading", { count: orphanCount })}
       </p>
       {orphans.length === 0 ? (

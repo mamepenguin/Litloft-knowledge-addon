@@ -30,8 +30,8 @@ export function EdgeLayer({
         const isSelected =
           selectedId !== null && (e.a === selectedId || e.b === selectedId);
         const color = isSelected
-          ? "var(--accent-teal, #2dd4bf)"
-          : "var(--bg-border, #2a2f38)";
+          ? "var(--accent)"
+          : "var(--bg-border)";
         const width = isSelected ? 2 : 1;
         return (
           <line
@@ -88,10 +88,13 @@ export function NodeLayer({
         const isCenter = focusedId === n.id;
         const isMatch = matchedIds.has(n.id);
         const strokeWidth = isCenter ? 4 : isSelected ? 3 : 2;
+        // Selection / focus / search-match all highlight with --accent
+        // (the app-wide highlight), kept independent of the node's
+        // categorical color. See DESIGN.md §2.4.
         const filter = isMatch
-          ? "drop-shadow(0 0 12px var(--accent-amber, #f59e0b))"
+          ? "drop-shadow(0 0 12px var(--accent))"
           : isSelected || isCenter
-            ? `drop-shadow(0 0 ${isCenter ? 14 : 8}px ${color.stroke})`
+            ? `drop-shadow(0 0 ${isCenter ? 14 : 8}px var(--accent))`
             : undefined;
         const showLabel =
           showAllLabels || isSelected || isCenter || isMatch;
@@ -121,13 +124,13 @@ export function NodeLayer({
                 textAnchor="middle"
                 style={{
                   fill: isSelected || isCenter || isMatch
-                    ? "var(--text-primary, #e8ebf0)"
-                    : "var(--text-muted, #8b94a3)",
+                    ? "var(--text-primary)"
+                    : "var(--text-muted)",
                   fontWeight: isSelected || isCenter ? 500 : 400,
                   pointerEvents: "none",
                   fontSize: fontAttr,
                   paintOrder: "stroke",
-                  stroke: "var(--bg-card, #1a1d24)",
+                  stroke: "var(--bg-card)",
                   strokeWidth: fontAttr * 0.28,
                   strokeLinejoin: "round",
                 }}

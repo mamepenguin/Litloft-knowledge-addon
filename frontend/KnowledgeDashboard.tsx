@@ -252,7 +252,7 @@ function CaptureZone({
   return (
     <section className="flex flex-col gap-3">
       <div className="flex items-center justify-between gap-2">
-        <p className="text-[11px] font-semibold uppercase tracking-wide text-text-muted">
+        <p className="text-[11px] font-semibold text-text-muted">
           キャプチャ
         </p>
         <button
@@ -348,7 +348,7 @@ function ClipQueueZone({ drive: _drive, jobs }: ClipQueueZoneProps) {
 
   return (
     <section className="flex flex-col gap-3">
-      <p className="text-[11px] font-semibold uppercase tracking-wide text-text-muted">
+      <p className="text-[11px] font-semibold text-text-muted">
         クリップ履歴
       </p>
       <ul className="flex flex-col gap-1.5" role="list">
@@ -464,18 +464,22 @@ export default function KnowledgeDashboard() {
   }, []);
 
   return (
-    <div className="mx-auto flex max-w-2xl flex-col gap-10 px-4 py-10 md:px-6">
-      <CaptureZone
-        drive={drive}
-        initialUrl={prefillUrl}
-        initialTitle={prefillTitle}
-        autoSubmit={autoSubmit}
-        onJobAdded={handleJobAdded}
-        onDuplicate={(url, subfolder, existing) =>
-          setDuplicate({ url, subfolder, existing })
-        }
-      />
-      <ClipQueueZone drive={drive} jobs={jobs} />
+    <div className="mx-auto flex w-full max-w-6xl flex-col gap-10 px-4 py-10 md:px-6">
+      {/* Capture + clip history read better at a comfortable measure;
+          the connections graph gets the full width below (asymmetric). */}
+      <div className="mx-auto flex w-full max-w-2xl flex-col gap-10">
+        <CaptureZone
+          drive={drive}
+          initialUrl={prefillUrl}
+          initialTitle={prefillTitle}
+          autoSubmit={autoSubmit}
+          onJobAdded={handleJobAdded}
+          onDuplicate={(url, subfolder, existing) =>
+            setDuplicate({ url, subfolder, existing })
+          }
+        />
+        <ClipQueueZone drive={drive} jobs={jobs} />
+      </div>
       <ConnectionsGraph drive={drive} />
 
       {duplicate && (

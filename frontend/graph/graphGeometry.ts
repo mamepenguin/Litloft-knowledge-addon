@@ -15,11 +15,16 @@
  */
 
 // Below this zoom, labels are hidden unless the node is selected /
-// focused / search-matched (Obsidian-style declutter).
-export const LABEL_SCALE_THRESHOLD = 1.4;
+// focused / search-matched (Obsidian-style declutter). Kept low so
+// labels are visible at the default auto-fit zoom, not only after the
+// user zooms in.
+export const LABEL_SCALE_THRESHOLD = 0.9;
 
-const LABEL_FONT_MIN = 17;
-const LABEL_FONT_MAX = 52;
+// Tight band so labels behave like the circles: small at rest and
+// near-constant on screen — they reach the ceiling by ~2x zoom and
+// never keep ballooning as you zoom further in.
+const LABEL_FONT_MIN = 11;
+const LABEL_FONT_MAX = 16;
 const MIN_HIT_SCREEN_R = 22;
 
 export function screenCircleR(rc: number): number {

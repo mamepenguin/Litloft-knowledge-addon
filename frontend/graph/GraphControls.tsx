@@ -28,17 +28,17 @@ export function GraphToolbar({
         <Search
           size={11}
           strokeWidth={1.8}
-          className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-text-dim"
+          className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-text-muted"
         />
         <input
           type="search"
           value={searchQuery}
           onChange={(e) => onSearchChange(e.target.value)}
           placeholder={t("searchPlaceholder")}
-          className="w-full rounded-2xl border border-bg-border bg-bg-card py-1.5 pl-7 pr-3 text-xs text-text-primary placeholder:text-text-dim focus:border-focus-ring focus:outline-none focus:ring-1 focus:ring-focus-ring"
+          className="w-full rounded-2xl border border-bg-border bg-bg-card py-1.5 pl-7 pr-3 text-xs text-text-primary placeholder:text-text-muted focus:border-focus-ring focus:outline-none focus:ring-1 focus:ring-focus-ring"
         />
       </div>
-      <span className="text-[10px] uppercase tracking-wide text-text-dim">
+      <span className="text-[10px] uppercase tracking-wide text-text-muted">
         {t("colorByLabel")}
       </span>
       <div className="inline-flex gap-0.5 rounded-2xl border border-bg-border bg-bg-card p-0.5">
@@ -75,12 +75,12 @@ export function GraphFocusBanner({
   t: T;
 }) {
   return (
-    <div className="flex flex-wrap items-center gap-2 rounded-2xl border border-accent-blue/30 bg-accent-blue/10 px-3 py-2 text-xs">
+    <div className="flex flex-wrap items-center gap-2 rounded-2xl border border-accent/30 bg-accent/10 px-3 py-2 text-xs animate-fade-in">
       <span className="flex items-center gap-1.5">
-        <Crosshair size={12} strokeWidth={1.8} className="text-accent-blue" />
+        <Crosshair size={12} strokeWidth={1.8} className="text-accent" />
         {t("focus.label")}:
       </span>
-      <span className="font-semibold text-accent-blue">{title}</span>
+      <span className="font-semibold text-accent">{title}</span>
       <span className="ml-auto flex items-center gap-2 text-text-muted">
         <span>{t("focus.depthLabel")}</span>
         <input
@@ -90,13 +90,13 @@ export function GraphFocusBanner({
           value={depth}
           onChange={(e) => onDepthChange(Number(e.target.value))}
           className="w-20"
-          style={{ accentColor: "var(--accent-blue, #60a5fa)" }}
+          style={{ accentColor: "var(--accent)" }}
         />
         <span className="tabular-nums">{depth}</span>
         <button
           type="button"
           onClick={onReset}
-          className="rounded-lg border border-bg-border px-2 py-0.5 text-[11px] text-text-muted hover:text-text-primary"
+          className="rounded-xl border border-bg-border px-2 py-0.5 text-[11px] text-text-muted transition-colors hover:bg-bg-elevated hover:text-text-primary"
         >
           {t("focus.reset")}
         </button>
@@ -120,7 +120,7 @@ export function ZoomButton({
       onClick={onClick}
       title={title}
       aria-label={title}
-      className="flex h-8 w-8 items-center justify-center rounded-lg border border-bg-border bg-bg-elevated text-text-primary transition-colors hover:bg-bg-border"
+      className="flex h-8 w-8 items-center justify-center rounded-xl border border-bg-border bg-bg-card text-text-primary transition-colors hover:bg-bg-elevated"
     >
       {children}
     </button>
