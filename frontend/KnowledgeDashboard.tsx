@@ -17,9 +17,11 @@ import {
   ClipboardPaste,
   ExternalLink,
   Loader2,
+  SquarePen,
 } from "lucide-react";
 import { useCurrentDrive } from "@/components/CurrentDriveProvider";
 import { useWebSocket } from "@/hooks/useWebSocket";
+import { useCreateFile } from "@/hooks/useCreateFile";
 import { FolderPicker } from "@/components/FolderPicker";
 import {
   createClip,
@@ -243,6 +245,9 @@ function CaptureZone({
   const [pasteOpen, setPasteOpen] = useState(false);
   const [pasteUrl, setPasteUrl] = useState("");
   const [bookmarkletOpen, setBookmarkletOpen] = useState(false);
+  // Drive root: the Knowledge dashboard has no folder context (Topic 12
+  // specifies drive root as the dashboard's note-creation target).
+  const { createFile, isCreating } = useCreateFile(drive, "");
 
   return (
     <section className="flex flex-col gap-3">
@@ -263,6 +268,19 @@ function CaptureZone({
       />
 
       <div className="flex items-center gap-1">
+        <button
+          type="button"
+          onClick={() => void createFile()}
+          disabled={isCreating}
+          className="inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs text-text-muted transition-colors hover:bg-bg-elevated hover:text-text-primary disabled:cursor-not-allowed disabled:opacity-50"
+        >
+          {isCreating ? (
+            <Loader2 size={12} className="animate-spin" strokeWidth={1.6} />
+          ) : (
+            <SquarePen size={12} strokeWidth={1.6} />
+          )}
+          クイックメモ
+        </button>
         <button
           type="button"
           onClick={() => setPasteOpen((v) => !v)}
