@@ -506,12 +506,32 @@ export default function Editor({
     [drive, toast, t],
   );
 
-  const handleDrop = useCallback(
-    (e: React.DragEvent<HTMLTextAreaElement>) => {
+  // Keep a ref to uploadFile so native event listeners always call the
+  // latest version without re-attaching on every render.
+  const uploadFileRef = useRef(uploadFile);
+  uploadFileRef.current = uploadFile;
+
+  // Native event listeners for D&D and image paste. Using addEventListener
+  // directly on the textarea element (instead of React's onDrop/onDragOver
+  // synthetic events) prevents parent UploadZone handlers from intercepting
+  // the events before they reach the textarea.
+  useEffect(() => {
+    const ta = textareaRef.current;
+    if (!ta) return;
+
+    function onDragOver(e: DragEvent) {
+      if (e.dataTransfer?.types.includes("Files")) {
+        e.preventDefault();
+        e.stopPropagation();
+      }
+    }
+
+    function onDrop(e: DragEvent) {
       e.preventDefault();
-      const files = Array.from(e.dataTransfer.files);
+      e.stopPropagation();
+      const files = Array.from(e.dataTransfer?.files ?? []);
       if (files.length === 0) return;
-      const offset = e.currentTarget.selectionStart;
+      const offset = ta.selectionStart;
       const specs = files.map((file) => {
         const uuid = crypto.randomUUID();
         const isImage = file.type.startsWith("image/");
@@ -526,22 +546,12 @@ export default function Editor({
         return prev.slice(0, offset) + insertion + prev.slice(offset);
       });
       for (const { file, placeholder } of specs) {
-        void uploadFile(file, placeholder);
+        void uploadFileRef.current(file, placeholder);
       }
-    },
-    [uploadFile],
-  );
+    }
 
-  const handleDragOver = useCallback(
-    (e: React.DragEvent<HTMLTextAreaElement>) => {
-      e.preventDefault();
-    },
-    [],
-  );
-
-  const handlePaste = useCallback(
-    (e: React.ClipboardEvent<HTMLTextAreaElement>) => {
-      const items = Array.from(e.clipboardData.items);
+    function onPaste(e: ClipboardEvent) {
+      const items = Array.from(e.clipboardData?.items ?? []);
       const imageItems = items.filter((item) =>
         item.type.startsWith("image/"),
       );
@@ -551,8 +561,8 @@ export default function Editor({
         .map((item) => item.getAsFile())
         .filter((f): f is File => f !== null);
       if (files.length === 0) return;
-      const offset = e.currentTarget.selectionStart;
-      const selEnd = e.currentTarget.selectionEnd;
+      const offset = ta.selectionStart;
+      const selEnd = ta.selectionEnd;
       const specs = files.map((file) => {
         const uuid = crypto.randomUUID();
         const placeholder = `![${file.name} uploading...](loft://pending-${uuid})`;
@@ -564,11 +574,22 @@ export default function Editor({
         return prev.slice(0, offset) + insertion + prev.slice(selEnd);
       });
       for (const { file, placeholder } of specs) {
-        void uploadFile(file, placeholder);
+        void uploadFileRef.current(file, placeholder);
       }
-    },
-    [uploadFile],
-  );
+    }
+
+    ta.addEventListener("dragover", onDragOver);
+    ta.addEventListener("drop", onDrop);
+    ta.addEventListener("paste", onPaste);
+    return () => {
+      ta.removeEventListener("dragover", onDragOver);
+      ta.removeEventListener("drop", onDrop);
+      ta.removeEventListener("paste", onPaste);
+    };
+    // textareaRef.current is stable once content loads; setContent is a
+    // stable React setter. uploadFileRef is updated every render.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [contentLoaded]);
 
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
@@ -1024,9 +1045,6 @@ export default function Editor({
           value={content}
           onChange={handleContentChange}
           onKeyDown={handleKeyDown}
-          onDrop={handleDrop}
-          onDragOver={handleDragOver}
-          onPaste={handlePaste}
           spellCheck={false}
           className={`${
             fillHeight ? "w-full" : "h-full w-full"
