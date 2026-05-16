@@ -20,6 +20,7 @@ import {
 } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { MarkdownPreview } from "@/components/MarkdownPreview";
+import { useToast } from "@/components/ToastProvider";
 import { MarkdownViewModeToggle } from "@/components/MarkdownViewModeToggle";
 import { PropertiesPanel } from "@/components/PropertiesPanel";
 import { markdownContentRegistry } from "@/lib/markdownContentRegistry";
@@ -36,7 +37,10 @@ import {
   renameFile,
 } from "./api";
 import {
+  completeUpload,
   getWikiResolutions,
+  initUpload,
+  uploadChunk,
   type WikiResolveResult,
 } from "@/lib/api";
 import EditorToolbar, {
@@ -112,6 +116,13 @@ interface Props {
    * (spec 2026-05-10 §3 / E15 fix).
    */
   fillHeight?: boolean;
+  /**
+   * The folder_path of this note on the drive. Used when uploading
+   * dropped/pasted files so they land in the same folder as the note.
+   * When omitted (callers that only pass fileId), the value is fetched
+   * lazily from the file metadata API.
+   */
+  folderPath?: string;
 }
 
 type SaveState =
@@ -139,10 +150,12 @@ export default function Editor({
   inlineMode,
   fillHeight,
   autoFocus,
+  folderPath,
 }: Props) {
   const t = useTranslations("knowledge.editor");
   const tSide = useTranslations("knowledge.sidebar");
   const tShortcuts = useTranslations("knowledge.shortcuts");
+  const toast = useToast();
   // When mounted under MarkdownDocumentLayout the host owns the
   // unified chrome (view-mode toggle + save dot). The Editor then
   // suppresses its own inline header and reads/writes those bits
@@ -172,6 +185,11 @@ export default function Editor({
   // only has fileId + drive from the slot props), fetch it ourselves
   // so the rename field and the .md-stripped display name still work.
   const [fetchedFilename, setFetchedFilename] = useState<string | null>(null);
+  const [fetchedFolderPath, setFetchedFolderPath] = useState<string | null>(null);
+  // Always-current folder path ref for use inside async upload callbacks.
+  const folderPathRef = useRef<string>("");
+  folderPathRef.current = folderPath ?? fetchedFolderPath ?? "";
+
   useEffect(() => {
     if (filename !== undefined) return;
     setFetchedFilename(null);
@@ -180,8 +198,10 @@ export default function Editor({
       credentials: "include",
     })
       .then((r) => (r.ok ? r.json() : null))
-      .then((data: { filename?: string } | null) => {
+      .then((data: { filename?: string; folder_path?: string } | null) => {
         if (!cancelled && data?.filename) setFetchedFilename(data.filename);
+        if (!cancelled && data?.folder_path !== undefined)
+          setFetchedFolderPath(data.folder_path);
       })
       .catch(() => {
         // Falls through to the empty-string fallback below; rename
@@ -446,6 +466,109 @@ export default function Editor({
     // files, not on every callback identity change.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [fileId]);
+
+  const uploadFile = useCallback(
+    async (file: File, placeholder: string) => {
+      const isImage = file.type.startsWith("image/");
+      const CHUNK_SIZE = 5 * 1024 * 1024;
+      try {
+        const initResult = await initUpload(drive, {
+          filename: file.name,
+          file_size: file.size,
+          folder_path: folderPathRef.current,
+          chunk_size: CHUNK_SIZE,
+        });
+        for (let i = 0; i < initResult.total_chunks; i++) {
+          const start = i * CHUNK_SIZE;
+          await uploadChunk(
+            drive,
+            initResult.upload_id,
+            i,
+            file.slice(start, Math.min(start + CHUNK_SIZE, file.size)),
+          );
+        }
+        const fileItem = await completeUpload(drive, initResult.upload_id);
+        const final = isImage
+          ? `![${file.name}](loft://${fileItem.id})`
+          : `[${file.name}](loft://${fileItem.id})`;
+        setContent((prev) =>
+          prev === null ? null : prev.replace(placeholder, final),
+        );
+      } catch (err) {
+        setContent((prev) =>
+          prev === null ? null : prev.replace(placeholder, ""),
+        );
+        toast.error(t("uploadFailed", { name: file.name }));
+      }
+    },
+    // folderPathRef is a stable ref; setContent is a stable React setter.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [drive, toast, t],
+  );
+
+  const handleDrop = useCallback(
+    (e: React.DragEvent<HTMLTextAreaElement>) => {
+      e.preventDefault();
+      const files = Array.from(e.dataTransfer.files);
+      if (files.length === 0) return;
+      const offset = e.currentTarget.selectionStart;
+      const specs = files.map((file) => {
+        const uuid = crypto.randomUUID();
+        const isImage = file.type.startsWith("image/");
+        const placeholder = isImage
+          ? `![${file.name} uploading...](loft://pending-${uuid})`
+          : `[${file.name} uploading...](loft://pending-${uuid})`;
+        return { file, placeholder };
+      });
+      const insertion = specs.map((s) => s.placeholder).join("\n") + "\n";
+      setContent((prev) => {
+        if (prev === null) return null;
+        return prev.slice(0, offset) + insertion + prev.slice(offset);
+      });
+      for (const { file, placeholder } of specs) {
+        void uploadFile(file, placeholder);
+      }
+    },
+    [uploadFile],
+  );
+
+  const handleDragOver = useCallback(
+    (e: React.DragEvent<HTMLTextAreaElement>) => {
+      e.preventDefault();
+    },
+    [],
+  );
+
+  const handlePaste = useCallback(
+    (e: React.ClipboardEvent<HTMLTextAreaElement>) => {
+      const items = Array.from(e.clipboardData.items);
+      const imageItems = items.filter((item) =>
+        item.type.startsWith("image/"),
+      );
+      if (imageItems.length === 0) return;
+      e.preventDefault();
+      const files = imageItems
+        .map((item) => item.getAsFile())
+        .filter((f): f is File => f !== null);
+      if (files.length === 0) return;
+      const offset = e.currentTarget.selectionStart;
+      const selEnd = e.currentTarget.selectionEnd;
+      const specs = files.map((file) => {
+        const uuid = crypto.randomUUID();
+        const placeholder = `![${file.name} uploading...](loft://pending-${uuid})`;
+        return { file, placeholder };
+      });
+      const insertion = specs.map((s) => s.placeholder).join("\n") + "\n";
+      setContent((prev) => {
+        if (prev === null) return null;
+        return prev.slice(0, offset) + insertion + prev.slice(selEnd);
+      });
+      for (const { file, placeholder } of specs) {
+        void uploadFile(file, placeholder);
+      }
+    },
+    [uploadFile],
+  );
 
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
@@ -901,6 +1024,9 @@ export default function Editor({
           value={content}
           onChange={handleContentChange}
           onKeyDown={handleKeyDown}
+          onDrop={handleDrop}
+          onDragOver={handleDragOver}
+          onPaste={handlePaste}
           spellCheck={false}
           className={`${
             fillHeight ? "w-full" : "h-full w-full"

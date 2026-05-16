@@ -206,7 +206,8 @@
         "reload": "Reload from server (discard my changes)",
         "overwrite": "Overwrite with my changes",
         "dismiss": "Dismiss"
-      }
+      },
+      "uploadFailed": "Failed to upload {name}"
     },
     "fileLinkModal": {
       "title": "Insert file link",

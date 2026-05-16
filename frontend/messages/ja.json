@@ -206,7 +206,8 @@
         "reload": "サーバーから読み込み直す（自分の変更は破棄）",
         "overwrite": "自分の変更で上書きする",
         "dismiss": "閉じる"
-      }
+      },
+      "uploadFailed": "{name} のアップロードに失敗しました"
     },
     "fileLinkModal": {
       "title": "ファイルリンクを挿入",

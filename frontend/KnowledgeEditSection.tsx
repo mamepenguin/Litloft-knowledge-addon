@@ -15,6 +15,7 @@ interface FileMeta {
   id: string;
   mime_type: string;
   filename: string;
+  folder_path: string;
 }
 
 // Markdown only. Other text/* mimes fall back to read-only file detail
@@ -96,6 +97,7 @@ export default function KnowledgeEditSection({
           <Editor
             fileId={file.id}
             filename={file.filename}
+            folderPath={file.folder_path}
             drive={drive}
             inlineMode
             autoFocus={autoFocus}
