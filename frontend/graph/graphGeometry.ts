@@ -1,9 +1,11 @@
 /**
  * Screen-space geometry for graph nodes and labels.
  *
- * All sizes are expressed as *screen-target* values and divided by the
- * viewport scale `k` so the parent `<g scale(k)>` cancels out. This
- * decouples on-screen size from zoom:
+ * All sizes are expressed as *screen-target* px and divided by both the
+ * viewport scale `k` (so the parent `<g scale(k)>` cancels) and the
+ * preserveAspectRatio fit ratio `fit` (so the viewBox->box scale-to-fit
+ * cancels — without this, sizes render ~3x smaller on a phone than on
+ * desktop at the same zoom). This decouples on-screen size from zoom:
  *
  *  - Circles stay a constant screen size once zoomed in (k ≥ 1) and
  *    only shrink when zoomed out, so they never balloon.
@@ -31,22 +33,31 @@ export function screenCircleR(rc: number): number {
   return 8 + Math.min(rc, 8) * 1.1; // 8 – 16.8
 }
 
-export function circleAttrR(rc: number, k: number): number {
+// `fit` is the viewBox->screen px ratio (preserveAspectRatio="meet").
+// Sizes are authored as screen-target px, so we divide by `fit` to undo
+// the SVG's uniform scale-to-fit. Without this the whole graph is
+// authored in 1100-unit space and renders ~3x smaller on a phone (box
+// width ~343px) than on desktop (~1100px) at the same zoom.
+function px(screenUnits: number, fit: number): number {
+  return screenUnits / (fit > 0 ? fit : 1);
+}
+
+export function circleAttrR(rc: number, k: number, fit = 1): number {
   const target = screenCircleR(rc);
-  return k >= 1 ? target / k : target;
+  return px(k >= 1 ? target / k : target, fit);
 }
 
-export function hitAttrR(rc: number, k: number): number {
+export function hitAttrR(rc: number, k: number, fit = 1): number {
   const screen = Math.max(MIN_HIT_SCREEN_R, screenCircleR(rc) * 1.6);
-  return k >= 1 ? screen / k : screen;
+  return px(k >= 1 ? screen / k : screen, fit);
 }
 
-export function labelAttrFont(k: number): number {
+export function labelAttrFont(k: number, fit = 1): number {
   const desired = Math.min(
     LABEL_FONT_MAX,
     Math.max(LABEL_FONT_MIN, LABEL_FONT_MIN * Math.pow(k, 0.5)),
   );
-  return desired / k;
+  return px(desired / k, fit);
 }
 
 /** Breadth-first reachable set from `start` within `depth` hops. */

@@ -15,7 +15,14 @@
  *  - imperative controls (zoomIn / zoomOut / reset)
  *  - fitToBounds: fit a node bounding box into the viewport
  */
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 
 interface PointerPos {
   x: number;
@@ -36,6 +43,11 @@ export interface PanZoomState {
 
 export interface UseGraphPanZoom {
   state: PanZoomState;
+  // viewBox -> screen px ratio from preserveAspectRatio="meet".
+  // Geometry divides by this so on-screen sizes are real pixels and
+  // match across desktop / mobile (where the SVG box is far narrower
+  // than the 1100-unit viewBox).
+  fitScale: number;
   attachRef: (el: SVGSVGElement | null) => void;
   svgRef: React.MutableRefObject<SVGSVGElement | null>;
   didDragRef: React.MutableRefObject<boolean>;
@@ -58,6 +70,9 @@ export function useGraphPanZoom(): UseGraphPanZoom {
   const [state, setState] = useState<PanZoomState>({ tx: 0, ty: 0, scale: 1 });
   const stateRef = useRef(state);
   stateRef.current = state;
+  // The preserveAspectRatio="meet" fit ratio (viewBox -> rendered px).
+  // 1 until measured; updated before paint and on every resize.
+  const [fitScale, setFitScale] = useState(1);
 
   const pointers = useRef(new Map<number, PointerPos>());
   const dragStart = useRef<
@@ -261,6 +276,27 @@ export function useGraphPanZoom(): UseGraphPanZoom {
     };
   }, [svgEl]);
 
+  // Track the viewBox->px fit ratio. Same formula clientToSvg uses.
+  // useLayoutEffect + ResizeObserver so the value is correct before the
+  // first paint and follows container resize / device rotation.
+  useLayoutEffect(() => {
+    const svg = svgEl;
+    if (!svg) return;
+    const measure = () => {
+      const rect = svg.getBoundingClientRect();
+      if (rect.width > 0 && rect.height > 0) {
+        setFitScale(
+          Math.min(rect.width / VIEWBOX_W, rect.height / VIEWBOX_H),
+        );
+      }
+    };
+    measure();
+    if (typeof ResizeObserver === "undefined") return;
+    const ro = new ResizeObserver(measure);
+    ro.observe(svg);
+    return () => ro.disconnect();
+  }, [svgEl]);
+
   const zoomIn = useCallback(
     () => zoomAt(VIEWBOX_W / 2, VIEWBOX_H / 2, 1.25),
     [zoomAt],
@@ -304,6 +340,7 @@ export function useGraphPanZoom(): UseGraphPanZoom {
   return useMemo(
     () => ({
       state,
+      fitScale,
       attachRef,
       svgRef,
       didDragRef,
@@ -313,7 +350,7 @@ export function useGraphPanZoom(): UseGraphPanZoom {
       reset,
       fitToBounds,
     }),
-    [state, attachRef, zoomIn, zoomOut, reset, fitToBounds],
+    [state, fitScale, attachRef, zoomIn, zoomOut, reset, fitToBounds],
   );
 }
 

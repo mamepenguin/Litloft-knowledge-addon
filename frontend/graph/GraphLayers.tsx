@@ -61,6 +61,7 @@ export function NodeLayer({
   filtered,
   matchedIds,
   scale,
+  fit,
 }: {
   nodes: GraphNode[];
   layout: Layout;
@@ -70,19 +71,20 @@ export function NodeLayer({
   filtered: boolean;
   matchedIds: Set<string>;
   scale: number;
+  fit: number;
 }) {
   // When the graph is filtered (search / focus) the visible set is
   // small, so always show labels regardless of zoom. Otherwise fall
   // back to the Obsidian-style zoom threshold.
   const showAllLabels = filtered || scale >= LABEL_SCALE_THRESHOLD;
-  const fontAttr = labelAttrFont(scale);
-  const gapAttr = 6 / scale;
+  const fontAttr = labelAttrFont(scale, fit);
+  const gapAttr = 6 / scale / (fit > 0 ? fit : 1);
   return (
     <g>
       {nodes.map((n) => {
         const p = layout.get(n.id);
         if (!p) return null;
-        const r = circleAttrR(n.relation_count, scale);
+        const r = circleAttrR(n.relation_count, scale, fit);
         const color = palette.colorFor(n);
         const isSelected = selectedId === n.id;
         const isCenter = focusedId === n.id;
@@ -106,7 +108,7 @@ export function NodeLayer({
             cursor="pointer"
           >
             <circle
-              r={hitAttrR(n.relation_count, scale)}
+              r={hitAttrR(n.relation_count, scale, fit)}
               fill="transparent"
               stroke="none"
             />

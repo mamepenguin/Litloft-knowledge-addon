@@ -167,7 +167,8 @@ export default function ConnectionsGraph({ drive }: Props) {
   const [orphansOpen, setOrphansOpen] = useState(false);
 
   const panZoom = useGraphPanZoom();
-  const { state: pz, attachRef, didDragRef, downTargetRef } = panZoom;
+  const { state: pz, fitScale, attachRef, didDragRef, downTargetRef } =
+    panZoom;
 
   // Auto-fit the *active* bbox into the viewport whenever the rendered
   // node set changes — initial load, refresh that adds nodes, and every
@@ -330,6 +331,7 @@ export default function ConnectionsGraph({ drive }: Props) {
                       filtered={visibleIds !== null}
                       matchedIds={matchedIds}
                       scale={pz.scale}
+                      fit={fitScale}
                     />
                   </g>
                 </svg>
