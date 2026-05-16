@@ -245,75 +245,63 @@ function CaptureZone({
   const [bookmarkletOpen, setBookmarkletOpen] = useState(false);
 
   return (
-    <section className="flex flex-col gap-4">
+    <section className="flex flex-col gap-3">
       <p className="text-[11px] font-semibold uppercase tracking-wide text-text-muted">
         キャプチャ
       </p>
 
-      <div className="w-full rounded-2xl border border-bg-border bg-bg-card p-5 shadow-sm">
-        <div>
-          <p className="mb-1 text-sm font-semibold text-text-primary">
-            Web クリップ
-          </p>
-          <p className="mb-4 text-sm text-text-muted">
-            URL を貼り付けると Markdown に変換して保存します
-          </p>
-          <ClipForm
-            drive={drive}
-            initialUrl={initialUrl}
-            initialTitle={initialTitle}
-            autoSubmit={autoSubmit}
-            onJobAdded={onJobAdded}
-            onDuplicate={(url, subfolder, existing) => {
-              setPasteUrl(url);
-              onDuplicate(url, subfolder, existing);
-            }}
-          />
-        </div>
+      <ClipForm
+        drive={drive}
+        initialUrl={initialUrl}
+        initialTitle={initialTitle}
+        autoSubmit={autoSubmit}
+        onJobAdded={onJobAdded}
+        onDuplicate={(url, subfolder, existing) => {
+          setPasteUrl(url);
+          onDuplicate(url, subfolder, existing);
+        }}
+      />
 
-        <div className="flex items-center gap-1 border-t border-bg-border pt-3">
-          <button
-            type="button"
-            onClick={() => setPasteOpen((v) => !v)}
-            className="inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs text-text-muted transition-colors hover:bg-bg-elevated hover:text-text-primary"
-          >
-            <ClipboardPaste size={12} strokeWidth={1.6} />
-            HTML を貼り付け
-          </button>
-          <button
-            type="button"
-            onClick={() => setBookmarkletOpen(true)}
-            className="inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs text-text-muted transition-colors hover:bg-bg-elevated hover:text-text-primary"
-          >
-            <Bookmark size={12} strokeWidth={1.6} />
-            ブックマークレット
-          </button>
-        </div>
-
-        {pasteOpen && (
-          <div className="border-t border-bg-border pt-4">
-            <ClipPasteForm
-              drive={drive}
-              url={pasteUrl}
-              subfolder=""
-              onSaved={(job) => {
-                onJobAdded(job.file_id, {
-                  status: "ready",
-                  url: pasteUrl,
-                  subfolder: "",
-                  addedAt: Date.now(),
-                });
-                setPasteOpen(false);
-                setPasteUrl("");
-              }}
-              onCancel={() => {
-                setPasteOpen(false);
-                setPasteUrl("");
-              }}
-            />
-          </div>
-        )}
+      <div className="flex items-center gap-1">
+        <button
+          type="button"
+          onClick={() => setPasteOpen((v) => !v)}
+          className="inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs text-text-muted transition-colors hover:bg-bg-elevated hover:text-text-primary"
+        >
+          <ClipboardPaste size={12} strokeWidth={1.6} />
+          HTML を貼り付け
+        </button>
+        <button
+          type="button"
+          onClick={() => setBookmarkletOpen(true)}
+          className="inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs text-text-muted transition-colors hover:bg-bg-elevated hover:text-text-primary"
+        >
+          <Bookmark size={12} strokeWidth={1.6} />
+          ブックマークレット
+        </button>
       </div>
+
+      {pasteOpen && (
+        <ClipPasteForm
+          drive={drive}
+          url={pasteUrl}
+          subfolder=""
+          onSaved={(job) => {
+            onJobAdded(job.file_id, {
+              status: "ready",
+              url: pasteUrl,
+              subfolder: "",
+              addedAt: Date.now(),
+            });
+            setPasteOpen(false);
+            setPasteUrl("");
+          }}
+          onCancel={() => {
+            setPasteOpen(false);
+            setPasteUrl("");
+          }}
+        />
+      )}
 
       <BookmarkletDialog
         drive={drive}
