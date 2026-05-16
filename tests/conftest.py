@@ -157,12 +157,51 @@ class FakeInternalClient:
                 FakeInternalClient.raise_on_tag_sync[file_id], "forced"
             )
 
+    # ---- connections-graph -----------------------------------------------
+    # Populated by tests via class-level overrides; reset in the fixture.
+    bulk_files_override: dict[str, dict] = {}
+    relations_by_drive_override: dict[str, list[dict]] = {}
+    raise_on_bulk_files: int | None = None
+    raise_on_relations_by_drive: int | None = None
+
+    async def fetch_bulk_files(self, file_ids):
+        from app.internal_client import InternalAPIError
+
+        if FakeInternalClient.raise_on_bulk_files is not None:
+            raise InternalAPIError(
+                FakeInternalClient.raise_on_bulk_files, "forced"
+            )
+        files = []
+        not_found = []
+        for fid in file_ids:
+            f = FakeInternalClient.bulk_files_override.get(fid)
+            if f is None:
+                not_found.append(fid)
+            else:
+                files.append(f)
+        return {"files": files, "not_found": not_found}
+
+    async def list_file_relations_by_drive(self, drive, kind=None, limit=5000):
+        from app.internal_client import InternalAPIError
+
+        if FakeInternalClient.raise_on_relations_by_drive is not None:
+            raise InternalAPIError(
+                FakeInternalClient.raise_on_relations_by_drive, "forced"
+            )
+        rows = list(
+            FakeInternalClient.relations_by_drive_override.get(drive, [])
+        )
+        if kind is not None:
+            rows = [r for r in rows if r.get("kind") == kind]
+        return rows[:limit]
+
 
 @pytest.fixture()
 def fake_internal(monkeypatch):
     """Swap InternalClient with FakeInternalClient wherever the routers
     import it, and reset the per-test accessible-drives override."""
     import app.routers.active_summary as active_summary
+    import app.routers.connections_graph as connections_graph
     import app.routers.distill as distill
     import app.routers.notes as notes_router
     import app.routers.tags as tags
@@ -179,6 +218,10 @@ def fake_internal(monkeypatch):
     FakeInternalClient.raise_on_text_content = {}
     FakeInternalClient.captured_tag_syncs = []
     FakeInternalClient.raise_on_tag_sync = {}
+    FakeInternalClient.bulk_files_override = {}
+    FakeInternalClient.relations_by_drive_override = {}
+    FakeInternalClient.raise_on_bulk_files = None
+    FakeInternalClient.raise_on_relations_by_drive = None
     import app.routers.note_from_file as note_from_file_router
 
     monkeypatch.setattr(distill, "InternalClient", FakeInternalClient)
@@ -186,6 +229,7 @@ def fake_internal(monkeypatch):
     monkeypatch.setattr(note_from_file_router, "InternalClient", FakeInternalClient)
     monkeypatch.setattr(tags, "InternalClient", FakeInternalClient)
     monkeypatch.setattr(active_summary, "InternalClient", FakeInternalClient)
+    monkeypatch.setattr(connections_graph, "InternalClient", FakeInternalClient)
     yield FakeInternalClient
 
 

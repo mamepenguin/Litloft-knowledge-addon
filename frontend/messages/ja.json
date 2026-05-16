@@ -96,8 +96,8 @@
         "failed": "クリップに失敗しました: {error}"
       },
       "paste": {
-        "title": "HTML を貼り付けて再挑戦",
-        "description": "サーバー側での取得に失敗しました。対象ページの HTML を貼り付けて変換をやり直せます。",
+        "title": "HTML を貼り付けて変換",
+        "description": "ページの HTML をここに貼り付けると、Markdown に変換して保存します。",
         "placeholder": "ここに HTML を貼り付けてください...",
         "submit": "変換して保存",
         "submitting": "変換中..."
@@ -239,6 +239,48 @@
       "title": "ノートを作成",
       "folderPlaceholder": "フォルダ（空欄でドライブ直下）",
       "creating": "作成中…"
+    },
+    "connections": {
+      "title": "ノートとファイルの繋がり",
+      "loading": "繋がりを読み込み中...",
+      "loadFailed": "繋がりの読み込みに失敗しました",
+      "emptyGraph": "まだ繋がりがありません。ノートに source_file_ids を書き込むか、ファイル間の関連を追加すると、ここにグラフが表示されます。",
+      "searchPlaceholder": "強調表示するノードを検索...",
+      "colorByLabel": "Color",
+      "colorBy": {
+        "kind": "種別",
+        "tag": "タグ",
+        "folder": "フォルダ",
+        "flat": "単色"
+      },
+      "stats": {
+        "nodes": "{count} ノード",
+        "edges": "{count} エッジ",
+        "tooBigWarning": "ノード数が多めです。中心ファイルを選ぶと見やすくなります"
+      },
+      "focus": {
+        "label": "中心",
+        "depthLabel": "深さ",
+        "reset": "全体に戻す",
+        "centerHere": "ここを中心に表示"
+      },
+      "detail": {
+        "open": "→ 開く",
+        "tagsLabel": "タグ",
+        "connectionsLabel": "接続",
+        "folderLabel": "フォルダ"
+      },
+      "orphans": {
+        "show": "リンクなしファイル {count} 件を表示",
+        "hide": "リンクなしファイルを隠す",
+        "heading": "リンクなしノート ({count})",
+        "empty": "リンクなしのノートはありません"
+      },
+      "zoom": {
+        "in": "ズームイン",
+        "out": "ズームアウト",
+        "reset": "ズームリセット"
+      }
     }
   }
 }

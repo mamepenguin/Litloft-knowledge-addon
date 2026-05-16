@@ -247,6 +247,49 @@ class InternalClient:
             raise InternalAPIError(r.status_code, r.text)
         return r.json()
 
+    async def fetch_bulk_files(self, file_ids: list[str]) -> dict:
+        """Bulk-fetch full ``FileResponse`` metadata for a list of IDs.
+
+        Returns ``{"files": [...], "not_found": [...]}``. Used by the
+        connections-graph endpoint to enrich nodes with title / mime /
+        folder / tags without N+1 single-file lookups. Active filter
+        is applied core-side, so missing/trash files end up in
+        ``not_found``.
+        """
+        if not file_ids:
+            return {"files": [], "not_found": []}
+        async with httpx.AsyncClient(timeout=15.0) as client:
+            r = await client.post(
+                f"{HOMEVAULT_INTERNAL_URL}/api/internal/files/bulk",
+                headers={"Content-Type": "application/json"},
+                json={"file_ids": file_ids},
+            )
+        if r.status_code != 200:
+            raise InternalAPIError(r.status_code, r.text)
+        return r.json()
+
+    async def list_file_relations_by_drive(
+        self, drive: str, kind: str | None = None, limit: int = 5000
+    ) -> list[dict]:
+        """List all file_relations within a drive.
+
+        Calls ``GET /api/internal/file_relations?drive=X``. Returns the
+        raw list (each row has ``file_id_a``, ``file_id_b``, ``kind``,
+        ``id``, ``created_at``, ``created_by``). Same-drive invariant
+        is enforced by the core at create time.
+        """
+        params: dict[str, str | int] = {"drive": drive, "limit": limit}
+        if kind is not None:
+            params["kind"] = kind
+        async with httpx.AsyncClient(timeout=15.0) as client:
+            r = await client.get(
+                f"{HOMEVAULT_INTERNAL_URL}/api/internal/file_relations",
+                params=params,
+            )
+        if r.status_code != 200:
+            raise InternalAPIError(r.status_code, r.text)
+        return list(r.json())
+
     async def emit_addon_event(
         self,
         event: str,

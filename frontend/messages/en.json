@@ -239,6 +239,48 @@
       "title": "Create note",
       "folderPlaceholder": "Folder (leave empty for drive root)",
       "creating": "Creating…"
+    },
+    "connections": {
+      "title": "Note & file connections",
+      "loading": "Loading connections…",
+      "loadFailed": "Failed to load connections",
+      "emptyGraph": "No connections yet. Cite source files in your notes or add file relations to populate this graph.",
+      "searchPlaceholder": "Highlight nodes…",
+      "colorByLabel": "Color",
+      "colorBy": {
+        "kind": "Type",
+        "tag": "Tag",
+        "folder": "Folder",
+        "flat": "Flat"
+      },
+      "stats": {
+        "nodes": "{count} nodes",
+        "edges": "{count} edges",
+        "tooBigWarning": "Many nodes. Pick a center file for a clearer view."
+      },
+      "focus": {
+        "label": "Center",
+        "depthLabel": "Depth",
+        "reset": "Reset to full view",
+        "centerHere": "Center on this"
+      },
+      "detail": {
+        "open": "→ Open",
+        "tagsLabel": "Tags",
+        "connectionsLabel": "Connections",
+        "folderLabel": "Folder"
+      },
+      "orphans": {
+        "show": "Show {count} unlinked notes",
+        "hide": "Hide unlinked notes",
+        "heading": "Unlinked notes ({count})",
+        "empty": "No unlinked notes."
+      },
+      "zoom": {
+        "in": "Zoom in",
+        "out": "Zoom out",
+        "reset": "Reset zoom"
+      }
     }
   }
 }

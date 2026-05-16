@@ -14,6 +14,7 @@ from app.internal_client import InternalAPIError, InternalClient
 from app.routers import (
     active_summary,
     clips,
+    connections_graph,
     distill,
     note_from_file,
     notes,
@@ -163,6 +164,7 @@ app = FastAPI(
 )
 
 app.include_router(clips.router)
+app.include_router(connections_graph.router)
 app.include_router(distill.router)
 app.include_router(note_from_file.router)
 app.include_router(notes.router)

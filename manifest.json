@@ -28,6 +28,11 @@
                 "response_filter": null
             },
             {
+                "path": "/connections-graph",
+                "methods": ["GET"],
+                "response_filter": null
+            },
+            {
                 "path": "/clips/pasted",
                 "methods": ["POST"],
                 "response_filter": null

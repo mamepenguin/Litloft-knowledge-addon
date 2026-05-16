@@ -472,3 +472,42 @@ export async function listDriveTags(drive: string): Promise<DriveTagItem[]> {
   if (!res.ok) throw new Error(`Error: ${res.status}`);
   return res.json();
 }
+
+// ---- Connections graph ----
+
+export type GraphMimeKind = "md" | "video" | "image" | "pdf" | "other";
+
+export interface GraphNode {
+  id: string;
+  title: string;
+  path: string;
+  mime_kind: GraphMimeKind;
+  folder: string;
+  tags: string[];
+  relation_count: number;
+}
+
+export interface GraphEdge {
+  a: string;
+  b: string;
+  kind: "related" | "note_source";
+}
+
+export interface GraphOrphan {
+  id: string;
+  title: string;
+  path: string;
+}
+
+export interface ConnectionsGraphResponse {
+  nodes: GraphNode[];
+  edges: GraphEdge[];
+  orphan_count: number;
+  orphans: GraphOrphan[];
+}
+
+export function getConnectionsGraph(
+  drive: string,
+): Promise<ConnectionsGraphResponse> {
+  return request<ConnectionsGraphResponse>(drive, "/connections-graph");
+}

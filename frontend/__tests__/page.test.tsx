@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { cleanup, render, screen, waitFor } from "@testing-library/react";
 
 vi.mock("next-intl", () => ({
   useTranslations:
@@ -20,26 +20,35 @@ vi.mock("@/components/SidebarProvider", () => ({
 let _searchParam: string | null = null;
 const _routerReplace = vi.fn();
 vi.mock("next/navigation", () => ({
-  useSearchParams: () => ({ get: (_k: string) => _searchParam }),
+  useSearchParams: () => ({
+    get: (k: string) => {
+      if (k === "edit") return _searchParam;
+      return null;
+    },
+  }),
   useRouter: () => ({
     replace: _routerReplace,
     push: vi.fn(),
     back: vi.fn(),
-    forward: vi.fn(),
-    refresh: vi.fn(),
-    prefetch: vi.fn(),
   }),
   notFound: () => {
     throw new Error("notFound");
   },
 }));
 
-// Stub MarkdownPreview: the real one uses remark/rehype which breaks jsdom.
+vi.mock("@/lib/featureFlags", () => ({
+  isInlineKnowledgeEditorEnabled: () =>
+    process.env.NEXT_PUBLIC_INLINE_KNOWLEDGE_EDITOR !== "false",
+}));
+
 vi.mock("@/components/MarkdownPreview", () => ({
   MarkdownPreview: () => null,
 }));
 
-const Page = (await import("../Page")).default;
+// KnowledgeDashboard mocked to a simple stub so Page tests stay focused.
+vi.mock("../KnowledgeDashboard", () => ({
+  default: () => <div data-testid="knowledge-dashboard" />,
+}));
 
 const fileA = {
   id: "file-a",
@@ -55,203 +64,52 @@ const fileA = {
   updated_at: "",
 };
 
-function stubFetch(handler: (url: string) => { ok: boolean; status: number; body: unknown; headers?: Record<string, string> }) {
-  const fetchMock = vi.fn(async (url: string) => {
-    const { ok, status, body, headers } = handler(url);
-    return {
-      ok,
-      status,
-      headers: new Headers(headers ?? {}),
-      json: async () => body,
-      text: async () => (typeof body === "string" ? body : JSON.stringify(body)),
-    } as Response;
-  });
-  vi.stubGlobal("fetch", fetchMock);
-  return fetchMock;
+function stubFetch(
+  handler: (url: string) => { ok: boolean; status: number; body: unknown },
+) {
+  vi.stubGlobal(
+    "fetch",
+    vi.fn(async (url: string) => {
+      const { ok, status, body } = handler(url);
+      return {
+        ok,
+        status,
+        headers: new Headers(),
+        json: async () => body,
+      } as Response;
+    }),
+  );
 }
 
 function defaultHandler(url: string) {
-  if (url.match(/\/api\/drives\/[^/]+\/folders/)) {
-    return { ok: true, status: 200, body: [] };
-  }
-  if (url.match(/\/api\/drives\/[^/]+\/files\?/)) {
-    return {
-      ok: true,
-      status: 200,
-      body: { data: [fileA], meta: { total: 1, page: 1, limit: 100 } },
-    };
-  }
-  if (url.match(/\/api\/files\/[^/]+\/stream$/)) {
-    return {
-      ok: true,
-      status: 200,
-      body: "# hello",
-      headers: { etag: '"abc123"' },
-    };
-  }
   if (url.match(/\/api\/files\/[^/]+$/)) {
     return { ok: true, status: 200, body: fileA };
   }
   return { ok: false, status: 404, body: null };
 }
 
-// jsdom storage may be missing in some envs — provide an in-memory shim.
-function setupStorage() {
-  const store = new Map<string, string>();
-  const shim = {
-    getItem: (k: string) => (store.has(k) ? store.get(k)! : null),
-    setItem: (k: string, v: string) => void store.set(k, String(v)),
-    removeItem: (k: string) => void store.delete(k),
-    clear: () => store.clear(),
-    key: (i: number) => [...store.keys()][i] ?? null,
-    get length() {
-      return store.size;
-    },
-  };
-  Object.defineProperty(window, "localStorage", {
-    configurable: true,
-    value: shim,
-  });
-  return shim;
-}
+const Page = (await import("../Page")).default;
 
-describe("KnowledgePage sidebar toggle & mobile layout", () => {
+describe("KnowledgePage", () => {
   beforeEach(() => {
     _mockDrive = "test-drive";
     _searchParam = null;
     _routerReplace.mockReset();
-    setupStorage();
-    vi.unstubAllGlobals();
-    vi.unstubAllEnvs();
-    // These tests exercise the legacy Knowledge route (full-page editor
-    // + sidebar). PR-7 flipped the inline-editor flag default to true,
-    // which would redirect ?edit={id} to the canonical 2-pane URL
-    // before the sidebar renders — opt out for this describe block so
-    // we can keep covering the legacy layout.
-    vi.stubEnv("NEXT_PUBLIC_INLINE_KNOWLEDGE_EDITOR", "false");
   });
   afterEach(() => {
     cleanup();
     vi.restoreAllMocks();
     vi.unstubAllEnvs();
+    vi.unstubAllGlobals();
   });
 
-  it("renders sidebar by default (no file selected)", async () => {
-    stubFetch(defaultHandler);
-    const { container } = render(<Page />);
-    await waitFor(() => {
-      expect(container.querySelector("aside")).toBeTruthy();
-    });
-  });
-
-  it("renders drive-scoped file list when no file is selected", async () => {
+  it("renders KnowledgeDashboard by default", async () => {
     stubFetch(defaultHandler);
     render(<Page />);
-    // The sidebar shows files from the drive root via listKnowledgeFiles.
-    expect(await screen.findByText("a")).toBeTruthy();
+    expect(await screen.findByTestId("knowledge-dashboard")).toBeTruthy();
   });
 
-  it("persists sidebar-hidden state to localStorage via editor toggle", async () => {
-    // Toggle lives in Editor header now, so a file must be selected.
-    _searchParam = "file-a";
-    stubFetch(defaultHandler);
-    render(<Page />);
-
-    const toggle = await screen.findByLabelText("hide");
-    fireEvent.click(toggle);
-
-    await waitFor(() => {
-      expect(window.localStorage.getItem("knowledge:sidebarHidden")).toBe("1");
-    });
-  });
-
-  it("restores sidebar-hidden state from localStorage (with file open)", async () => {
-    window.localStorage.setItem("knowledge:sidebarHidden", "1");
-    _searchParam = "file-a";
-    stubFetch(defaultHandler);
-    render(<Page />);
-
-    await screen.findByLabelText("show");
-  });
-
-  it("applies md:hidden to sidebar wrapper when hidden AND a file is selected", async () => {
-    window.localStorage.setItem("knowledge:sidebarHidden", "1");
-    _searchParam = "file-a";
-    stubFetch(defaultHandler);
-    const { container } = render(<Page />);
-
-    await waitFor(() => {
-      const wrapper = container.querySelector("[data-testid='knowledge-sidebar-wrapper']");
-      expect(wrapper).toBeTruthy();
-      expect(wrapper!.className).toContain("md:hidden");
-    });
-  });
-
-  it("fallback: forces sidebar visible when no file is selected even if sidebarHidden=1", async () => {
-    // A persisted "hidden" preference must NOT collapse the sidebar while
-    // the EmptyState is showing — otherwise the user is stranded with no
-    // way to navigate.
-    window.localStorage.setItem("knowledge:sidebarHidden", "1");
-    stubFetch(defaultHandler);
-    const { container } = render(<Page />);
-
-    await waitFor(() => {
-      const wrapper = container.querySelector("[data-testid='knowledge-sidebar-wrapper']");
-      expect(wrapper).toBeTruthy();
-      // No file selected: effectiveSidebarHidden=false → md:flex, not md:hidden
-      expect(wrapper!.className).toContain("md:flex");
-      expect(wrapper!.className).not.toContain("md:hidden");
-    });
-  });
-
-  it("sidebar wrapper has mobile exclusive classes when file selected", async () => {
-    _searchParam = "file-a";
-    stubFetch(defaultHandler);
-    const { container } = render(<Page />);
-
-    await waitFor(() => {
-      const wrapper = container.querySelector("[data-testid='knowledge-sidebar-wrapper']");
-      expect(wrapper).toBeTruthy();
-      // When a file is selected, sidebar should be hidden on mobile (hidden class)
-      // but visible on md+ (md:flex)
-      expect(wrapper!.className).toContain("hidden");
-      expect(wrapper!.className).toContain("md:flex");
-    });
-  });
-
-  it("main wrapper is hidden on mobile when no file selected", async () => {
-    stubFetch(defaultHandler);
-    const { container } = render(<Page />);
-
-    await waitFor(() => {
-      const main = container.querySelector("[data-testid='knowledge-main-wrapper']");
-      expect(main).toBeTruthy();
-      // No file selected: main hidden on mobile, visible on md+
-      expect(main!.className).toContain("hidden");
-      expect(main!.className).toContain("md:flex");
-    });
-  });
-
-  it("sidebar wrapper is full width on mobile and md:w-72 on desktop", async () => {
-    stubFetch(defaultHandler);
-    const { container } = render(<Page />);
-
-    await waitFor(() => {
-      const wrapper = container.querySelector("[data-testid='knowledge-sidebar-wrapper']");
-      expect(wrapper).toBeTruthy();
-      expect(wrapper!.className).toContain("w-full");
-      expect(wrapper!.className).toContain("md:w-72");
-    });
-
-    // Inner <aside> must not pin to a fixed small width, otherwise
-    // mobile layout gets a narrow gutter.
-    const aside = container.querySelector("aside");
-    expect(aside).toBeTruthy();
-    expect(aside!.className).toContain("w-full");
-    expect(aside!.className).not.toContain("w-72");
-  });
-
-  it("redirects ?edit={id} to canonical 2-pane URL when flag is on (case P)", async () => {
+  it("redirects ?edit={id} to canonical 2-pane URL when inline-editor flag is on", async () => {
     vi.stubEnv("NEXT_PUBLIC_INLINE_KNOWLEDGE_EDITOR", "true");
     _searchParam = "file-a";
     stubFetch(defaultHandler);
@@ -268,19 +126,16 @@ describe("KnowledgePage sidebar toggle & mobile layout", () => {
     expect(url.searchParams.get("edit")).toBe("1");
   });
 
-  it("does NOT redirect when flag is off (legacy ?edit={id} stays on Knowledge route)", async () => {
-    // Explicit opt-out: PR-7 flipped the default to true, so the
-    // legacy path is only reachable via the rollback flag.
+  it("does NOT redirect when inline-editor flag is off", async () => {
     vi.stubEnv("NEXT_PUBLIC_INLINE_KNOWLEDGE_EDITOR", "false");
     _searchParam = "file-a";
     stubFetch(defaultHandler);
 
     render(<Page />);
 
+    // Wait for any async effects to settle.
     await waitFor(() => {
-      // Legacy path opens the editor inline in Knowledge route — the
-      // textarea (label='editArea') is the proof we never bounced.
-      expect(screen.getByLabelText("editArea")).toBeInTheDocument();
+      expect(screen.getByTestId("knowledge-dashboard")).toBeTruthy();
     });
     expect(_routerReplace).not.toHaveBeenCalled();
   });
@@ -293,12 +148,7 @@ describe("KnowledgePage sidebar toggle & mobile layout", () => {
         return {
           ok: true,
           status: 200,
-          body: {
-            ...fileA,
-            id: "file-vid",
-            mime_type: "video/mp4",
-            filename: "v.mp4",
-          },
+          body: { ...fileA, id: "file-vid", mime_type: "video/mp4" },
         };
       }
       return defaultHandler(url);
@@ -306,26 +156,9 @@ describe("KnowledgePage sidebar toggle & mobile layout", () => {
 
     render(<Page />);
 
-    // Wait for the metadata fetch to settle.
     await waitFor(() => {
       expect(globalThis.fetch).toHaveBeenCalled();
     });
     expect(_routerReplace).not.toHaveBeenCalled();
-  });
-
-  it("toggle button has aria-pressed reflecting sidebarHidden state", async () => {
-    _searchParam = "file-a";
-    stubFetch(defaultHandler);
-    render(<Page />);
-
-    const toggle = await screen.findByLabelText("hide");
-    expect(toggle.getAttribute("aria-pressed")).toBe("false");
-
-    fireEvent.click(toggle);
-
-    await waitFor(() => {
-      const shown = screen.getByLabelText("show");
-      expect(shown.getAttribute("aria-pressed")).toBe("true");
-    });
   });
 });
