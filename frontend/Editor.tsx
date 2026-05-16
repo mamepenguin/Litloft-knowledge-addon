@@ -516,8 +516,11 @@ export default function Editor({
   // synthetic events) prevents parent UploadZone handlers from intercepting
   // the events before they reach the textarea.
   useEffect(() => {
-    const ta = textareaRef.current;
-    if (!ta) return;
+    const taOrNull = textareaRef.current;
+    if (!taOrNull) return;
+    // Assign to a new const so TypeScript carries the narrowed non-null type
+    // into the nested event handler closures below.
+    const ta = taOrNull;
 
     function onDragOver(e: DragEvent) {
       if (e.dataTransfer?.types.includes("Files")) {
