@@ -251,9 +251,24 @@ function CaptureZone({
 
   return (
     <section className="flex flex-col gap-3">
-      <p className="text-[11px] font-semibold uppercase tracking-wide text-text-muted">
-        キャプチャ
-      </p>
+      <div className="flex items-center justify-between gap-2">
+        <p className="text-[11px] font-semibold uppercase tracking-wide text-text-muted">
+          キャプチャ
+        </p>
+        <button
+          type="button"
+          onClick={() => void createFile()}
+          disabled={isCreating}
+          className="inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs text-text-muted transition-colors hover:bg-bg-elevated hover:text-text-primary disabled:cursor-not-allowed disabled:opacity-50"
+        >
+          {isCreating ? (
+            <Loader2 size={12} className="animate-spin" strokeWidth={1.6} />
+          ) : (
+            <SquarePen size={12} strokeWidth={1.6} />
+          )}
+          クイックメモ
+        </button>
+      </div>
 
       <ClipForm
         drive={drive}
@@ -268,19 +283,6 @@ function CaptureZone({
       />
 
       <div className="flex items-center gap-1">
-        <button
-          type="button"
-          onClick={() => void createFile()}
-          disabled={isCreating}
-          className="inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs text-text-muted transition-colors hover:bg-bg-elevated hover:text-text-primary disabled:cursor-not-allowed disabled:opacity-50"
-        >
-          {isCreating ? (
-            <Loader2 size={12} className="animate-spin" strokeWidth={1.6} />
-          ) : (
-            <SquarePen size={12} strokeWidth={1.6} />
-          )}
-          クイックメモ
-        </button>
         <button
           type="button"
           onClick={() => setPasteOpen((v) => !v)}
