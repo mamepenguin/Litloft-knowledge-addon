@@ -505,10 +505,13 @@ export default function Editor({
         const final = isImage
           ? `![${file.name}](loft://${fileItem.id})`
           : `[${file.name}](loft://${fileItem.id})`;
+        // Function replacer: a string replacement would special-case
+        // `$&`/`$1`/`$$` if the filename contains `$`, mangling the
+        // inserted markdown.
         setContent((prev) =>
-          prev === null ? null : prev.replace(placeholder, final),
+          prev === null ? null : prev.replace(placeholder, () => final),
         );
-      } catch (err) {
+      } catch {
         setContent((prev) =>
           prev === null ? null : prev.replace(placeholder, ""),
         );
