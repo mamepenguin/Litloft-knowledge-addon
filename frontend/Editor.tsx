@@ -138,6 +138,20 @@ const VIEW_MODE_ROTATION: ViewMode[] = ["edit", "split", "preview"];
 
 const AUTOSAVE_DEBOUNCE_MS = 2000;
 
+// Unique-enough id for upload placeholders. We intentionally avoid
+// crypto.randomUUID() because it is only defined in secure contexts
+// (HTTPS / localhost); Litloft is served over plain HTTP on the home
+// LAN, where crypto.randomUUID is undefined and calling it throws.
+// This only needs to be unique among concurrent in-flight uploads, so
+// a counter + timestamp + random suffix is sufficient.
+let uploadIdCounter = 0;
+function nextUploadPlaceholderId(): string {
+  uploadIdCounter += 1;
+  return `${Date.now()}-${uploadIdCounter}-${Math.random()
+    .toString(36)
+    .slice(2, 10)}`;
+}
+
 export default function Editor({
   fileId,
   filename,
@@ -536,7 +550,7 @@ export default function Editor({
       if (files.length === 0) return;
       const offset = ta.selectionStart;
       const specs = files.map((file) => {
-        const uuid = crypto.randomUUID();
+        const uuid = nextUploadPlaceholderId();
         const isImage = file.type.startsWith("image/");
         const placeholder = isImage
           ? `![${file.name} uploading...](loft://pending-${uuid})`
@@ -567,7 +581,7 @@ export default function Editor({
       const offset = ta.selectionStart;
       const selEnd = ta.selectionEnd;
       const specs = files.map((file) => {
-        const uuid = crypto.randomUUID();
+        const uuid = nextUploadPlaceholderId();
         const placeholder = `![${file.name} uploading...](loft://pending-${uuid})`;
         return { file, placeholder };
       });
