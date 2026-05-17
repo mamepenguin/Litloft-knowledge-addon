@@ -761,19 +761,19 @@ export default function Sidebar({
                   className="flex items-center gap-1 rounded-lg px-1.5 py-0.5 text-xs text-text-muted hover:bg-bg-elevated hover:text-text-primary"
                   title={
                     sortMode === "updated_desc"
-                      ? "更新日順"
+                      ? tSidebar("sortUpdatedTitle")
                       : sortMode === "created_desc"
-                        ? "作成日順"
-                        : "名前順"
+                        ? tSidebar("sortCreatedTitle")
+                        : tSidebar("sortNameTitle")
                   }
                 >
                   <ArrowUpDown size={11} />
                   <span>
                     {sortMode === "updated_desc"
-                      ? "更新日"
+                      ? tSidebar("sortUpdated")
                       : sortMode === "created_desc"
-                        ? "作成日"
-                        : "名前"}
+                        ? tSidebar("sortCreated")
+                        : tSidebar("sortName")}
                   </span>
                 </button>
               </div>
@@ -1114,7 +1114,7 @@ function FolderBody(props: FolderBodyProps) {
                     e.stopPropagation();
                     onContextMenu(e, { kind: "file", item: f });
                   }}
-                  aria-label="More options"
+                  aria-label={tFile("moreOptions")}
                   className="flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-lg text-text-muted opacity-0 transition-opacity group-hover:opacity-100 hover:bg-bg-card hover:text-text-primary"
                 >
                   <MoreHorizontal size={12} />
@@ -1172,6 +1172,7 @@ function FolderRow({
   childContent: React.ReactNode;
 }) {
   const tFile = useTranslations("knowledge.fileList");
+  const tSidebar = useTranslations("knowledge.sidebar");
   return (
     <li className={isDragging ? "opacity-40" : ""}>
       <div
@@ -1196,7 +1197,7 @@ function FolderRow({
           type="button"
           onClick={onToggle}
           aria-expanded={expanded}
-          aria-label={expanded ? "折りたたむ" : "展開する"}
+          aria-label={expanded ? tSidebar("collapse") : tSidebar("expand")}
           className="flex h-7 w-6 flex-shrink-0 items-center justify-center text-text-muted hover:text-text-primary"
         >
           {expanded ? (
@@ -1260,7 +1261,7 @@ function FolderRow({
               e.stopPropagation();
               onContextMenu(e);
             }}
-            aria-label="More options"
+            aria-label={tFile("moreOptions")}
             className="flex h-6 w-6 items-center justify-center rounded-lg text-text-muted hover:bg-bg-card hover:text-text-primary"
           >
             <MoreHorizontal size={12} />

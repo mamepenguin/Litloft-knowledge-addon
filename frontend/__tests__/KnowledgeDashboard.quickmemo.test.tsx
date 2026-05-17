@@ -64,7 +64,7 @@ describe("KnowledgeDashboard quick-memo button", () => {
 
   it("invokes createFile when the quick-memo button is clicked", () => {
     render(<KnowledgeDashboard />);
-    const btn = screen.getByRole("button", { name: /クイックメモ/ });
+    const btn = screen.getByRole("button", { name: /quickMemo/ });
     fireEvent.click(btn);
     expect(_createFile).toHaveBeenCalledTimes(1);
   });
@@ -73,7 +73,7 @@ describe("KnowledgeDashboard quick-memo button", () => {
     _isCreating = true;
     render(<KnowledgeDashboard />);
     const btn = screen.getByRole("button", {
-      name: /クイックメモ/,
+      name: /quickMemo/,
     }) as HTMLButtonElement;
     expect(btn.disabled).toBe(true);
   });

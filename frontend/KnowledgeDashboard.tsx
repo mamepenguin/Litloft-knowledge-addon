@@ -106,12 +106,15 @@ function jobsReducer(state: JobsMap, action: JobAction): JobsMap {
 
 // ---- Helpers ---------------------------------------------------------
 
-function timeAgo(ms: number): string {
+function timeAgo(
+  ms: number,
+  t: (key: string, values: { count: number }) => string,
+): string {
   const diff = Math.floor((Date.now() - ms) / 1000);
-  if (diff < 60) return `${diff}秒前`;
-  if (diff < 3600) return `${Math.floor(diff / 60)}分前`;
-  if (diff < 86400) return `${Math.floor(diff / 3600)}時間前`;
-  return `${Math.floor(diff / 86400)}日前`;
+  if (diff < 60) return t("seconds", { count: diff });
+  if (diff < 3600) return t("minutes", { count: Math.floor(diff / 60) });
+  if (diff < 86400) return t("hours", { count: Math.floor(diff / 3600) });
+  return t("days", { count: Math.floor(diff / 86400) });
 }
 
 // ---- Zone 1: Capture -------------------------------------------------
@@ -133,6 +136,8 @@ function ClipForm({
   onJobAdded,
   onDuplicate,
 }: ClipFormProps) {
+  const tClip = useTranslations("knowledge.clip");
+  const tDash = useTranslations("knowledge.dashboard");
   const [url, setUrl] = useState(initialUrl);
   const [titleHint] = useState(initialTitle);
   const [subfolder, setSubfolder] = useState<string>(() => {
@@ -198,9 +203,9 @@ function ClipForm({
           inputMode="url"
           value={url}
           onChange={(e) => setUrl(e.target.value)}
-          placeholder="https://example.com/article"
+          placeholder={tClip("urlPlaceholder")}
           disabled={submitting}
-          aria-label="クリップする URL"
+          aria-label={tDash("clipUrlLabel")}
           className="flex-1 rounded-2xl border border-bg-border bg-bg-card px-4 py-2 text-sm text-text-primary placeholder:text-text-muted focus:border-focus-ring focus:outline-none focus:ring-1 focus:ring-focus-ring disabled:opacity-50"
         />
         <button
@@ -211,7 +216,7 @@ function ClipForm({
           {submitting ? (
             <Loader2 size={14} className="animate-spin" strokeWidth={1.6} />
           ) : null}
-          クリップ
+          {tClip("submit")}
         </button>
       </div>
 
@@ -242,6 +247,7 @@ function CaptureZone({
   onJobAdded,
   onDuplicate,
 }: CaptureZoneProps) {
+  const tDash = useTranslations("knowledge.dashboard");
   const [pasteOpen, setPasteOpen] = useState(false);
   const [pasteUrl, setPasteUrl] = useState("");
   const [bookmarkletOpen, setBookmarkletOpen] = useState(false);
@@ -253,7 +259,7 @@ function CaptureZone({
     <section className="flex flex-col gap-3">
       <div className="flex items-center justify-between gap-2">
         <p className="text-[11px] font-semibold text-text-muted">
-          キャプチャ
+          {tDash("capture")}
         </p>
         <button
           type="button"
@@ -266,7 +272,7 @@ function CaptureZone({
           ) : (
             <SquarePen size={12} strokeWidth={1.6} />
           )}
-          クイックメモ
+          {tDash("quickMemo")}
         </button>
       </div>
 
@@ -289,7 +295,7 @@ function CaptureZone({
           className="inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs text-text-muted transition-colors hover:bg-bg-elevated hover:text-text-primary"
         >
           <ClipboardPaste size={12} strokeWidth={1.6} />
-          HTML を貼り付け
+          {tDash("pasteHtml")}
         </button>
         <button
           type="button"
@@ -297,7 +303,7 @@ function CaptureZone({
           className="inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs text-text-muted transition-colors hover:bg-bg-elevated hover:text-text-primary"
         >
           <Bookmark size={12} strokeWidth={1.6} />
-          ブックマークレット
+          {tDash("bookmarklet")}
         </button>
       </div>
 
@@ -340,6 +346,7 @@ interface ClipQueueZoneProps {
 }
 
 function ClipQueueZone({ drive: _drive, jobs }: ClipQueueZoneProps) {
+  const tDash = useTranslations("knowledge.dashboard");
   const rows = Array.from(jobs.entries())
     .sort(([, a], [, b]) => b.addedAt - a.addedAt)
     .slice(0, JOB_MAX);
@@ -349,7 +356,7 @@ function ClipQueueZone({ drive: _drive, jobs }: ClipQueueZoneProps) {
   return (
     <section className="flex flex-col gap-3">
       <p className="text-[11px] font-semibold text-text-muted">
-        クリップ履歴
+        {tDash("clipHistory")}
       </p>
       <ul className="flex flex-col gap-1.5" role="list">
         {rows.map(([fileId, job]) => (
@@ -361,6 +368,8 @@ function ClipQueueZone({ drive: _drive, jobs }: ClipQueueZoneProps) {
 }
 
 function ClipQueueRow({ fileId, job }: { fileId: string; job: RecentJob }) {
+  const tDash = useTranslations("knowledge.dashboard");
+  const tTimeAgo = useTranslations("knowledge.dashboard.timeAgo");
   const [tick, setTick] = useReducer((x: number) => x + 1, 0);
   void tick;
   useEffect(() => {
@@ -380,14 +389,14 @@ function ClipQueueRow({ fileId, job }: { fileId: string; job: RecentJob }) {
         {label}
       </span>
       <span className="shrink-0 text-[11px] tabular-nums text-text-muted">
-        {timeAgo(job.addedAt)}
+        {timeAgo(job.addedAt, tTimeAgo)}
       </span>
       {job.status === "ready" && (
         <a
           href={`/files/${fileId}`}
           className="shrink-0 inline-flex items-center gap-1 text-xs font-medium text-accent hover:underline"
         >
-          開く
+          {tDash("open")}
           <ExternalLink size={11} strokeWidth={1.8} />
         </a>
       )}

@@ -42,7 +42,8 @@
       "newFolderPlaceholder": "Folder name…",
       "folderUp": "Up one level",
       "newFileHere": "New note here",
-      "newFolderHere": "New folder here"
+      "newFolderHere": "New folder here",
+      "moreOptions": "More options"
     },
     "search": {
       "placeholder": "Search…",
@@ -51,13 +52,36 @@
       "noResults": "No notes match.",
       "truncated": "Too many results — try a more specific query."
     },
+    "dashboard": {
+      "capture": "Web clip",
+      "quickMemo": "Quick memo",
+      "pasteHtml": "Paste HTML",
+      "bookmarklet": "Bookmarklet",
+      "clipHistory": "Recent clips",
+      "open": "Open",
+      "clipUrlLabel": "URL to clip",
+      "timeAgo": {
+        "seconds": "{count}s ago",
+        "minutes": "{count}m ago",
+        "hours": "{count}h ago",
+        "days": "{count}d ago"
+      }
+    },
     "sidebar": {
       "activePrefix": "Active: {label}",
       "clipAction": "Web clip",
       "clipBadge": "{count} fetching",
       "helpAction": "Clip help",
       "hide": "Hide sidebar",
-      "show": "Show sidebar"
+      "show": "Show sidebar",
+      "expand": "Expand",
+      "collapse": "Collapse",
+      "sortUpdated": "Updated",
+      "sortCreated": "Created",
+      "sortName": "Name",
+      "sortUpdatedTitle": "Sort by updated",
+      "sortCreatedTitle": "Sort by created",
+      "sortNameTitle": "Sort by name",
     },
     "editSection": {
       "title": "Knowledge",

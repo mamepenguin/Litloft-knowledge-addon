@@ -42,7 +42,8 @@
       "newFolderPlaceholder": "フォルダ名...",
       "folderUp": "上の階層へ",
       "newFileHere": "ここに新規ノート",
-      "newFolderHere": "ここに新規フォルダ"
+      "newFolderHere": "ここに新規フォルダ",
+      "moreOptions": "オプション"
     },
     "search": {
       "placeholder": "検索...",
@@ -51,13 +52,36 @@
       "noResults": "該当するノートがありません。",
       "truncated": "結果が多すぎます — 検索語を絞ってください。"
     },
+    "dashboard": {
+      "capture": "Webクリップ",
+      "quickMemo": "クイックメモ",
+      "pasteHtml": "HTML を貼り付け",
+      "bookmarklet": "ブックマークレット",
+      "clipHistory": "クリップ履歴",
+      "open": "開く",
+      "clipUrlLabel": "クリップする URL",
+      "timeAgo": {
+        "seconds": "{count}秒前",
+        "minutes": "{count}分前",
+        "hours": "{count}時間前",
+        "days": "{count}日前"
+      }
+    },
     "sidebar": {
       "activePrefix": "アクティブ: {label}",
       "clipAction": "Web クリップ",
       "clipBadge": "{count} 件取得中",
       "helpAction": "クリップのヘルプ",
       "hide": "サイドバーを隠す",
-      "show": "サイドバーを表示"
+      "show": "サイドバーを表示",
+      "expand": "展開する",
+      "collapse": "折りたたむ",
+      "sortUpdated": "更新日",
+      "sortCreated": "作成日",
+      "sortName": "名前",
+      "sortUpdatedTitle": "更新日順",
+      "sortCreatedTitle": "作成日順",
+      "sortNameTitle": "名前順",
     },
     "editSection": {
       "title": "Knowledge",
