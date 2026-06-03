@@ -122,6 +122,8 @@
       "paste": {
         "title": "HTMLを貼り付けて変換",
         "description": "ページのHTMLをここに貼り付けると、Markdownに変換して保存します。",
+        "urlLabel": "ページのURL",
+        "urlPlaceholder": "https://example.com/article",
         "placeholder": "ここにHTMLを貼り付けてください...",
         "submit": "変換して保存",
         "submitting": "変換中..."
