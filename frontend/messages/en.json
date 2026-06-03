@@ -122,6 +122,8 @@
       "paste": {
         "title": "Paste HTML to retry",
         "description": "Server-side fetch failed. You can paste the page's HTML to convert it manually.",
+        "urlLabel": "Page URL",
+        "urlPlaceholder": "https://example.com/article",
         "placeholder": "Paste HTML here…",
         "submit": "Convert and save",
         "submitting": "Converting…"

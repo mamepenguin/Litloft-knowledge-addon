@@ -21,7 +21,7 @@
     },
     "shortcuts": {
       "knowledge": "Knowledge",
-      "knowledgeEditor": "Knowledge エディタ",
+      "knowledgeEditor": "Knowledgeエディタ",
       "focusSearch": "検索にフォーカス",
       "quickSwitcher": "クイックスイッチャー",
       "newNote": "新規ノート",
@@ -55,11 +55,11 @@
     "dashboard": {
       "capture": "Webクリップ",
       "quickMemo": "クイックメモ",
-      "pasteHtml": "HTML を貼り付け",
+      "pasteHtml": "HTMLを貼り付け",
       "bookmarklet": "ブックマークレット",
       "clipHistory": "クリップ履歴",
       "open": "開く",
-      "clipUrlLabel": "クリップする URL",
+      "clipUrlLabel": "クリップするURL",
       "timeAgo": {
         "seconds": "{count}秒前",
         "minutes": "{count}分前",
@@ -69,7 +69,7 @@
     },
     "sidebar": {
       "activePrefix": "アクティブ: {label}",
-      "clipAction": "Web クリップ",
+      "clipAction": "Webクリップ",
       "clipBadge": "{count} 件取得中",
       "helpAction": "クリップのヘルプ",
       "hide": "サイドバーを隠す",
@@ -85,27 +85,27 @@
     },
     "editSection": {
       "title": "Knowledge",
-      "description": "このファイルを Markdown エディタで編集します。",
+      "description": "このファイルをMarkdownエディタで編集します。",
       "openEditor": "エディタを開く"
     },
     "activeSummary": {
       "title": "要約ノート",
       "badge": "knowledge",
-      "description": "このファイルに対して承認済みの要約ノートが knowledge に保存されています。",
-      "openEditor": "Knowledge で編集",
+      "description": "このファイルに対して承認済みの要約ノートがknowledgeに保存されています。",
+      "openEditor": "Knowledgeで編集",
       "loading": "読み込み中...",
       "loadFailed": "ノートの読み込みに失敗しました"
     },
     "clip": {
-      "title": "Web クリップ",
-      "formLabel": "URL からクリップを作成",
+      "title": "Webクリップ",
+      "formLabel": "URLからクリップを作成",
       "urlPlaceholder": "https://example.com/article",
       "subfolderLabel": "保存先サブフォルダ",
       "rootFolder": "フォルダ分けなし",
       "submit": "クリップ",
       "duplicate": {
-        "title": "同じ URL のクリップが見つかりました",
-        "description": "この URL は既にクリップされています。どうしますか？",
+        "title": "同じURLのクリップが見つかりました",
+        "description": "このURLは既にクリップされています。どうしますか？",
         "openExisting": "既存を開く",
         "createNew": "新規作成",
         "cancel": "キャンセル"
@@ -120,22 +120,24 @@
         "failed": "クリップに失敗しました: {error}"
       },
       "paste": {
-        "title": "HTML を貼り付けて変換",
-        "description": "ページの HTML をここに貼り付けると、Markdown に変換して保存します。",
-        "placeholder": "ここに HTML を貼り付けてください...",
+        "title": "HTMLを貼り付けて変換",
+        "description": "ページのHTMLをここに貼り付けると、Markdownに変換して保存します。",
+        "urlLabel": "ページのURL",
+        "urlPlaceholder": "https://example.com/article",
+        "placeholder": "ここにHTMLを貼り付けてください...",
         "submit": "変換して保存",
         "submitting": "変換中..."
       },
       "bookmarklet": {
         "title": "ブックマークレット",
-        "description": "このリンクをブラウザのブックマークバーにドラッグしてください。閲覧中のページをワンクリックで Litloft にクリップできます。",
-        "dragLabel": "Litloft にクリップ"
+        "description": "このリンクをブラウザのブックマークバーにドラッグしてください。閲覧中のページをワンクリックでLitloftにクリップできます。",
+        "dragLabel": "Litloftにクリップ"
       },
-      "modalTitle": "Web クリップ",
+      "modalTitle": "Webクリップ",
       "modalClose": "閉じる",
       "recentHeading": "最近のクリップ",
       "helpModalTitle": "クリップについて",
-      "helpDescription": "サイドバーのクリップボタンから URL を送信するか、下のブックマークレットを使うと閲覧中のページをKnowledgeに保存できます。"
+      "helpDescription": "サイドバーのクリップボタンからURLを送信するか、下のブックマークレットを使うと閲覧中のページをKnowledgeに保存できます。"
     },
     "toast": {
       "deleted": "「{name}」をゴミ箱に移動しました",
@@ -196,9 +198,9 @@
       "loadFailed": "読み込みに失敗しました: {error}",
       "back": "一覧に戻る",
       "delete": "ゴミ箱に移動",
-      "editArea": "Markdown エディタ",
+      "editArea": "Markdownエディタ",
       "placeholder": "ここに書き始めましょう...",
-      "yamlError": "frontmatter の YAML を解析できません",
+      "yamlError": "frontmatterのYAMLを解析できません",
       "title": {
         "label": "ノートのタイトル",
         "editHint": "クリックして名前を変更"
@@ -210,9 +212,9 @@
       },
       "toolbar": {
         "label": "書式ツールバー",
-        "h1": "見出し 1",
-        "h2": "見出し 2",
-        "h3": "見出し 3",
+        "h1": "見出し1",
+        "h2": "見出し2",
+        "h3": "見出し3",
         "bold": "太字",
         "list": "リスト",
         "link": "リンク",
@@ -266,12 +268,12 @@
       "creating": "作成中…"
     },
     "connections": {
-      "title": "ノートとファイルの繋がり",
-      "loading": "繋がりを読み込み中...",
-      "loadFailed": "繋がりの読み込みに失敗しました",
-      "emptyGraph": "まだ繋がりがありません。ノートに source_file_ids を書き込むか、ファイル間の関連を追加すると、ここにグラフが表示されます。",
+      "title": "ノートとファイルのつながり",
+      "loading": "つながりを読み込み中...",
+      "loadFailed": "つながりの読み込みに失敗しました",
+      "emptyGraph": "まだつながりがありません。ノートに元ファイルを紐づけるか、ファイル間の関連を追加すると、ここにグラフが表示されます。",
       "searchPlaceholder": "強調表示するノードを検索...",
-      "colorByLabel": "Color",
+      "colorByLabel": "色分け",
       "colorBy": {
         "kind": "種別",
         "tag": "タグ",
@@ -292,7 +294,7 @@
       "detail": {
         "open": "→ 開く",
         "tagsLabel": "タグ",
-        "connectionsLabel": "接続",
+        "connectionsLabel": "つながり",
         "folderLabel": "フォルダ"
       },
       "orphans": {

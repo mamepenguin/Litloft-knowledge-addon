@@ -1,5 +1,6 @@
 {
     "label": "Knowledge",
+    "description": "A linked Markdown notes vault connected to your media files.",
     "icon": "notebook-pen",
     "type": "external_service",
     "scope": "drive",

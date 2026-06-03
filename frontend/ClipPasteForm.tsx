@@ -24,18 +24,19 @@ export default function ClipPasteForm({
 }: Props) {
   const t = useTranslations("knowledge.clip.paste");
   const tDup = useTranslations("knowledge.clip.duplicate");
+  const [urlValue, setUrlValue] = useState(url);
   const [html, setHtml] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const handleSubmit = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
-    if (!html.trim()) return;
+    if (!html.trim() || !urlValue.trim()) return;
     setSubmitting(true);
     setError(null);
     try {
       const job = await createClipFromHtml(drive, {
-        url,
+        url: urlValue.trim(),
         subfolder: subfolder || null,
         html,
       });
@@ -58,6 +59,20 @@ export default function ClipPasteForm({
         <p className="mt-1 text-sm leading-relaxed text-text-muted">
           {t("description")}
         </p>
+      </div>
+      <div>
+        <label className="mb-1 block text-xs font-medium text-text-muted">
+          {t("urlLabel")}
+        </label>
+        <input
+          type="url"
+          value={urlValue}
+          onChange={(e) => setUrlValue(e.target.value)}
+          placeholder={t("urlPlaceholder")}
+          required
+          disabled={submitting}
+          className="w-full rounded-2xl border border-bg-border bg-bg-elevated px-3 py-2 text-sm text-text-primary placeholder:text-text-muted focus:border-focus-ring focus:outline-none focus:ring-1 focus:ring-focus-ring disabled:opacity-50"
+        />
       </div>
       <textarea
         value={html}
@@ -84,7 +99,7 @@ export default function ClipPasteForm({
         </button>
         <button
           type="submit"
-          disabled={submitting || !html.trim()}
+          disabled={submitting || !html.trim() || !urlValue.trim()}
           className="inline-flex items-center gap-1.5 rounded-2xl bg-accent px-4 py-2 text-sm font-medium text-white hover:bg-accent-hover disabled:cursor-not-allowed disabled:opacity-50"
         >
           {submitting ? (
