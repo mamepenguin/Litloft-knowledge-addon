@@ -305,11 +305,14 @@ class InternalClient:
         payload: dict[str, object] = {"event": event, "data": data}
         if drive is not None:
             payload["drive"] = drive
+        headers = {**self._headers(), "Content-Type": "application/json"}
+        if CORE_INTERNAL_SECRET:
+            headers["X-Internal-Secret"] = CORE_INTERNAL_SECRET
         try:
             async with httpx.AsyncClient(timeout=3.0) as client:
                 await client.post(
                     f"{HOMEVAULT_INTERNAL_URL}/api/internal/addon-events",
-                    headers={**self._headers(), "Content-Type": "application/json"},
+                    headers=headers,
                     json=payload,
                 )
         except httpx.HTTPError:

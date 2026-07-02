@@ -116,6 +116,46 @@ async def test_sync_core_tags_empty_list_sends_empty_array(monkeypatch):
     assert received["body"] == {"tags": []}
 
 
+@pytest.mark.asyncio
+async def test_emit_addon_event_sends_secret_header_when_configured(monkeypatch):
+    """Regression test: emit_addon_event silently dropped the secret
+    header, so ``POST /api/internal/addon-events`` 403'd whenever
+    ``CORE_INTERNAL_SECRET`` was set, and the failure was swallowed by
+    the bare ``except httpx.HTTPError`` — the clip.ready WS event never
+    reached the frontend even though the fetch had already succeeded.
+    """
+    monkeypatch.setattr(internal_client, "CORE_INTERNAL_SECRET", "topsecret")
+    received: dict = {}
+
+    def handler(req: httpx.Request) -> httpx.Response:
+        received["url"] = str(req.url)
+        received["headers"] = dict(req.headers)
+        return httpx.Response(204)
+
+    _install_transport(monkeypatch, handler)
+    await InternalClient().emit_addon_event(
+        "knowledge.clip.ready", {"file_id": "abc"}, drive="mydrive"
+    )
+
+    assert received["url"].endswith("/api/internal/addon-events")
+    assert received["headers"].get("x-internal-secret") == "topsecret"
+
+
+@pytest.mark.asyncio
+async def test_emit_addon_event_omits_secret_when_unset(monkeypatch):
+    monkeypatch.setattr(internal_client, "CORE_INTERNAL_SECRET", "")
+    received_headers: dict = {}
+
+    def handler(req: httpx.Request) -> httpx.Response:
+        received_headers.update(dict(req.headers))
+        return httpx.Response(204)
+
+    _install_transport(monkeypatch, handler)
+    await InternalClient().emit_addon_event("knowledge.clip.ready", {})
+
+    assert "x-internal-secret" not in {k.lower() for k in received_headers}
+
+
 def test_validator_parity_with_core():
     """Pin the shared validator semantics between the scanner's
     ``_normalise_tags`` and core's ``TagUpdate`` schema.
