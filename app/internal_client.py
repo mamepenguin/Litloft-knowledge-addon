@@ -205,10 +205,13 @@ class InternalClient:
         Uses POST /api/internal/file_relations. 409 is swallowed by the
         caller when the relation may already exist (re-promote scenario).
         """
+        headers = {**self._headers(), "Content-Type": "application/json"}
+        if CORE_INTERNAL_SECRET:
+            headers["X-Internal-Secret"] = CORE_INTERNAL_SECRET
         async with httpx.AsyncClient(timeout=10.0) as client:
             r = await client.post(
                 f"{HOMEVAULT_INTERNAL_URL}/api/internal/file_relations",
-                headers={**self._headers(), "Content-Type": "application/json"},
+                headers=headers,
                 json={
                     "file_id_a": file_id_a,
                     "file_id_b": file_id_b,
@@ -281,10 +284,14 @@ class InternalClient:
         params: dict[str, str | int] = {"drive": drive, "limit": limit}
         if kind is not None:
             params["kind"] = kind
+        headers = {}
+        if CORE_INTERNAL_SECRET:
+            headers["X-Internal-Secret"] = CORE_INTERNAL_SECRET
         async with httpx.AsyncClient(timeout=15.0) as client:
             r = await client.get(
                 f"{HOMEVAULT_INTERNAL_URL}/api/internal/file_relations",
                 params=params,
+                headers=headers,
             )
         if r.status_code != 200:
             raise InternalAPIError(r.status_code, r.text)

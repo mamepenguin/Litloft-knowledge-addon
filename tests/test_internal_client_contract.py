@@ -156,6 +156,64 @@ async def test_emit_addon_event_omits_secret_when_unset(monkeypatch):
     assert "x-internal-secret" not in {k.lower() for k in received_headers}
 
 
+@pytest.mark.asyncio
+async def test_create_file_relation_sends_secret_header_when_configured(monkeypatch):
+    """Regression test: create_file_relation silently dropped the secret
+    header, so ``POST /api/internal/file_relations`` 403'd whenever
+    ``CORE_INTERNAL_SECRET`` was set. distill / note-from-file turned that
+    403 into a 502 surfaced to the user as "Addon service unavailable" —
+    the .md was written but the source-file relation never got seeded.
+    """
+    monkeypatch.setattr(internal_client, "CORE_INTERNAL_SECRET", "topsecret")
+    received: dict = {}
+
+    def handler(req: httpx.Request) -> httpx.Response:
+        received["url"] = str(req.url)
+        received["headers"] = dict(req.headers)
+        return httpx.Response(201, json={"id": 1})
+
+    _install_transport(monkeypatch, handler)
+    await InternalClient().create_file_relation("file-a", "file-b", kind="derived_from")
+
+    assert received["url"].endswith("/api/internal/file_relations")
+    assert received["headers"].get("x-internal-secret") == "topsecret"
+
+
+@pytest.mark.asyncio
+async def test_create_file_relation_omits_secret_when_unset(monkeypatch):
+    monkeypatch.setattr(internal_client, "CORE_INTERNAL_SECRET", "")
+    received_headers: dict = {}
+
+    def handler(req: httpx.Request) -> httpx.Response:
+        received_headers.update(dict(req.headers))
+        return httpx.Response(201, json={"id": 1})
+
+    _install_transport(monkeypatch, handler)
+    await InternalClient().create_file_relation("file-a", "file-b")
+
+    assert "x-internal-secret" not in {k.lower() for k in received_headers}
+
+
+@pytest.mark.asyncio
+async def test_list_file_relations_by_drive_sends_secret_header_when_configured(
+    monkeypatch,
+):
+    monkeypatch.setattr(internal_client, "CORE_INTERNAL_SECRET", "topsecret")
+    received: dict = {}
+
+    def handler(req: httpx.Request) -> httpx.Response:
+        received["url"] = str(req.url)
+        received["headers"] = dict(req.headers)
+        return httpx.Response(200, json=[])
+
+    _install_transport(monkeypatch, handler)
+    await InternalClient().list_file_relations_by_drive("test-drive")
+
+    assert received["url"].startswith("http")
+    assert "/api/internal/file_relations" in received["url"]
+    assert received["headers"].get("x-internal-secret") == "topsecret"
+
+
 def test_validator_parity_with_core():
     """Pin the shared validator semantics between the scanner's
     ``_normalise_tags`` and core's ``TagUpdate`` schema.
