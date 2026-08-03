@@ -17,9 +17,10 @@ import logging
 from typing import Annotated
 from urllib.parse import unquote
 
-from fastapi import APIRouter, Depends, Header, HTTPException, Query
+from fastapi import APIRouter, Depends, Header, HTTPException, Query, Request
 
-from app.auth import get_viewer_id
+from app.auth import get_optional_viewer_id
+from app.credentials import CallerCredential
 from app.internal_client import InternalAPIError, InternalClient
 from app.schemas import SearchHit, SearchResponse
 from app.services.textsearch import find_snippet, matches, strip_frontmatter
@@ -67,14 +68,14 @@ async def _fetch_and_match(
 
 @router.get("", response_model=SearchResponse)
 async def search_drive(
+    request: Request,
     q: str = Query(..., min_length=1, max_length=200),
-    viewer_id: str = Depends(get_viewer_id),
-    cookie: Annotated[str | None, Header(alias="Cookie")] = None,
+    viewer_id: str | None = Depends(get_optional_viewer_id),
     x_hv_drive: Annotated[str | None, Header(alias="X-Lit-Drive")] = None,
 ):
     drive = _require_drive(x_hv_drive)
 
-    client = InternalClient(cookie_header=cookie)
+    client = InternalClient(credential=CallerCredential.from_request(request))
     try:
         all_files = await client.list_drive_files(
             drive, "", limit=_MAX_SCAN_FILES

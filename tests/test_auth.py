@@ -1,29 +1,9 @@
-"""Viewer identification via lit_viewer cookie.
-
-The addon never accepts a viewer_id from the request body or query string
-— it is always derived from the authenticated cookie so that malicious
-clients cannot impersonate another user.
-"""
+"""Viewer identification via proxy-injected X-Lit-Viewer-Id."""
 import pytest
 from fastapi import HTTPException
 
-from app.auth import get_optional_viewer_id, get_viewer_id, nickname_to_viewer_id
-
-
-class TestNicknameToViewerId:
-    def test_deterministic(self):
-        assert nickname_to_viewer_id("alice") == nickname_to_viewer_id("alice")
-
-    def test_different_for_different_nicknames(self):
-        assert nickname_to_viewer_id("alice") != nickname_to_viewer_id("bob")
-
-    def test_16_char_hex(self):
-        vid = nickname_to_viewer_id("alice")
-        assert len(vid) == 16
-        assert all(c in "0123456789abcdef" for c in vid)
-
-    def test_trims_whitespace(self):
-        assert nickname_to_viewer_id("  alice  ") == nickname_to_viewer_id("alice")
+from app.auth import get_optional_viewer_id, get_viewer_id
+from tests.conftest import viewer_id_for_nickname
 
 
 class TestGetOptionalViewerId:
@@ -38,7 +18,8 @@ class TestGetOptionalViewerId:
         assert get_optional_viewer_id("x" * 51) is None
 
     def test_returns_viewer_id(self):
-        assert get_optional_viewer_id("alice") == nickname_to_viewer_id("alice")
+        viewer_id = viewer_id_for_nickname("alice")
+        assert get_optional_viewer_id(viewer_id) == viewer_id
 
 
 class TestGetViewerId:
@@ -53,4 +34,5 @@ class TestGetViewerId:
         assert exc.value.status_code == 401
 
     def test_returns_id(self):
-        assert get_viewer_id("alice") == nickname_to_viewer_id("alice")
+        viewer_id = viewer_id_for_nickname("alice")
+        assert get_viewer_id(viewer_id) == viewer_id

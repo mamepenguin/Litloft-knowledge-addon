@@ -11,9 +11,8 @@ from __future__ import annotations
 
 import pytest
 
-from app.auth import nickname_to_viewer_id
 from app.models import ClipJob
-from tests.conftest import FakeInternalClient
+from tests.conftest import FakeInternalClient, viewer_id_for_nickname
 
 
 class FakeWorker:
@@ -63,7 +62,7 @@ def test_create_clip_rejects_bad_scheme(
     r = client.post(
         "/clips",
         json={"url": "file:///etc/passwd"},
-        headers={"Cookie": viewer_cookie, "X-Lit-Drive": "test-drive"},
+        headers={**viewer_cookie, "X-Lit-Drive": "test-drive"},
     )
     assert r.status_code == 400
     assert "URL rejected" in r.json()["detail"]
@@ -75,7 +74,7 @@ def test_create_clip_rejects_docker_host(
     r = client.post(
         "/clips",
         json={"url": "http://backend:8000/"},
-        headers={"Cookie": viewer_cookie, "X-Lit-Drive": "test-drive"},
+        headers={**viewer_cookie, "X-Lit-Drive": "test-drive"},
     )
     assert r.status_code == 400
 
@@ -83,11 +82,11 @@ def test_create_clip_rejects_docker_host(
 def test_create_clip_happy_path(
     client, knowledge_db, fake_clips_internal, fake_worker, viewer_cookie, stub_dns
 ):
-    vid = nickname_to_viewer_id("alice")
+    vid = viewer_id_for_nickname("alice")
     r = client.post(
         "/clips",
         json={"url": "https://ok.example/post"},
-        headers={"Cookie": viewer_cookie, "X-Lit-Drive": "test-drive"},
+        headers={**viewer_cookie, "X-Lit-Drive": "test-drive"},
     )
     assert r.status_code == 202, r.text
     body = r.json()
@@ -116,7 +115,7 @@ def test_create_clip_missing_drive_header_400(
     r = client.post(
         "/clips",
         json={"url": "https://ok.example/"},
-        headers={"Cookie": viewer_cookie},
+        headers=viewer_cookie,
     )
     assert r.status_code == 400
 
@@ -132,7 +131,7 @@ def test_pasted_html_skips_worker(
     r = client.post(
         "/clips/pasted",
         json={"url": "https://ok.example/", "html": html},
-        headers={"Cookie": viewer_cookie, "X-Lit-Drive": "test-drive"},
+        headers={**viewer_cookie, "X-Lit-Drive": "test-drive"},
     )
     assert r.status_code == 201, r.text
     assert r.json()["status"] == "ready"
@@ -153,7 +152,7 @@ def test_pasted_html_rejects_bad_url(
     r = client.post(
         "/clips/pasted",
         json={"url": "javascript:alert(1)", "html": "<p>hi</p>"},
-        headers={"Cookie": viewer_cookie, "X-Lit-Drive": "test-drive"},
+        headers={**viewer_cookie, "X-Lit-Drive": "test-drive"},
     )
     assert r.status_code == 400
 
@@ -165,9 +164,7 @@ def test_search_clips_is_drive_scoped(client, knowledge_db, viewer_cookie):
     their drive A clips when querying with ``X-Lit-Drive: A`` — drive
     is the security boundary.
     """
-    from app.auth import nickname_to_viewer_id
-
-    vid = nickname_to_viewer_id("alice")
+    vid = viewer_id_for_nickname("alice")
     s = knowledge_db()
     try:
         s.add_all([
@@ -188,7 +185,7 @@ def test_search_clips_is_drive_scoped(client, knowledge_db, viewer_cookie):
     r = client.get(
         "/clips",
         params={"url": "https://ok.example/post"},
-        headers={"Cookie": viewer_cookie, "X-Lit-Drive": "test-drive"},
+        headers={**viewer_cookie, "X-Lit-Drive": "test-drive"},
     )
     assert r.status_code == 200, r.text
     jobs = r.json()
@@ -199,7 +196,7 @@ def test_search_clips_is_drive_scoped(client, knowledge_db, viewer_cookie):
     r = client.get(
         "/clips",
         params={"url": "https://ok.example/post"},
-        headers={"Cookie": viewer_cookie, "X-Lit-Drive": "media"},
+        headers={**viewer_cookie, "X-Lit-Drive": "media"},
     )
     assert r.status_code == 200, r.text
     other = r.json()

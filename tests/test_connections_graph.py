@@ -77,14 +77,14 @@ class TestConnectionsGraph:
     def test_400_without_drive_header(self, client, fake_internal, viewer_cookie):
         r = client.get(
             "/connections-graph",
-            headers={"Cookie": viewer_cookie},
+            headers=viewer_cookie,
         )
         assert r.status_code == 400
 
     def test_empty_drive_returns_empty_graph(self, client, fake_internal, viewer_cookie):
         r = client.get(
             "/connections-graph",
-            headers={"Cookie": viewer_cookie, "X-Lit-Drive": "test-drive"},
+            headers={**viewer_cookie, "X-Lit-Drive": "test-drive"},
         )
         assert r.status_code == 200
         body = r.json()
@@ -140,7 +140,7 @@ class TestConnectionsGraph:
 
         r = client.get(
             "/connections-graph",
-            headers={"Cookie": viewer_cookie, "X-Lit-Drive": "test-drive"},
+            headers={**viewer_cookie, "X-Lit-Drive": "test-drive"},
         )
         assert r.status_code == 200, r.text
         body = r.json()
@@ -204,7 +204,7 @@ class TestConnectionsGraph:
 
         r = client.get(
             "/connections-graph",
-            headers={"Cookie": viewer_cookie, "X-Lit-Drive": "test-drive"},
+            headers={**viewer_cookie, "X-Lit-Drive": "test-drive"},
         )
         body = r.json()
         assert len(body["edges"]) == 1
@@ -229,7 +229,7 @@ class TestConnectionsGraph:
 
         r = client.get(
             "/connections-graph",
-            headers={"Cookie": viewer_cookie, "X-Lit-Drive": "test-drive"},
+            headers={**viewer_cookie, "X-Lit-Drive": "test-drive"},
         )
         body = r.json()
         assert body["nodes"] == []
@@ -270,7 +270,7 @@ class TestConnectionsGraph:
 
         r = client.get(
             "/connections-graph",
-            headers={"Cookie": viewer_cookie, "X-Lit-Drive": "test-drive"},
+            headers={**viewer_cookie, "X-Lit-Drive": "test-drive"},
         )
         body = r.json()
         # Edge is dropped because one endpoint belongs to another drive
@@ -316,7 +316,7 @@ class TestConnectionsGraph:
 
         r = client.get(
             "/connections-graph",
-            headers={"Cookie": viewer_cookie, "X-Lit-Drive": "test-drive"},
+            headers={**viewer_cookie, "X-Lit-Drive": "test-drive"},
         )
         body = r.json()
         by_id = {n["id"]: n["mime_kind"] for n in body["nodes"]}
@@ -360,7 +360,7 @@ class TestConnectionsGraph:
 
         r = client.get(
             "/connections-graph",
-            headers={"Cookie": viewer_cookie, "X-Lit-Drive": "test-drive"},
+            headers={**viewer_cookie, "X-Lit-Drive": "test-drive"},
         )
         body = r.json()
         by_id = {n["id"]: n["relation_count"] for n in body["nodes"]}
@@ -375,6 +375,6 @@ class TestConnectionsGraph:
         fake_internal.raise_on_relations_by_drive = 500
         r = client.get(
             "/connections-graph",
-            headers={"Cookie": viewer_cookie, "X-Lit-Drive": "test-drive"},
+            headers={**viewer_cookie, "X-Lit-Drive": "test-drive"},
         )
         assert r.status_code == 502

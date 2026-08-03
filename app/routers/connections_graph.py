@@ -31,7 +31,8 @@ from fastapi import APIRouter, Depends, Header, HTTPException, Request
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
-from app.auth import get_viewer_id
+from app.auth import get_optional_viewer_id
+from app.credentials import CallerCredential
 from app.database import get_db
 from app.internal_client import InternalAPIError, InternalClient
 from app.models import NoteOrigin, NoteOriginSource
@@ -124,11 +125,10 @@ def _node_folder(file_obj: dict) -> str:
 async def get_connections_graph(
     request: Request,
     db: Annotated[Session, Depends(get_db)],
-    _viewer_id: Annotated[str, Depends(get_viewer_id)],
+    _viewer_id: Annotated[str | None, Depends(get_optional_viewer_id)],
     x_hv_drive: Annotated[str | None, Header(alias="X-Lit-Drive")] = None,
 ) -> ConnectionsGraph:
     drive = _require_drive(x_hv_drive)
-    cookie_header = request.headers.get("cookie")
 
     # ----- 1. Knowledge-local data ---------------------------------------
     note_rows = (
@@ -150,7 +150,7 @@ async def get_connections_graph(
         note_sources.setdefault(s.note_path, set()).add(s.source_file_id)
 
     # ----- 2. Core file_relations (drive-wide) ---------------------------
-    client = InternalClient(cookie_header=cookie_header)
+    client = InternalClient(credential=CallerCredential.from_request(request))
     try:
         relation_rows = await client.list_file_relations_by_drive(
             drive=drive, limit=_MAX_RELATIONS

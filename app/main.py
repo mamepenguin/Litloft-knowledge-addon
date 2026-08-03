@@ -56,7 +56,7 @@ async def _publish_clip(task: ClipTask, article: ExtractedArticle) -> None:
        open UIs refresh the file list. Scoped to the owning drive so
        protected-drive clips don't leak to other viewers.
     """
-    client = InternalClient(cookie_header=task.cookie_header)
+    client = InternalClient(credential=task.credential)
     try:
         current = await client.get_file_content(task.file_id)
     except InternalAPIError as e:
@@ -109,7 +109,7 @@ async def _publish_clip(task: ClipTask, article: ExtractedArticle) -> None:
 async def _publish_fail(task: ClipTask, reason: str) -> None:
     logger.warning("clip fail file_id=%s reason=%s", task.file_id, reason)
     if task.drive:
-        client = InternalClient(cookie_header=task.cookie_header)
+        client = InternalClient(credential=task.credential)
         await client.emit_addon_event(
             "knowledge.clip.failed",
             {

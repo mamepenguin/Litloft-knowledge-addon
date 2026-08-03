@@ -25,10 +25,11 @@ from datetime import datetime, timezone
 from typing import Annotated
 from urllib.parse import unquote
 
-from fastapi import APIRouter, Depends, Header, HTTPException, Query
+from fastapi import APIRouter, Depends, Header, HTTPException, Query, Request
 from sqlalchemy.orm import Session
 
 from app.auth import get_viewer_id
+from app.credentials import CallerCredential
 from app.database import get_db
 from app.internal_client import InternalAPIError, InternalClient
 from app.models import ClipJob
@@ -182,9 +183,9 @@ async def search_clips(
 @router.post("", response_model=ClipJobOut, status_code=202)
 async def create_clip(
     body: ClipCreate,
+    request: Request,
     db: Annotated[Session, Depends(get_db)],
     viewer_id: Annotated[str, Depends(get_viewer_id)],
-    cookie: Annotated[str | None, Header(alias="Cookie")] = None,
     x_hv_drive: Annotated[str | None, Header(alias="X-Lit-Drive")] = None,
 ):
     drive = _require_drive(x_hv_drive)
@@ -196,7 +197,8 @@ async def create_clip(
     except BlockedURL as e:
         raise HTTPException(status_code=400, detail=f"URL rejected: {e}")
 
-    client = InternalClient(cookie_header=cookie)
+    credential = CallerCredential.from_request(request)
+    client = InternalClient(credential=credential)
     created, _etag = await _create_placeholder(
         client, drive, body.url, subfolder=body.subfolder, title=body.title
     )
@@ -220,7 +222,7 @@ async def create_clip(
             file_id=created["id"],
             viewer_id=viewer_id,
             url=body.url,
-            cookie_header=cookie or "",
+            credential=credential,
             drive=drive,
         ))
 
@@ -230,9 +232,9 @@ async def create_clip(
 @router.post("/pasted", response_model=ClipJobOut, status_code=201)
 async def create_clip_from_html(
     body: ClipPasted,
+    request: Request,
     db: Annotated[Session, Depends(get_db)],
     viewer_id: Annotated[str, Depends(get_viewer_id)],
-    cookie: Annotated[str | None, Header(alias="Cookie")] = None,
     x_hv_drive: Annotated[str | None, Header(alias="X-Lit-Drive")] = None,
 ):
     drive = _require_drive(x_hv_drive)
@@ -250,7 +252,8 @@ async def create_clip_from_html(
     except Exception as e:
         raise HTTPException(status_code=422, detail=f"Extract failed: {e}")
 
-    client = InternalClient(cookie_header=cookie)
+    credential = CallerCredential.from_request(request)
+    client = InternalClient(credential=credential)
     created, initial_etag = await _create_placeholder(
         client, drive, body.url, subfolder=body.subfolder, title=body.title
     )

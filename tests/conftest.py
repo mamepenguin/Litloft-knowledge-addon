@@ -6,12 +6,17 @@ contacted in unit tests — callers of ``InternalClient`` are stubbed at
 their call sites as needed.
 """
 import os
+import hashlib
 from pathlib import Path
 
 import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy import create_engine, event
 from sqlalchemy.orm import sessionmaker
+
+
+def viewer_id_for_nickname(nickname: str) -> str:
+    return hashlib.sha256(nickname.strip().encode("utf-8")).hexdigest()[:16]
 
 
 @pytest.fixture()
@@ -71,8 +76,8 @@ class FakeInternalClient:
     # If not None, ``get_file`` raises InternalAPIError with this status.
     raise_on_get_file: int | None = None
 
-    def __init__(self, cookie_header: str | None = None):
-        self._cookie = cookie_header
+    def __init__(self, credential=None):
+        self._credential = credential
 
     async def accessible_drives(self) -> list[str]:
         return list(FakeInternalClient.accessible_drives_override)
@@ -235,6 +240,5 @@ def fake_internal(monkeypatch):
 
 @pytest.fixture()
 def viewer_cookie():
-    """Cookie header corresponding to a nickname of 'alice'. Tests that
-    need a specific viewer_id import ``nickname_to_viewer_id`` directly."""
-    return "lit_viewer=alice"
+    """Viewer-id header injected by the host proxy for nickname 'alice'."""
+    return {"X-Lit-Viewer-Id": viewer_id_for_nickname("alice")}

@@ -5,14 +5,14 @@ can access and to perform the core-side file operations we don't
 duplicate ourselves
 (``POST /api/drives/{drive}/files``, ``PUT /api/files/{id}/content``).
 
-The caller's Cookie string is passed through as the authorization
-context: the core already understands ``lit_token`` (drive unlocks) and
-``lit_viewer`` (profile identity), and the Generic Addon Proxy forwards
-both cookies transparently.
+The caller's credential is passed through as the authorization context:
+browser callers usually provide cookies, while non-browser clients may
+provide ``Authorization: Bearer``. Core accepts both shapes.
 """
 import httpx
 
 from app.config import CORE_INTERNAL_SECRET, HOMEVAULT_INTERNAL_URL
+from app.credentials import CallerCredential
 
 
 class InternalAPIError(Exception):
@@ -23,14 +23,14 @@ class InternalAPIError(Exception):
 
 
 class InternalClient:
-    def __init__(self, cookie_header: str | None = None):
-        self._cookie = cookie_header or ""
+    def __init__(
+        self,
+        credential: CallerCredential | None = None,
+    ):
+        self._credential = credential or CallerCredential()
 
     def _headers(self) -> dict[str, str]:
-        headers: dict[str, str] = {}
-        if self._cookie:
-            headers["Cookie"] = self._cookie
-        return headers
+        return self._credential.headers()
 
     async def accessible_drives(self) -> list[str]:
         async with httpx.AsyncClient(timeout=10.0) as client:
@@ -171,7 +171,7 @@ class InternalClient:
 
         Unlike ``get_file_content`` this path goes through
         ``/api/internal/files/{id}/content``, which is Docker-internal
-        only and bypasses the ``lit_token`` drive-unlock check. The note
+        only and bypasses caller drive-unlock checks. The note
         scanner runs without any user cookie and must still be able to
         read ``.md`` files on password-protected drives — this is the
         escape hatch for that case.

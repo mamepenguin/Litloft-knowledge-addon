@@ -21,11 +21,12 @@ from datetime import UTC, datetime
 from typing import Annotated
 from urllib.parse import unquote
 
-from fastapi import APIRouter, Depends, Header, HTTPException, Response
+from fastapi import APIRouter, Depends, Header, HTTPException, Request, Response
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
 from app.auth import verify_webhook_secret
+from app.credentials import CallerCredential
 from app.database import get_db
 from app.internal_client import InternalAPIError, InternalClient
 from app.models import FileActiveSummary
@@ -76,7 +77,7 @@ def _row_to_out(row: FileActiveSummary) -> ActiveSummaryOut:
 
 
 async def _verify_files_in_drive(
-    cookie: str | None,
+    credential: CallerCredential,
     *,
     target_file_id: str,
     summary_note_id: str,
@@ -91,7 +92,7 @@ async def _verify_files_in_drive(
     so frontend / intelligence callers don't need to special-case the
     move.
     """
-    client = InternalClient(cookie_header=cookie)
+    client = InternalClient(credential=credential)
     try:
         target_info = await client.get_file(target_file_id)
         summary_info = await client.get_file(summary_note_id)
@@ -110,13 +111,14 @@ async def _verify_files_in_drive(
 @router.post("/file_active_summary", response_model=ActiveSummaryOut)
 async def upsert_active_summary(
     body: ActiveSummaryUpsert,
+    request: Request,
     db: Annotated[Session, Depends(get_db)],
     x_lit_drive: Annotated[str | None, Header(alias="X-Lit-Drive")] = None,
-    cookie: Annotated[str | None, Header(alias="Cookie")] = None,
 ) -> ActiveSummaryOut:
     drive = _require_drive(x_lit_drive)
+    credential = CallerCredential.from_request(request)
     await _verify_files_in_drive(
-        cookie,
+        credential,
         target_file_id=body.target_file_id,
         summary_note_id=body.summary_note_id,
         drive=drive,
@@ -146,7 +148,7 @@ async def upsert_active_summary(
     db.commit()
     db.refresh(row)
 
-    client = InternalClient(cookie_header=cookie)
+    client = InternalClient(credential=credential)
     await client.emit_addon_event(
         "knowledge.active_summary.changed",
         {
@@ -182,9 +184,9 @@ async def get_active_summary_pointer(
 @router.delete("/file_active_summary/{file_id}")
 async def delete_active_summary(
     file_id: str,
+    request: Request,
     db: Annotated[Session, Depends(get_db)],
     x_lit_drive: Annotated[str | None, Header(alias="X-Lit-Drive")] = None,
-    cookie: Annotated[str | None, Header(alias="Cookie")] = None,
 ) -> Response:
     drive = _require_drive(x_lit_drive)
     row = (
@@ -200,7 +202,7 @@ async def delete_active_summary(
     db.delete(row)
     db.commit()
 
-    client = InternalClient(cookie_header=cookie)
+    client = InternalClient(credential=CallerCredential.from_request(request))
     await client.emit_addon_event(
         "knowledge.active_summary.changed",
         {"file_id": file_id, "summary_file_id": None},
@@ -215,9 +217,9 @@ async def delete_active_summary(
 )
 async def get_active_summary_note(
     file_id: str,
+    request: Request,
     db: Annotated[Session, Depends(get_db)],
     x_lit_drive: Annotated[str | None, Header(alias="X-Lit-Drive")] = None,
-    cookie: Annotated[str | None, Header(alias="Cookie")] = None,
 ) -> ActiveSummaryNoteResponse:
     """Return the rendered summary-note details for the file detail page.
 
@@ -239,7 +241,7 @@ async def get_active_summary_note(
     if row is None:
         return ActiveSummaryNoteResponse(has_active_summary=False, file_id=file_id)
 
-    client = InternalClient(cookie_header=cookie)
+    client = InternalClient(credential=CallerCredential.from_request(request))
     try:
         note_info = await client.get_file(row.summary_note_id)
     except InternalAPIError as exc:

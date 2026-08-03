@@ -14,7 +14,7 @@ def _put_pointer(client, viewer_cookie, *, target, summary, drive="test-drive"):
     return client.post(
         "/file_active_summary",
         json={"target_file_id": target, "summary_note_id": summary},
-        headers={"Cookie": viewer_cookie, "X-Lit-Drive": drive},
+        headers={**viewer_cookie, "X-Lit-Drive": drive},
     )
 
 
@@ -97,7 +97,7 @@ class TestUpsert:
         res = client.post(
             "/file_active_summary",
             json={"target_file_id": "x", "summary_note_id": "y"},
-            headers={"Cookie": viewer_cookie},
+            headers=viewer_cookie,
         )
         assert res.status_code == 400
 
@@ -123,7 +123,7 @@ class TestGetAndDelete:
 
         res = client.get(
             "/file_active_summary/src1",
-            headers={"Cookie": viewer_cookie, "X-Lit-Drive": "test-drive"},
+            headers={**viewer_cookie, "X-Lit-Drive": "test-drive"},
         )
         assert res.status_code == 200
         assert res.json()["summary_note_id"] == "note1"
@@ -138,7 +138,7 @@ class TestGetAndDelete:
         _put_pointer(client, viewer_cookie, target="src1", summary="note1")
         res = client.get(
             "/file_active_summary/src1",
-            headers={"Cookie": viewer_cookie, "X-Lit-Drive": "media"},
+            headers={**viewer_cookie, "X-Lit-Drive": "media"},
         )
         assert res.status_code == 404
 
@@ -150,13 +150,13 @@ class TestGetAndDelete:
         _put_pointer(client, viewer_cookie, target="src1", summary="note1")
         res = client.delete(
             "/file_active_summary/src1",
-            headers={"Cookie": viewer_cookie, "X-Lit-Drive": "test-drive"},
+            headers={**viewer_cookie, "X-Lit-Drive": "test-drive"},
         )
         assert res.status_code == 204
 
         res2 = client.get(
             "/file_active_summary/src1",
-            headers={"Cookie": viewer_cookie, "X-Lit-Drive": "test-drive"},
+            headers={**viewer_cookie, "X-Lit-Drive": "test-drive"},
         )
         assert res2.status_code == 404
 
@@ -178,7 +178,7 @@ class TestNoteEndpoint:
 
         res = client.get(
             "/file_active_summary/src1/note",
-            headers={"Cookie": viewer_cookie, "X-Lit-Drive": "test-drive"},
+            headers={**viewer_cookie, "X-Lit-Drive": "test-drive"},
         )
         assert res.status_code == 200
         body = res.json()
@@ -189,7 +189,7 @@ class TestNoteEndpoint:
     def test_returns_false_when_no_pointer(self, client, viewer_cookie):
         res = client.get(
             "/file_active_summary/missing/note",
-            headers={"Cookie": viewer_cookie, "X-Lit-Drive": "test-drive"},
+            headers={**viewer_cookie, "X-Lit-Drive": "test-drive"},
         )
         assert res.status_code == 200
         body = res.json()
@@ -218,7 +218,7 @@ class TestInternalDelete:
         # Pointer is gone.
         res2 = client.get(
             "/file_active_summary/src1",
-            headers={"Cookie": viewer_cookie, "X-Lit-Drive": "test-drive"},
+            headers={**viewer_cookie, "X-Lit-Drive": "test-drive"},
         )
         assert res2.status_code == 404
 

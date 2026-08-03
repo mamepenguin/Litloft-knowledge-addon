@@ -59,7 +59,7 @@ def test_search_returns_matches(client, knowledge_db, fake_search_internal, view
     }
     r = client.get(
         "/search?q=needle",
-        headers={"Cookie": viewer_cookie, "X-Lit-Drive": "test-drive"},
+        headers={**viewer_cookie, "X-Lit-Drive": "test-drive"},
     )
     assert r.status_code == 200, r.text
     body = r.json()
@@ -81,7 +81,7 @@ def test_search_case_insensitive(client, knowledge_db, fake_search_internal, vie
     SearchableFake.contents = {"f1": "Some Content Here"}
     r = client.get(
         "/search?q=content",
-        headers={"Cookie": viewer_cookie, "X-Lit-Drive": "test-drive"},
+        headers={**viewer_cookie, "X-Lit-Drive": "test-drive"},
     )
     assert r.status_code == 200
     assert len(r.json()["results"]) == 1
@@ -90,7 +90,7 @@ def test_search_case_insensitive(client, knowledge_db, fake_search_internal, vie
 def test_search_missing_query_param(client, knowledge_db, fake_search_internal, viewer_cookie):
     r = client.get(
         "/search",
-        headers={"Cookie": viewer_cookie, "X-Lit-Drive": "test-drive"},
+        headers={**viewer_cookie, "X-Lit-Drive": "test-drive"},
     )
     assert r.status_code == 422  # pydantic validation
 
@@ -100,7 +100,7 @@ def test_search_missing_drive_header_400(
 ):
     r = client.get(
         "/search?q=anything",
-        headers={"Cookie": viewer_cookie},
+        headers=viewer_cookie,
     )
     assert r.status_code == 400
 
@@ -113,7 +113,7 @@ def test_search_skips_non_text_files(client, knowledge_db, fake_search_internal,
     SearchableFake.contents = {"f1": "contains needle"}
     r = client.get(
         "/search?q=needle",
-        headers={"Cookie": viewer_cookie, "X-Lit-Drive": "test-drive"},
+        headers={**viewer_cookie, "X-Lit-Drive": "test-drive"},
     )
     assert r.status_code == 200
     assert r.json()["results"] == []

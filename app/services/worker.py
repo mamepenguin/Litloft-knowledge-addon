@@ -34,6 +34,7 @@ from typing import Awaitable, Callable, Optional
 from sqlalchemy.orm import Session
 
 from app import database
+from app.credentials import CallerCredential
 from app.models import ClipJob
 from app.services.extractor import ExtractedArticle, extract_article
 from app.services.fetcher import BlockedURL, FetchError, fetch_html
@@ -58,7 +59,7 @@ class ClipTask:
     file_id: str
     viewer_id: str
     url: str
-    cookie_header: str
+    credential: CallerCredential
     # Drive owning the target file. Required so WS notifications can be
     # access-filtered at the core. Empty string allowed for jobs reclaimed
     # after a restart — the worker still completes the fetch, but skips
@@ -130,8 +131,8 @@ class ClipWorker:
 
         Called from the FastAPI lifespan on startup so in-flight work
         from a crashed process gets retried instead of hanging forever.
-        Returns the reclaimed tasks (cookie_header is empty — the user's
-        cookie is gone with the previous process, so retries run with
+        Returns the reclaimed tasks (credential is empty — the user's
+        credential is gone with the previous process, so retries run with
         anonymous identity; the core still verifies drive access).
         """
         now = datetime.utcnow()
@@ -146,7 +147,7 @@ class ClipWorker:
                         file_id=job.file_id,
                         viewer_id=job.viewer_id,
                         url=job.url,
-                        cookie_header="",
+                        credential=CallerCredential(),
                     ))
             session.commit()
         finally:

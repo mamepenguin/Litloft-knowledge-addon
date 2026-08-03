@@ -19,7 +19,7 @@ def _post_note(client, viewer_cookie, *, content: str,
             "content": content,
             "source_file_ids": source_file_ids or [],
         },
-        headers={"Cookie": viewer_cookie, "X-Lit-Drive": drive},
+        headers={**viewer_cookie, "X-Lit-Drive": drive},
     )
 
 
@@ -127,7 +127,7 @@ class TestCreateNote:
                 "content": "body",
                 "source_file_ids": [],
             },
-            headers={"Cookie": viewer_cookie},
+            headers=viewer_cookie,
         )
         assert r.status_code == 400
 

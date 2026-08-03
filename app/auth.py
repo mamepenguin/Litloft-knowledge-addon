@@ -1,42 +1,33 @@
 """Viewer identification for knowledge.
 
-The knowledge addon does not run its own authentication — it trusts the
-``lit_viewer`` cookie forwarded by the Generic Addon Proxy. A null or
-empty cookie means the user hasn't set a profile yet and must be shown
-the "please set a nickname" bootstrap UI before they can use knowledge.
-
-Hash algorithm mirrors Litloft core's ``nickname_to_viewer_id`` so that
-the same person gets the same viewer_id across core and addon, should
-we ever cross-reference identifiers.
+The knowledge addon does not run its own authentication. It trusts the
+host proxy's ``X-Lit-Viewer-Id`` header, which is computed from the
+caller's profile nickname by core. The addon never reads the plaintext
+nickname cookie directly.
 """
-import hashlib
 import os
 
-from fastapi import Cookie, Header, HTTPException
+from fastapi import Header, HTTPException
 
 _WEBHOOK_SECRET = os.environ.get("KNOWLEDGE_WEBHOOK_SECRET", "")
 
 
-def nickname_to_viewer_id(nickname: str) -> str:
-    return hashlib.sha256(nickname.strip().encode("utf-8")).hexdigest()[:16]
-
-
 def get_optional_viewer_id(
-    lit_viewer: str | None = Cookie(default=None),
+    x_lit_viewer_id: str | None = Header(default=None, alias="X-Lit-Viewer-Id"),
 ) -> str | None:
-    if not lit_viewer or not lit_viewer.strip():
+    if not x_lit_viewer_id or not x_lit_viewer_id.strip():
         return None
-    trimmed = lit_viewer.strip()
-    if len(trimmed) > 50:
+    viewer_id = x_lit_viewer_id.strip()
+    if len(viewer_id) != 16:
         return None
-    return nickname_to_viewer_id(trimmed)
+    return viewer_id
 
 
 def get_viewer_id(
-    lit_viewer: str | None = Cookie(default=None),
+    x_lit_viewer_id: str | None = Header(default=None, alias="X-Lit-Viewer-Id"),
 ) -> str:
     """Require a valid viewer_id; raise 401 otherwise."""
-    vid = get_optional_viewer_id(lit_viewer)
+    vid = get_optional_viewer_id(x_lit_viewer_id)
     if vid is None:
         raise HTTPException(
             status_code=401,

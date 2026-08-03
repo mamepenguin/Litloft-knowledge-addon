@@ -20,9 +20,10 @@ from __future__ import annotations
 import logging
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, Header, HTTPException
+from fastapi import APIRouter, Depends, Header, HTTPException, Request
 
 from app.auth import get_viewer_id
+from app.credentials import CallerCredential
 from app.internal_client import InternalAPIError, InternalClient
 from app.routers.distill import (
     _COLLISION_CAP,
@@ -48,13 +49,13 @@ def _build_initial_content(source_file_id: str) -> str:
 @router.post("/note-from-file", response_model=NoteFromFileResponse, status_code=201)
 async def create_note_from_file(
     body: NoteFromFileRequest,
+    request: Request,
     viewer_id: Annotated[str, Depends(get_viewer_id)],
-    cookie: Annotated[str | None, Header(alias="Cookie")] = None,
     x_hv_drive: Annotated[str | None, Header(alias="X-Lit-Drive")] = None,
 ) -> NoteFromFileResponse:
     drive = _require_drive(x_hv_drive)
 
-    client = InternalClient(cookie_header=cookie)
+    client = InternalClient(credential=CallerCredential.from_request(request))
 
     # Verify source file exists and belongs to this drive.
     try:

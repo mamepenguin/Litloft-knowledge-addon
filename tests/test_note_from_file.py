@@ -21,7 +21,7 @@ class TestNoteFromFileHappyPath:
         res = client.post(
             "/note-from-file",
             json=_payload(),
-            headers={"Cookie": viewer_cookie, "X-Lit-Drive": "test-drive"},
+            headers={**viewer_cookie, "X-Lit-Drive": "test-drive"},
         )
         assert res.status_code == 201, res.text
         body = res.json()
@@ -41,7 +41,7 @@ class TestNoteFromFileHappyPath:
         res = client.post(
             "/note-from-file",
             json=_payload(),
-            headers={"Cookie": viewer_cookie, "X-Lit-Drive": "test-drive"},
+            headers={**viewer_cookie, "X-Lit-Drive": "test-drive"},
         )
         assert res.status_code == 201, res.text
 
@@ -54,7 +54,7 @@ class TestNoteFromFileHappyPath:
         res = client.post(
             "/note-from-file",
             json=_payload(folder="Notes"),
-            headers={"Cookie": viewer_cookie, "X-Lit-Drive": "test-drive"},
+            headers={**viewer_cookie, "X-Lit-Drive": "test-drive"},
         )
         assert res.status_code == 201, res.text
         assert res.json()["note_path"] == "Notes/Untitled.md"
@@ -63,7 +63,7 @@ class TestNoteFromFileHappyPath:
         res = client.post(
             "/note-from-file",
             json=_payload(),
-            headers={"Cookie": viewer_cookie, "X-Lit-Drive": "test-drive"},
+            headers={**viewer_cookie, "X-Lit-Drive": "test-drive"},
         )
         assert res.status_code == 201, res.text
         events = [e["event"] for e in fake_internal.captured_addon_events]
@@ -76,7 +76,7 @@ class TestNoteFromFileCollisionRetry:
         res = client.post(
             "/note-from-file",
             json=_payload(),
-            headers={"Cookie": viewer_cookie, "X-Lit-Drive": "test-drive"},
+            headers={**viewer_cookie, "X-Lit-Drive": "test-drive"},
         )
         assert res.status_code == 201, res.text
         assert res.json()["note_path"] == "Untitled-2.md"
@@ -87,7 +87,7 @@ class TestNoteFromFileErrors:
         res = client.post(
             "/note-from-file",
             json=_payload(),
-            headers={"Cookie": viewer_cookie},
+            headers=viewer_cookie,
         )
         assert res.status_code == 400
 
@@ -96,7 +96,7 @@ class TestNoteFromFileErrors:
         res = client.post(
             "/note-from-file",
             json=_payload(),
-            headers={"Cookie": viewer_cookie, "X-Lit-Drive": "test-drive"},
+            headers={**viewer_cookie, "X-Lit-Drive": "test-drive"},
         )
         assert res.status_code == 404
 
@@ -107,7 +107,7 @@ class TestNoteFromFileErrors:
         res = client.post(
             "/note-from-file",
             json=_payload(),
-            headers={"Cookie": viewer_cookie, "X-Lit-Drive": "test-drive"},
+            headers={**viewer_cookie, "X-Lit-Drive": "test-drive"},
         )
         assert res.status_code == 400
         assert "different drive" in res.json()["detail"]

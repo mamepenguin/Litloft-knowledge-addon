@@ -26,10 +26,11 @@ from pathlib import PurePosixPath
 from typing import Annotated
 from urllib.parse import unquote
 
-from fastapi import APIRouter, Depends, Header, HTTPException
+from fastapi import APIRouter, Depends, Header, HTTPException, Request
 from sqlalchemy.orm import Session
 
-from app.auth import get_viewer_id
+from app.auth import get_optional_viewer_id, get_viewer_id
+from app.credentials import CallerCredential
 from app.database import get_db
 from app.internal_client import InternalAPIError, InternalClient
 from app.models import (
@@ -125,14 +126,14 @@ def _compose_markdown(
 @router.post("/distill", response_model=DistillResponse, status_code=201)
 async def distill(
     body: DistillRequest,
+    request: Request,
     db: Annotated[Session, Depends(get_db)],
     viewer_id: Annotated[str, Depends(get_viewer_id)],
-    cookie: Annotated[str | None, Header(alias="Cookie")] = None,
     x_hv_drive: Annotated[str | None, Header(alias="X-Lit-Drive")] = None,
 ) -> DistillResponse:
     drive = _require_drive(x_hv_drive)
 
-    client = InternalClient(cookie_header=cookie)
+    client = InternalClient(credential=CallerCredential.from_request(request))
 
     # Verify the source file exists and lives on this drive. ``get_file``
     # uses the internal endpoint which already filters out trash/missing.
@@ -276,7 +277,7 @@ async def distill(
 async def notes_by_source_file(
     source_file_id: str,
     db: Annotated[Session, Depends(get_db)],
-    viewer_id: Annotated[str, Depends(get_viewer_id)],
+    viewer_id: Annotated[str | None, Depends(get_optional_viewer_id)],
     x_hv_drive: Annotated[str | None, Header(alias="X-Lit-Drive")] = None,
 ) -> list[NoteOriginOut]:
     """Return every Knowledge note that references ``source_file_id``.

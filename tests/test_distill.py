@@ -31,7 +31,7 @@ class TestDistillHappyPath:
         res = client.post(
             "/distill",
             json=_distill_payload(),
-            headers={"Cookie": viewer_cookie, "X-Lit-Drive": "test-drive"},
+            headers={**viewer_cookie, "X-Lit-Drive": "test-drive"},
         )
         assert res.status_code == 201, res.text
         body = res.json()
@@ -67,7 +67,7 @@ class TestDistillHappyPath:
         res = client.post(
             "/distill",
             json=_distill_payload(),
-            headers={"Cookie": viewer_cookie, "X-Lit-Drive": "test-drive"},
+            headers={**viewer_cookie, "X-Lit-Drive": "test-drive"},
         )
         assert res.status_code == 201, res.text
         note_file_id = res.json()["note_file_id"]
@@ -103,7 +103,7 @@ class TestDistillHappyPath:
         res = client.post(
             "/distill",
             json=_distill_payload(),
-            headers={"Cookie": viewer_cookie, "X-Lit-Drive": "test-drive"},
+            headers={**viewer_cookie, "X-Lit-Drive": "test-drive"},
         )
         assert res.status_code == 201, res.text
 
@@ -133,7 +133,7 @@ class TestDistillHappyPath:
         res = client.post(
             "/distill",
             json=_distill_payload(),
-            headers={"Cookie": viewer_cookie, "X-Lit-Drive": "test-drive"},
+            headers={**viewer_cookie, "X-Lit-Drive": "test-drive"},
         )
         assert res.status_code == 201
 
@@ -163,7 +163,7 @@ class TestDistillCollisions:
         res = client.post(
             "/distill",
             json=_distill_payload(),
-            headers={"Cookie": viewer_cookie, "X-Lit-Drive": "test-drive"},
+            headers={**viewer_cookie, "X-Lit-Drive": "test-drive"},
         )
         assert res.status_code == 201, res.text
         assert res.json()["note_path"] == "AI-Drafts/vid-summary-2.md"
@@ -179,7 +179,7 @@ class TestDistillCollisions:
         res = client.post(
             "/distill",
             json=_distill_payload(),
-            headers={"Cookie": viewer_cookie, "X-Lit-Drive": "test-drive"},
+            headers={**viewer_cookie, "X-Lit-Drive": "test-drive"},
         )
         assert res.status_code == 409
 
@@ -191,7 +191,7 @@ class TestDistillGuards:
         res = client.post(
             "/distill",
             json=_distill_payload(),
-            headers={"Cookie": viewer_cookie},
+            headers=viewer_cookie,
         )
         assert res.status_code == 400
 
@@ -206,7 +206,7 @@ class TestDistillGuards:
         res = client.post(
             "/distill",
             json=_distill_payload(),
-            headers={"Cookie": viewer_cookie, "X-Lit-Drive": "test-drive"},
+            headers={**viewer_cookie, "X-Lit-Drive": "test-drive"},
         )
         assert res.status_code == 400
 
@@ -217,7 +217,7 @@ class TestDistillGuards:
         res = client.post(
             "/distill",
             json=_distill_payload(),
-            headers={"Cookie": viewer_cookie, "X-Lit-Drive": "test-drive"},
+            headers={**viewer_cookie, "X-Lit-Drive": "test-drive"},
         )
         assert res.status_code == 403
 
@@ -227,7 +227,7 @@ class TestDistillGuards:
         res = client.post(
             "/distill",
             json=_distill_payload(folder="../secret"),
-            headers={"Cookie": viewer_cookie, "X-Lit-Drive": "test-drive"},
+            headers={**viewer_cookie, "X-Lit-Drive": "test-drive"},
         )
         assert res.status_code == 400
 
@@ -237,7 +237,7 @@ class TestDistillGuards:
         res = client.post(
             "/distill",
             json=_distill_payload(filename="sub/file.md"),
-            headers={"Cookie": viewer_cookie, "X-Lit-Drive": "test-drive"},
+            headers={**viewer_cookie, "X-Lit-Drive": "test-drive"},
         )
         assert res.status_code == 400
 
@@ -251,14 +251,14 @@ class TestReverseLookup:
         res = client.post(
             "/distill",
             json=_distill_payload(),
-            headers={"Cookie": viewer_cookie, "X-Lit-Drive": "test-drive"},
+            headers={**viewer_cookie, "X-Lit-Drive": "test-drive"},
         )
         assert res.status_code == 201
         created = res.json()
 
         res2 = client.get(
             "/notes/by_source_file/src1",
-            headers={"Cookie": viewer_cookie, "X-Lit-Drive": "test-drive"},
+            headers={**viewer_cookie, "X-Lit-Drive": "test-drive"},
         )
         assert res2.status_code == 200
         body = res2.json()
@@ -276,7 +276,7 @@ class TestReverseLookup:
     ):
         res = client.get(
             "/notes/by_source_file/unknown-src",
-            headers={"Cookie": viewer_cookie, "X-Lit-Drive": "test-drive"},
+            headers={**viewer_cookie, "X-Lit-Drive": "test-drive"},
         )
         assert res.status_code == 200
         assert res.json() == []
@@ -289,13 +289,13 @@ class TestReverseLookup:
         res = client.post(
             "/distill",
             json=_distill_payload(),
-            headers={"Cookie": viewer_cookie, "X-Lit-Drive": "test-drive"},
+            headers={**viewer_cookie, "X-Lit-Drive": "test-drive"},
         )
         assert res.status_code == 201
 
         res2 = client.get(
             "/notes/by_source_file/src1",
-            headers={"Cookie": viewer_cookie, "X-Lit-Drive": "media"},
+            headers={**viewer_cookie, "X-Lit-Drive": "media"},
         )
         assert res2.status_code == 200
         assert res2.json() == []
@@ -305,6 +305,6 @@ class TestReverseLookup:
     ):
         res = client.get(
             "/notes/by_source_file/src1",
-            headers={"Cookie": viewer_cookie},
+            headers=viewer_cookie,
         )
         assert res.status_code == 400
