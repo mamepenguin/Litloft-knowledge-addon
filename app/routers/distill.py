@@ -92,9 +92,7 @@ def _join_path(folder: str, filename: str) -> str:
 def _next_collision_candidate(filename: str, n: int) -> str:
     """``foo.md`` + n=2 → ``foo-2.md``. Preserves the extension."""
     stem = PurePosixPath(filename).stem
-    # Strip any existing trailing ``-<digits>`` we ourselves appended on an earlier loop.
-    base_stem = re.sub(r"-\d+$", "", stem)
-    return f"{base_stem}-{n}.md"
+    return f"{stem}-{n}.md"
 
 
 def _compose_markdown(

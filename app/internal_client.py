@@ -84,6 +84,17 @@ class InternalClient:
             raise InternalAPIError(r.status_code, r.text)
         return r.json()
 
+    async def get_public_file(self, file_id: str) -> dict:
+        """Fetch caller-visible file metadata through the public API."""
+        async with httpx.AsyncClient(timeout=10.0) as client:
+            r = await client.get(
+                f"{HOMEVAULT_INTERNAL_URL}/api/files/{file_id}",
+                headers=self._headers(),
+            )
+        if r.status_code != 200:
+            raise InternalAPIError(r.status_code, r.text)
+        return r.json()
+
     async def rename_file(self, file_id: str, new_filename: str) -> dict:
         """Rename a file via core PUT /api/files/{id}/rename.
 
@@ -140,6 +151,20 @@ class InternalClient:
         if r.status_code != 200:
             raise InternalAPIError(r.status_code, r.text)
         return r.text
+
+    async def get_file_content_with_etag(self, file_id: str) -> tuple[str, str]:
+        """Fetch caller-visible Markdown content and its current ETag."""
+        async with httpx.AsyncClient(timeout=30.0) as client:
+            r = await client.get(
+                f"{HOMEVAULT_INTERNAL_URL}/api/files/{file_id}/stream",
+                headers=self._headers(),
+            )
+        if r.status_code != 200:
+            raise InternalAPIError(r.status_code, r.text)
+        etag = r.headers.get("etag")
+        if not etag:
+            raise InternalAPIError(502, "Core content response omitted ETag")
+        return r.text, etag
 
     async def sync_core_tags(self, file_id: str, tags: list[str]) -> None:
         """Replace a core file's tags via the Internal API.

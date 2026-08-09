@@ -82,7 +82,10 @@ async def create_note(
         )
 
     note_file_id = created["id"]
-    note_rel_path = _join_path(folder, final_filename)
+    # Core owns collision resolution and may return ``name (1).md`` even
+    # though the requested path was ``name.md``. Its response is the source
+    # of truth for both the cache key and the path returned to the caller.
+    note_rel_path = created.get("file_path") or _join_path(folder, final_filename)
     approved_at = datetime.now(timezone.utc)
 
     # Register file_relations for each cited source file.
@@ -113,7 +116,7 @@ async def create_note(
         drive=drive,
         note_path=note_rel_path,
         note_file_id=note_file_id,
-        origin="ask_answer",
+        origin=body.origin,
         approved_at=approved_at,
         health="healthy",
     )

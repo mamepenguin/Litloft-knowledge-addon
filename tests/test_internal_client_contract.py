@@ -33,6 +33,30 @@ def _install_transport(monkeypatch, handler):
 
 
 @pytest.mark.asyncio
+async def test_get_file_content_with_etag_uses_stream_endpoint(monkeypatch):
+    received: dict = {}
+
+    def handler(req: httpx.Request) -> httpx.Response:
+        received["url"] = str(req.url)
+        received["method"] = req.method
+        return httpx.Response(
+            200,
+            content=b"# Note\n",
+            headers={"ETag": '"content-hash"'},
+        )
+
+    _install_transport(monkeypatch, handler)
+    content, etag = await InternalClient().get_file_content_with_etag(
+        "abc123456789"
+    )
+
+    assert received["method"] == "GET"
+    assert received["url"].endswith("/api/files/abc123456789/stream")
+    assert content == "# Note\n"
+    assert etag == '"content-hash"'
+
+
+@pytest.mark.asyncio
 async def test_sync_core_tags_posts_expected_payload(monkeypatch):
     received: dict = {}
 

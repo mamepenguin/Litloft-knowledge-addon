@@ -151,6 +151,26 @@ class TestDistillHappyPath:
 
 
 class TestDistillCollisions:
+    def test_collision_suffix_preserves_date_like_stem(
+        self, client, fake_internal, viewer_cookie, knowledge_db
+    ):
+        fake_internal.create_text_file_collisions = {
+            "AI-Drafts/captures-2026-08-10.md"
+        }
+
+        payload = _distill_payload()
+        payload["filename"] = "captures-2026-08-10.md"
+        res = client.post(
+            "/distill",
+            json=payload,
+            headers={**viewer_cookie, "X-Lit-Drive": "test-drive"},
+        )
+
+        assert res.status_code == 201, res.text
+        assert res.json()["note_path"] == (
+            "AI-Drafts/captures-2026-08-10-2.md"
+        )
+
     def test_collision_appends_suffix(
         self, client, fake_internal, viewer_cookie, knowledge_db
     ):

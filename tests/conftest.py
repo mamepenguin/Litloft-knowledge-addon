@@ -68,9 +68,11 @@ class FakeInternalClient:
     create_text_file_collisions: set[str] = set()
     # If not None, every create_text_file call raises this status code.
     create_text_file_always_fails: int | None = None
+    create_text_file_result_paths: dict[str, str] = {}
     # Track distill calls so tests can assert registered relations.
     captured_relations: list[dict] = []
     captured_text_writes: list[dict] = []
+    captured_content_puts: list[dict] = []
     # Source-file metadata returned by ``get_file`` (keyed on file_id).
     file_info_override: dict[str, dict] = {}
     # If not None, ``get_file`` raises InternalAPIError with this status.
@@ -96,10 +98,18 @@ class FakeInternalClient:
             raise InternalAPIError(409, "exists")
         # Assign a deterministic file id based on the path so tests can
         # tell collision-retried rows apart.
-        file_id = f"f{abs(hash(path)) % 10**10:010d}"
-        return {"id": file_id, "drive": drive, "file_path": path}
+        result_path = FakeInternalClient.create_text_file_result_paths.get(path, path)
+        file_id = f"f{abs(hash(result_path)) % 10**10:010d}"
+        return {"id": file_id, "drive": drive, "file_path": result_path}
 
     async def put_file_content(self, file_id, content, if_match):
+        from app.internal_client import InternalAPIError
+
+        FakeInternalClient.captured_content_puts.append(
+            {"file_id": file_id, "content": content, "if_match": if_match}
+        )
+        if FakeInternalClient.raise_on_content_put is not None:
+            raise InternalAPIError(FakeInternalClient.raise_on_content_put, "forced")
         return '"new-etag"'
 
     async def get_file(self, file_id):
@@ -111,6 +121,19 @@ class FakeInternalClient:
         if override is not None:
             return override
         return {"id": file_id, "drive": "test-drive", "filename": "x.md"}
+
+    async def get_public_file(self, file_id):
+        return await self.get_file(file_id)
+
+    file_content_override: dict[str, tuple[str, str]] = {}
+    raise_on_content_put: int | None = None
+
+    async def get_file_content_with_etag(self, file_id):
+        from app.internal_client import InternalAPIError
+
+        if file_id not in FakeInternalClient.file_content_override:
+            raise InternalAPIError(404, "not found")
+        return FakeInternalClient.file_content_override[file_id]
 
     async def create_file_relation(
         self, file_id_a, file_id_b, kind="related", viewer_id=None
@@ -207,6 +230,7 @@ def fake_internal(monkeypatch):
     import it, and reset the per-test accessible-drives override."""
     import app.routers.active_summary as active_summary
     import app.routers.connections_graph as connections_graph
+    import app.routers.captures as captures_router
     import app.routers.distill as distill
     import app.routers.notes as notes_router
     import app.routers.tags as tags
@@ -214,10 +238,14 @@ def fake_internal(monkeypatch):
     FakeInternalClient.accessible_drives_override = ["test-drive", "media"]
     FakeInternalClient.create_text_file_collisions = set()
     FakeInternalClient.create_text_file_always_fails = None
+    FakeInternalClient.create_text_file_result_paths = {}
     FakeInternalClient.captured_relations = []
     FakeInternalClient.captured_text_writes = []
+    FakeInternalClient.captured_content_puts = []
     FakeInternalClient.file_info_override = {}
     FakeInternalClient.raise_on_get_file = None
+    FakeInternalClient.file_content_override = {}
+    FakeInternalClient.raise_on_content_put = None
     FakeInternalClient.captured_addon_events = []
     FakeInternalClient.file_text_override = {}
     FakeInternalClient.raise_on_text_content = {}
@@ -235,6 +263,7 @@ def fake_internal(monkeypatch):
     monkeypatch.setattr(tags, "InternalClient", FakeInternalClient)
     monkeypatch.setattr(active_summary, "InternalClient", FakeInternalClient)
     monkeypatch.setattr(connections_graph, "InternalClient", FakeInternalClient)
+    monkeypatch.setattr(captures_router, "InternalClient", FakeInternalClient)
     yield FakeInternalClient
 
 
