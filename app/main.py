@@ -13,6 +13,7 @@ from app.database import init_schema
 from app.internal_client import InternalAPIError, InternalClient
 from app.routers import (
     active_summary,
+    captures,
     clips,
     connections_graph,
     distill,
@@ -164,6 +165,7 @@ app = FastAPI(
 )
 
 app.include_router(clips.router)
+app.include_router(captures.router)
 app.include_router(connections_graph.router)
 app.include_router(distill.router)
 app.include_router(note_from_file.router)

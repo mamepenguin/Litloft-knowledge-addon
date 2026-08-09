@@ -1,3 +1,5 @@
+import type { SourceCapture } from "@/lib/sourceCapture";
+
 const KNOWLEDGE_BASE = "/api/addons/knowledge";
 
 function driveHeaders(drive: string): Record<string, string> {
@@ -25,6 +27,51 @@ async function request<T>(
   }
   if (res.status === 204) return undefined as T;
   return res.json() as Promise<T>;
+}
+
+export interface CaptureCommitTarget {
+  mode: "new" | "existing";
+  folder?: string;
+  filename?: string;
+  title?: string;
+  file_id?: string;
+  etag?: string;
+}
+
+export interface CaptureCommitResponse {
+  note_file_id: string;
+  note_path: string;
+  etag: string | null;
+  committed: number;
+}
+
+export async function commitSourceCaptures(
+  drive: string,
+  target: CaptureCommitTarget,
+  captures: readonly SourceCapture[],
+): Promise<CaptureCommitResponse> {
+  return request<CaptureCommitResponse>(drive, "/captures/commit", {
+    method: "POST",
+    body: JSON.stringify({
+      target,
+      captures: captures.map((capture) => ({
+        source_file_id: capture.sourceFileId,
+        filename: capture.filename,
+        file_type: capture.fileType,
+        kind: capture.kind,
+        locator: capture.locator
+          ? {
+              seconds: capture.locator.seconds,
+              end_seconds: capture.locator.endSeconds,
+              page: capture.locator.page,
+              label: capture.locator.label,
+            }
+          : undefined,
+        quote: capture.quote,
+        note: capture.note,
+      })),
+    }),
+  });
 }
 
 // ---- Core API (for file list in drive) ----

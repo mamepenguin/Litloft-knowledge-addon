@@ -1,5 +1,6 @@
 """Pydantic request/response models for knowledge endpoints."""
 from datetime import datetime
+from typing import Literal
 
 from pydantic import BaseModel, Field
 
@@ -67,6 +68,49 @@ class NoteCreate(BaseModel):
     filename: str = Field(min_length=1, max_length=200)
     content: str = Field(min_length=0, max_length=1 * 1024 * 1024)
     source_file_ids: list[str] = Field(default_factory=list, max_length=50)
+    origin: Literal["ask_answer", "source_capture"] = "ask_answer"
+
+
+class SourceCaptureLocator(BaseModel):
+    seconds: float | None = Field(default=None, ge=0)
+    end_seconds: float | None = Field(default=None, ge=0)
+    page: int | None = Field(default=None, ge=1)
+    label: str | None = Field(default=None, max_length=120)
+
+
+class SourceCaptureItem(BaseModel):
+    source_file_id: str = Field(
+        min_length=12,
+        max_length=64,
+        pattern=r"^[A-Za-z0-9_-]+$",
+    )
+    filename: str = Field(min_length=1, max_length=500)
+    file_type: str = Field(min_length=1, max_length=32)
+    kind: Literal["media_timestamp", "transcript", "ask_citation"]
+    locator: SourceCaptureLocator | None = None
+    quote: str | None = Field(default=None, max_length=4_000)
+    note: str | None = Field(default=None, max_length=1_000)
+
+
+class SourceCaptureTarget(BaseModel):
+    mode: Literal["new", "existing"]
+    folder: str = Field(default="Captures", max_length=512)
+    filename: str | None = Field(default=None, max_length=200)
+    title: str | None = Field(default=None, max_length=200)
+    file_id: str | None = Field(default=None, min_length=12, max_length=64)
+    etag: str | None = Field(default=None, min_length=1, max_length=200)
+
+
+class SourceCaptureCommit(BaseModel):
+    target: SourceCaptureTarget
+    captures: list[SourceCaptureItem] = Field(min_length=1, max_length=100)
+
+
+class SourceCaptureCommitResponse(BaseModel):
+    note_file_id: str
+    note_path: str
+    etag: str | None = None
+    committed: int
 
 
 class NoteFromFileRequest(BaseModel):

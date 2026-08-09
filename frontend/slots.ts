@@ -4,4 +4,6 @@ import { lazy } from "react";
 export const slotComponents: Record<string, React.LazyExoticComponent<React.ComponentType<any>>> = {
   "knowledge-edit": lazy(() => import("./KnowledgeEditSection")),
   "knowledge-active-summary": lazy(() => import("./ActiveSummarySection")),
+  "knowledge-capture-basket": lazy(() => import("./CaptureBasket")),
+  "knowledge-media-capture": lazy(() => import("./MediaCaptureAction")),
 };
