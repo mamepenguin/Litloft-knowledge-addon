@@ -277,6 +277,7 @@
       "capturePosition": "現在位置を引用",
       "captureSelection": "選択範囲を引用バスケットへ追加",
       "capturePage": "現在のページを引用バスケットへ追加",
+      "captureSearchMatch": "一致箇所を引用バスケットへ追加",
       "select": "{filename} を選択",
       "moveUp": "上へ移動",
       "moveDown": "下へ移動",
