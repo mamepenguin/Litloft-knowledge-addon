@@ -85,3 +85,31 @@ def test_page_locator_uses_page_query() -> None:
         locator=SourceCaptureLocator(page=7, label="page 7"),
     )
     assert "loft://abc123def456?page=7" in render_capture(capture)
+
+
+def test_document_selection_keeps_markdown_heading_without_url_fragment() -> None:
+    capture = _capture(
+        filename="Guide.md",
+        file_type="document",
+        kind="document_selection",
+        locator=SourceCaptureLocator(label="Installation"),
+        quote="Run the installer.",
+    )
+
+    rendered = render_capture(capture)
+    assert "[Guide.md](loft://abc123def456) - Installation" in rendered
+    assert "> Run the installer." in rendered
+
+
+def test_pdf_page_fallback_needs_no_quote() -> None:
+    capture = _capture(
+        filename="Scan.pdf",
+        file_type="document",
+        kind="pdf_page",
+        locator=SourceCaptureLocator(page=4),
+        quote=None,
+        note=None,
+    )
+
+    rendered = render_capture(capture)
+    assert rendered == "- [Scan.pdf](loft://abc123def456?page=4) - page 4"

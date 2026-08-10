@@ -275,6 +275,8 @@
       "duplicate": "This position is already in the basket",
       "addFailed": "Could not add the capture",
       "capturePosition": "Capture current position",
+      "captureSelection": "Add selection to capture basket",
+      "capturePage": "Add current page to capture basket",
       "select": "Select {filename}",
       "moveUp": "Move up",
       "moveDown": "Move down",

@@ -3,6 +3,7 @@ import { fireEvent, render, screen } from "@testing-library/react";
 
 import MediaCaptureAction from "@/addons/knowledge/MediaCaptureAction";
 import type { MediaController } from "@/lib/mediaController";
+import { DocumentCaptureStore } from "@/lib/documentCapture";
 import {
   clearSourceCaptures,
   getSourceCaptures,
@@ -48,5 +49,64 @@ describe("MediaCaptureAction", () => {
     );
 
     expect(container).toBeEmptyDOMElement();
+  });
+
+  it("captures selected document text with its heading", () => {
+    const documentCaptureController = new DocumentCaptureStore();
+    documentCaptureController.setCapture({
+      kind: "selection",
+      quote: "A selected paragraph",
+      locator: { label: "Introduction" },
+      anchor: { left: 120, top: 160, width: 80, height: 20 },
+    });
+
+    render(
+      <MediaCaptureAction
+        fileId="markdown1234"
+        drive="family"
+        filename="guide.md"
+        fileType="document"
+        documentCaptureController={documentCaptureController}
+      />,
+    );
+    const captureButton = screen.getByRole("button");
+    expect(captureButton).toHaveClass("bg-bg-card");
+    expect(captureButton).not.toHaveClass("bg-bg-surface");
+    fireEvent.click(captureButton);
+
+    expect(getSourceCaptures("family")).toEqual([
+      expect.objectContaining({
+        kind: "document_selection",
+        quote: "A selected paragraph",
+        locator: { label: "Introduction" },
+      }),
+    ]);
+  });
+
+  it("captures the current PDF page when no text can be selected", () => {
+    const documentCaptureController = new DocumentCaptureStore();
+    documentCaptureController.setCapture({
+      kind: "page",
+      locator: { page: 6 },
+    });
+
+    render(
+      <MediaCaptureAction
+        fileId="pdf123456789"
+        drive="family"
+        filename="scan.pdf"
+        fileType="document"
+        documentCaptureController={documentCaptureController}
+      />,
+    );
+    fireEvent.click(screen.getByRole("button"));
+
+    expect(getSourceCaptures("family")).toEqual([
+      expect.objectContaining({
+        kind: "pdf_page",
+        locator: { page: 6 },
+        quote: undefined,
+      }),
+    ]);
   });
 });

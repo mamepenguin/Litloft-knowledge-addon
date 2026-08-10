@@ -20,6 +20,7 @@ import {
 } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { MarkdownPreview } from "@/components/MarkdownPreview";
+import type { DocumentCaptureController } from "@/lib/documentCapture";
 import { useToast } from "@/components/ToastProvider";
 import { MarkdownViewModeToggle } from "@/components/MarkdownViewModeToggle";
 import { PropertiesPanel } from "@/components/PropertiesPanel";
@@ -123,6 +124,9 @@ interface Props {
    * lazily from the file metadata API.
    */
   folderPath?: string;
+  onDocumentCaptureController?: (
+    controller: DocumentCaptureController | null,
+  ) => void;
 }
 
 type SaveState =
@@ -165,6 +169,7 @@ export default function Editor({
   fillHeight,
   autoFocus,
   folderPath,
+  onDocumentCaptureController,
 }: Props) {
   const t = useTranslations("knowledge.editor");
   const tSide = useTranslations("knowledge.sidebar");
@@ -1109,6 +1114,7 @@ export default function Editor({
               className="h-full"
               drive={drive}
               wikiResolution={wikiResolution}
+              onDocumentCaptureController={onDocumentCaptureController}
             />
           </div>
         </div>
