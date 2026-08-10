@@ -5,11 +5,13 @@ import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { FilePlus, Pencil } from "lucide-react";
 import { useTranslations } from "next-intl";
+import type { DocumentCaptureController } from "@/lib/documentCapture";
 
 import { isInlineKnowledgeEditorEnabled } from "@/lib/featureFlags";
 import { usePolicy } from "@/hooks/usePolicy";
 import CreateNoteDialog from "./CreateNoteDialog";
 import Editor from "./Editor";
+import MediaCaptureAction from "./MediaCaptureAction";
 
 interface FileMeta {
   id: string;
@@ -45,6 +47,8 @@ export default function KnowledgeEditSection({
   const searchParams = useSearchParams();
   const [file, setFile] = useState<FileMeta | null | undefined>(undefined);
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [documentCaptureController, setDocumentCaptureController] =
+    useState<DocumentCaptureController | null>(null);
   const policy = usePolicy(drive, "knowledge", "editor");
 
   useEffect(() => {
@@ -102,6 +106,14 @@ export default function KnowledgeEditSection({
             inlineMode
             autoFocus={autoFocus}
             fillHeight={fillHeight}
+            onDocumentCaptureController={setDocumentCaptureController}
+          />
+          <MediaCaptureAction
+            fileId={file.id}
+            drive={drive}
+            filename={file.filename}
+            fileType="document"
+            documentCaptureController={documentCaptureController}
           />
           <section className="rounded-xl border border-bg-border bg-bg-card p-4">
             {createNoteBtn}

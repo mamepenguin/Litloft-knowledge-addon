@@ -87,7 +87,13 @@ class SourceCaptureItem(BaseModel):
     )
     filename: str = Field(min_length=1, max_length=500)
     file_type: str = Field(min_length=1, max_length=32)
-    kind: Literal["media_timestamp", "transcript", "ask_citation"]
+    kind: Literal[
+        "media_timestamp",
+        "transcript",
+        "ask_citation",
+        "document_selection",
+        "pdf_page",
+    ]
     locator: SourceCaptureLocator | None = None
     quote: str | None = Field(default=None, max_length=4_000)
     note: str | None = Field(default=None, max_length=1_000)
