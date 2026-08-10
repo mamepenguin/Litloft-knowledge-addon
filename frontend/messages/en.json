@@ -277,6 +277,7 @@
       "capturePosition": "Capture current position",
       "captureSelection": "Add selection to capture basket",
       "capturePage": "Add current page to capture basket",
+      "captureSearchMatch": "Add this match to the capture basket",
       "select": "Select {filename}",
       "moveUp": "Move up",
       "moveDown": "Move down",
