@@ -43,16 +43,38 @@ class InternalClient:
         return list(r.json().get("drives", []))
 
     async def create_text_file(
-        self, drive: str, path: str, content: str
+        self,
+        drive: str,
+        path: str,
+        content: str,
+        conflict_mode: str = "rename",
     ) -> dict:
         """Create a new text file in the given drive via core POST /files."""
         async with httpx.AsyncClient(timeout=30.0) as client:
             r = await client.post(
                 f"{HOMEVAULT_INTERNAL_URL}/api/drives/{drive}/files",
                 headers={**self._headers(), "Content-Type": "application/json"},
-                json={"path": path, "content": content},
+                json={
+                    "path": path,
+                    "content": content,
+                    "conflict_mode": conflict_mode,
+                },
             )
         if r.status_code not in (200, 201):
+            raise InternalAPIError(r.status_code, r.text)
+        return r.json()
+
+    async def get_drive_file_by_path(self, drive: str, path: str) -> dict | None:
+        """Resolve an active caller-visible file by exact relative path."""
+        async with httpx.AsyncClient(timeout=10.0) as client:
+            r = await client.get(
+                f"{HOMEVAULT_INTERNAL_URL}/api/drives/{drive}/files/by-path",
+                headers=self._headers(),
+                params={"path": path},
+            )
+        if r.status_code == 404:
+            return None
+        if r.status_code != 200:
             raise InternalAPIError(r.status_code, r.text)
         return r.json()
 

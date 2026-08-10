@@ -66,10 +66,17 @@ async def create_note(
     for attempt in range(1, _COLLISION_CAP + 1):
         rel_path = _join_path(folder, final_filename)
         try:
-            created = await client.create_text_file(drive, rel_path, body.content)
+            created = await client.create_text_file(
+                drive,
+                rel_path,
+                body.content,
+                conflict_mode=body.conflict_mode,
+            )
             break
         except InternalAPIError as e:
             if e.status_code == 409:
+                if body.conflict_mode == "error":
+                    raise HTTPException(status_code=409, detail="Path already exists")
                 final_filename = _next_collision_candidate(filename, attempt + 1)
                 continue
             if e.status_code == 403:

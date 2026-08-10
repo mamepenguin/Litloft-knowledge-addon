@@ -5,7 +5,9 @@ import { createPortal } from "react-dom";
 import {
   ArrowDown,
   ArrowUp,
+  ChevronDown,
   FilePlus2,
+  Settings2,
   Quote,
   Search,
   Trash2,
@@ -30,6 +32,13 @@ import {
   searchKnowledge,
   type SearchHit,
 } from "./api";
+import {
+  captureDestinationForDate,
+  readCaptureDestination,
+  writeCaptureDestination,
+  type CaptureDestinationMode,
+  type CaptureDestinationSettings,
+} from "./captureDestination";
 
 function pad(value: number, width = 2): string {
   return String(value).padStart(width, "0");
@@ -67,6 +76,14 @@ export default function CaptureBasket({ drive }: { drive: string }) {
   const [saveDialogOpen, setSaveDialogOpen] = useState(false);
   const [saveFilename, setSaveFilename] = useState(defaultCaptureFilename);
   const [targetMode, setTargetMode] = useState<"new" | "existing">("new");
+  const [destinationSettings, setDestinationSettings] =
+    useState<CaptureDestinationSettings>(() => readCaptureDestination(drive));
+  const [draftFolder, setDraftFolder] = useState(destinationSettings.folder);
+  const [draftMode, setDraftMode] =
+    useState<CaptureDestinationMode>(destinationSettings.mode);
+  const [showDestinationSettings, setShowDestinationSettings] = useState(false);
+  const [showAdvanced, setShowAdvanced] = useState(false);
+  const [destinationNow, setDestinationNow] = useState(() => new Date());
   const [query, setQuery] = useState("");
   const [hits, setHits] = useState<SearchHit[]>([]);
   const [searching, setSearching] = useState(false);
@@ -75,6 +92,20 @@ export default function CaptureBasket({ drive }: { drive: string }) {
   >(null);
   const [submitting, setSubmitting] = useState(false);
   const knownCaptureIds = useRef<Set<string>>(new Set());
+
+  useEffect(() => {
+    const settings = readCaptureDestination(drive);
+    setDestinationSettings(settings);
+    setDraftFolder(settings.folder);
+    setDraftMode(settings.mode);
+  }, [drive]);
+
+  useEffect(() => {
+    if (!open) return;
+    setDestinationNow(new Date());
+    const timer = window.setInterval(() => setDestinationNow(new Date()), 30_000);
+    return () => window.clearInterval(timer);
+  }, [open]);
 
   useEffect(() => {
     setSelected((current) => {
@@ -113,6 +144,13 @@ export default function CaptureBasket({ drive }: { drive: string }) {
     () => captures.filter((capture) => selected.has(capture.id)),
     [captures, selected],
   );
+  const previewDestination = captureDestinationForDate(
+    destinationSettings,
+    destinationNow,
+  );
+  const previewPath = [previewDestination.folder, previewDestination.filename]
+    .filter(Boolean)
+    .join("/");
 
   const move = (index: number, delta: -1 | 1) => {
     const nextIndex = index + delta;
@@ -178,6 +216,41 @@ export default function CaptureBasket({ drive }: { drive: string }) {
     } finally {
       setSubmitting(false);
     }
+  };
+
+  const commitQuick = async () => {
+    if (chosen.length === 0) return;
+    const destination = captureDestinationForDate(destinationSettings, new Date());
+    setSubmitting(true);
+    try {
+      const result = await commitSourceCaptures(
+        drive,
+        {
+          mode: "quick",
+          folder: destination.folder,
+          filename: destination.filename,
+          title: destination.filename.replace(/\.md$/i, ""),
+        },
+        chosen,
+      );
+      finishCommit(chosen.map((capture) => capture.id), result.note_path);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : t("saveFailed"));
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const saveDestinationSettings = () => {
+    const saved = writeCaptureDestination(drive, {
+      folder: draftFolder,
+      mode: draftMode,
+    });
+    setDestinationSettings(saved);
+    setDraftFolder(saved.folder);
+    setDraftMode(saved.mode);
+    setDestinationNow(new Date());
+    setShowDestinationSettings(false);
   };
 
   return (
@@ -272,6 +345,69 @@ export default function CaptureBasket({ drive }: { drive: string }) {
 
             {captures.length > 0 && (
               <footer className="flex-shrink-0 space-y-3 border-t border-bg-border p-3">
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between gap-2">
+                    <p className="min-w-0 truncate text-xs text-text-muted" title={previewPath}>
+                      {previewPath}
+                    </p>
+                    <button
+                      type="button"
+                      onClick={() => setShowDestinationSettings((current) => !current)}
+                      aria-label={t("destinationSettings")}
+                      className="rounded-lg p-2 text-text-muted hover:bg-bg-elevated hover:text-text-primary"
+                    >
+                      <Settings2 size={15} />
+                    </button>
+                  </div>
+                  {showDestinationSettings && (
+                    <div className="space-y-3 rounded-lg border border-bg-border bg-bg-card p-3">
+                      <label className="block text-xs text-text-muted">
+                        {t("destinationFolder")}
+                        <input
+                          value={draftFolder}
+                          onChange={(event) => setDraftFolder(event.target.value)}
+                          placeholder="Captures"
+                          className="mt-1.5 w-full rounded-lg border border-bg-border bg-bg-primary px-3 py-2 text-sm text-text-primary focus:border-focus-ring focus:outline-none"
+                        />
+                      </label>
+                      <fieldset className="space-y-1.5">
+                        <legend className="text-xs text-text-muted">{t("destinationType")}</legend>
+                        <label className="flex items-center gap-2 text-sm text-text-primary">
+                          <input type="radio" name="capture-destination-mode" checked={draftMode === "fixed"} onChange={() => setDraftMode("fixed")} />
+                          {t("fixedInbox")}
+                        </label>
+                        <label className="flex items-center gap-2 text-sm text-text-primary">
+                          <input type="radio" name="capture-destination-mode" checked={draftMode === "daily"} onChange={() => setDraftMode("daily")} />
+                          {t("dailyNote")}
+                        </label>
+                      </fieldset>
+                      <button type="button" onClick={saveDestinationSettings} className="w-full rounded-lg bg-sand px-3 py-2 text-sm font-medium text-text-primary hover:bg-sand-hover">
+                        {t("saveDestination")}
+                      </button>
+                    </div>
+                  )}
+                  <button
+                    type="button"
+                    onClick={() => void commitQuick()}
+                    disabled={chosen.length === 0 || submitting}
+                    className="inline-flex w-full items-center justify-center gap-2 rounded-lg bg-accent px-4 py-2.5 text-sm font-medium text-white hover:bg-accent-hover disabled:opacity-50"
+                  >
+                    <Quote size={16} />
+                    {t("quickAppend", { filename: previewDestination.filename })}
+                  </button>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => setShowAdvanced((current) => !current)}
+                  aria-expanded={showAdvanced}
+                  className="flex w-full items-center justify-center gap-1.5 py-1 text-xs font-medium text-text-muted hover:text-text-primary"
+                >
+                  {t("otherSaveMethods")}
+                  <ChevronDown size={14} className={showAdvanced ? "rotate-180" : ""} />
+                </button>
+
+                {showAdvanced && <div className="space-y-3">
                 <div className="grid grid-cols-2 rounded-lg bg-bg-elevated p-1">
                   {(["new", "existing"] as const).map((mode) => (
                     <button key={mode} type="button" onClick={() => setTargetMode(mode)} className={`rounded-md px-3 py-1.5 text-xs font-medium ${targetMode === mode ? "bg-bg-primary text-text-primary shadow-sm" : "text-text-muted"}`}>{t(mode === "new" ? "newNote" : "existingNote")}</button>
@@ -293,6 +429,7 @@ export default function CaptureBasket({ drive }: { drive: string }) {
                     <button type="button" onClick={() => void commitExisting()} disabled={!target || chosen.length === 0 || submitting} className="w-full rounded-lg bg-accent px-4 py-2.5 text-sm font-medium text-white hover:bg-accent-hover disabled:opacity-50">{target ? t("appendTo", { filename: target.filename }) : t("chooseNote")}</button>
                   </div>
                 )}
+                </div>}
               </footer>
             )}
           </section>

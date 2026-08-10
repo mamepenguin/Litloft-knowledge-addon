@@ -166,3 +166,97 @@ def test_cross_drive_source_is_hidden(client, fake_internal, viewer_cookie) -> N
 
     assert response.status_code == 404
     assert fake_internal.captured_text_writes == []
+
+
+def test_quick_append_relooks_up_and_appends_existing_note(
+    client, fake_internal, viewer_cookie
+) -> None:
+    fake_internal.file_info_override["abc123def456"] = {
+        "id": "abc123def456",
+        "drive": "test-drive",
+        "filename": "Canonical.mp4",
+        "file_type": "video",
+    }
+    target = {
+        "id": "note12345678",
+        "drive": "test-drive",
+        "filename": "Inbox.md",
+        "file_path": "Captures/Inbox.md",
+        "mime_type": "text/markdown",
+    }
+    fake_internal.file_by_path_override[("test-drive", "Captures/Inbox.md")] = target
+    fake_internal.file_content_override["note12345678"] = ("# Inbox\n", '"v1"')
+
+    response = _post(
+        client,
+        viewer_cookie,
+        _body({"mode": "quick", "folder": "Captures", "filename": "Inbox.md"}),
+    )
+
+    assert response.status_code == 200, response.text
+    assert response.json()["note_path"] == "Captures/Inbox.md"
+    assert fake_internal.captured_text_writes == []
+    assert fake_internal.captured_content_puts[0]["if_match"] == '"v1"'
+
+
+def test_quick_append_creates_exact_path_without_suffix(
+    client, fake_internal, viewer_cookie
+) -> None:
+    response = _post(
+        client,
+        viewer_cookie,
+        _body({"mode": "quick", "folder": "Daily", "filename": "2026-08-10.md"}),
+    )
+
+    assert response.status_code == 200, response.text
+    assert fake_internal.captured_text_writes[0]["path"] == "Daily/2026-08-10.md"
+    assert fake_internal.captured_text_writes[0]["conflict_mode"] == "error"
+
+
+def test_quick_append_relooks_up_after_create_409(
+    client, fake_internal, viewer_cookie
+) -> None:
+    path = "Captures/Inbox.md"
+    fake_internal.create_text_file_collisions.add(path)
+    target = {
+        "id": "note12345678",
+        "drive": "test-drive",
+        "filename": "Inbox.md",
+        "file_path": path,
+        "mime_type": "text/markdown",
+    }
+    fake_internal.file_by_path_sequences[("test-drive", path)] = [None, target]
+    fake_internal.file_content_override["note12345678"] = ("# Inbox\n", '"v1"')
+
+    response = _post(
+        client,
+        viewer_cookie,
+        _body({"mode": "quick", "folder": "Captures", "filename": "Inbox.md"}),
+    )
+
+    assert response.status_code == 200, response.text
+    assert len(fake_internal.captured_content_puts) == 1
+
+
+def test_quick_append_does_not_retry_etag_conflict(
+    client, fake_internal, viewer_cookie, monkeypatch
+) -> None:
+    path = "Captures/Inbox.md"
+    fake_internal.file_by_path_override[("test-drive", path)] = {
+        "id": "note12345678",
+        "drive": "test-drive",
+        "filename": "Inbox.md",
+        "file_path": path,
+        "mime_type": "text/markdown",
+    }
+    fake_internal.file_content_override["note12345678"] = ("# Inbox\n", '"v1"')
+    monkeypatch.setattr(fake_internal, "raise_on_content_put", 412)
+
+    response = _post(
+        client,
+        viewer_cookie,
+        _body({"mode": "quick", "folder": "Captures", "filename": "Inbox.md"}),
+    )
+
+    assert response.status_code == 412
+    assert len(fake_internal.captured_content_puts) == 1

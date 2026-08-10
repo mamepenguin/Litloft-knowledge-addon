@@ -30,7 +30,7 @@ async function request<T>(
 }
 
 export interface CaptureCommitTarget {
-  mode: "new" | "existing";
+  mode: "new" | "existing" | "quick";
   folder?: string;
   filename?: string;
   title?: string;

@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import asyncio
+import unicodedata
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, Header, HTTPException, Request
@@ -9,7 +11,12 @@ from app.auth import get_viewer_id
 from app.credentials import CallerCredential
 from app.database import get_db
 from app.internal_client import InternalAPIError, InternalClient
-from app.routers.distill import _require_drive
+from app.routers.distill import (
+    _join_path,
+    _require_drive,
+    _sanitise_filename,
+    _sanitise_folder,
+)
 from app.routers.notes import create_note
 from app.schemas import (
     NoteCreate,
@@ -21,6 +28,7 @@ from app.services.capture_markdown import append_captures, build_capture_note
 
 
 router = APIRouter(tags=["captures"])
+_quick_append_locks: dict[tuple[str, str], asyncio.Lock] = {}
 
 
 def _normalize_etag(value: str) -> str:
@@ -72,6 +80,49 @@ async def _canonical_captures(
     ]
 
 
+async def _append_to_file(
+    client: InternalClient,
+    drive: str,
+    target: dict,
+    captures: list[SourceCaptureItem],
+    expected_etag: str | None = None,
+) -> SourceCaptureCommitResponse:
+    if target.get("drive") != drive:
+        raise HTTPException(status_code=404, detail="File not found")
+    if target.get("mime_type") != "text/markdown":
+        raise HTTPException(status_code=400, detail="Target must be a Markdown file")
+
+    try:
+        current, current_etag = await client.get_file_content_with_etag(target["id"])
+        if expected_etag is not None and (
+            _normalize_etag(current_etag) != _normalize_etag(expected_etag)
+        ):
+            raise HTTPException(
+                status_code=412,
+                detail="The note changed; reload and retry",
+            )
+        updated = append_captures(current, captures)
+        new_etag = await client.put_file_content(
+            target["id"],
+            updated,
+            current_etag,
+        )
+    except InternalAPIError as error:
+        raise _map_core_error(error) from error
+
+    return SourceCaptureCommitResponse(
+        note_file_id=target["id"],
+        note_path=target.get("file_path")
+        or "/".join(
+            value
+            for value in (target.get("folder_path"), target.get("filename"))
+            if value
+        ),
+        etag=new_etag,
+        committed=len(captures),
+    )
+
+
 @router.post("/captures/commit", response_model=SourceCaptureCommitResponse)
 async def commit_captures(
     body: SourceCaptureCommit,
@@ -84,6 +135,54 @@ async def commit_captures(
     client = InternalClient(credential=CallerCredential.from_request(request))
     captures = await _canonical_captures(client, drive, body.captures)
     source_ids = list(dict.fromkeys(item.source_file_id for item in captures))
+
+    if body.target.mode == "quick":
+        folder = _sanitise_folder(body.target.folder)
+        filename = _sanitise_filename(body.target.filename or "Inbox.md")
+        note_path = unicodedata.normalize("NFC", _join_path(folder, filename))
+        lock = _quick_append_locks.setdefault((drive, note_path), asyncio.Lock())
+
+        async with lock:
+            try:
+                target = await client.get_drive_file_by_path(drive, note_path)
+            except InternalAPIError as error:
+                raise _map_core_error(error) from error
+            if target is not None:
+                return await _append_to_file(client, drive, target, captures)
+
+            title = (body.target.title or filename.removesuffix(".md")).strip()
+            content = build_capture_note(title, captures)
+            try:
+                created = await create_note(
+                    NoteCreate(
+                        folder=folder,
+                        filename=filename,
+                        content=content,
+                        source_file_ids=source_ids,
+                        origin="source_capture",
+                        conflict_mode="error",
+                    ),
+                    request,
+                    db,
+                    viewer_id,
+                    drive,
+                )
+                return SourceCaptureCommitResponse(
+                    note_file_id=created.note_file_id,
+                    note_path=created.note_path,
+                    committed=len(captures),
+                )
+            except HTTPException as error:
+                if error.status_code != 409:
+                    raise
+
+            try:
+                target = await client.get_drive_file_by_path(drive, note_path)
+            except InternalAPIError as error:
+                raise _map_core_error(error) from error
+            if target is None:
+                raise HTTPException(status_code=409, detail="Path already exists")
+            return await _append_to_file(client, drive, target, captures)
 
     if body.target.mode == "new":
         title = (body.target.title or "Captured sources").strip()
@@ -118,37 +217,10 @@ async def commit_captures(
         target = await client.get_public_file(body.target.file_id)
     except InternalAPIError as error:
         raise _map_core_error(error) from error
-    if target.get("drive") != drive:
-        raise HTTPException(status_code=404, detail="File not found")
-    if target.get("mime_type") != "text/markdown":
-        raise HTTPException(status_code=400, detail="Target must be a Markdown file")
-
-    try:
-        current, current_etag = await client.get_file_content_with_etag(
-            body.target.file_id
-        )
-        if _normalize_etag(current_etag) != _normalize_etag(body.target.etag):
-            raise HTTPException(
-                status_code=412,
-                detail="The note changed; reload and retry",
-            )
-        updated = append_captures(current, captures)
-        new_etag = await client.put_file_content(
-            body.target.file_id,
-            updated,
-            current_etag,
-        )
-    except InternalAPIError as error:
-        raise _map_core_error(error) from error
-
-    return SourceCaptureCommitResponse(
-        note_file_id=body.target.file_id,
-        note_path=target.get("file_path")
-        or "/".join(
-            value
-            for value in (target.get("folder_path"), target.get("filename"))
-            if value
-        ),
-        etag=new_etag,
-        committed=len(captures),
+    return await _append_to_file(
+        client,
+        drive,
+        target,
+        captures,
+        expected_etag=body.target.etag,
     )

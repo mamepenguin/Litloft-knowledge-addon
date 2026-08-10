@@ -69,6 +69,8 @@ class FakeInternalClient:
     # If not None, every create_text_file call raises this status code.
     create_text_file_always_fails: int | None = None
     create_text_file_result_paths: dict[str, str] = {}
+    file_by_path_override: dict[tuple[str, str], dict] = {}
+    file_by_path_sequences: dict[tuple[str, str], list[dict | None]] = {}
     # Track distill calls so tests can assert registered relations.
     captured_relations: list[dict] = []
     captured_text_writes: list[dict] = []
@@ -84,11 +86,16 @@ class FakeInternalClient:
     async def accessible_drives(self) -> list[str]:
         return list(FakeInternalClient.accessible_drives_override)
 
-    async def create_text_file(self, drive, path, content):
+    async def create_text_file(self, drive, path, content, conflict_mode="rename"):
         from app.internal_client import InternalAPIError
 
         FakeInternalClient.captured_text_writes.append(
-            {"drive": drive, "path": path, "content": content}
+            {
+                "drive": drive,
+                "path": path,
+                "content": content,
+                "conflict_mode": conflict_mode,
+            }
         )
         if FakeInternalClient.create_text_file_always_fails is not None:
             raise InternalAPIError(
@@ -101,6 +108,13 @@ class FakeInternalClient:
         result_path = FakeInternalClient.create_text_file_result_paths.get(path, path)
         file_id = f"f{abs(hash(result_path)) % 10**10:010d}"
         return {"id": file_id, "drive": drive, "file_path": result_path}
+
+    async def get_drive_file_by_path(self, drive, path):
+        key = (drive, path)
+        sequence = FakeInternalClient.file_by_path_sequences.get(key)
+        if sequence:
+            return sequence.pop(0)
+        return FakeInternalClient.file_by_path_override.get(key)
 
     async def put_file_content(self, file_id, content, if_match):
         from app.internal_client import InternalAPIError
@@ -239,6 +253,8 @@ def fake_internal(monkeypatch):
     FakeInternalClient.create_text_file_collisions = set()
     FakeInternalClient.create_text_file_always_fails = None
     FakeInternalClient.create_text_file_result_paths = {}
+    FakeInternalClient.file_by_path_override = {}
+    FakeInternalClient.file_by_path_sequences = {}
     FakeInternalClient.captured_relations = []
     FakeInternalClient.captured_text_writes = []
     FakeInternalClient.captured_content_puts = []

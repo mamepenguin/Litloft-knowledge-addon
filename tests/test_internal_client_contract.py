@@ -57,6 +57,54 @@ async def test_get_file_content_with_etag_uses_stream_endpoint(monkeypatch):
 
 
 @pytest.mark.asyncio
+async def test_get_drive_file_by_path_uses_exact_path_endpoint(monkeypatch):
+    received: dict = {}
+
+    def handler(req: httpx.Request) -> httpx.Response:
+        received["method"] = req.method
+        received["path"] = req.url.path
+        received["relative_path"] = req.url.params.get("path")
+        return httpx.Response(200, json={"id": "note12345678"})
+
+    _install_transport(monkeypatch, handler)
+    result = await InternalClient().get_drive_file_by_path(
+        "family", "Daily/2026-08-10.md"
+    )
+
+    assert received == {
+        "method": "GET",
+        "path": "/api/drives/family/files/by-path",
+        "relative_path": "Daily/2026-08-10.md",
+    }
+    assert result == {"id": "note12345678"}
+
+
+@pytest.mark.asyncio
+async def test_create_text_file_forwards_error_conflict_mode(monkeypatch):
+    received: dict = {}
+
+    def handler(req: httpx.Request) -> httpx.Response:
+        import json
+
+        received["body"] = json.loads(req.content)
+        return httpx.Response(201, json={"id": "note12345678"})
+
+    _install_transport(monkeypatch, handler)
+    await InternalClient().create_text_file(
+        "family",
+        "Captures/Inbox.md",
+        "# Inbox\n",
+        conflict_mode="error",
+    )
+
+    assert received["body"] == {
+        "path": "Captures/Inbox.md",
+        "content": "# Inbox\n",
+        "conflict_mode": "error",
+    }
+
+
+@pytest.mark.asyncio
 async def test_sync_core_tags_posts_expected_payload(monkeypatch):
     received: dict = {}
 

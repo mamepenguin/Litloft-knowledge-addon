@@ -69,6 +69,7 @@ class NoteCreate(BaseModel):
     content: str = Field(min_length=0, max_length=1 * 1024 * 1024)
     source_file_ids: list[str] = Field(default_factory=list, max_length=50)
     origin: Literal["ask_answer", "source_capture"] = "ask_answer"
+    conflict_mode: Literal["rename", "error"] = "rename"
 
 
 class SourceCaptureLocator(BaseModel):
@@ -93,7 +94,7 @@ class SourceCaptureItem(BaseModel):
 
 
 class SourceCaptureTarget(BaseModel):
-    mode: Literal["new", "existing"]
+    mode: Literal["new", "existing", "quick"]
     folder: str = Field(default="Captures", max_length=512)
     filename: str | None = Field(default=None, max_length=200)
     title: str | None = Field(default=None, max_length=200)
