@@ -313,7 +313,8 @@
       "stats": {
         "nodes": "{count} ノード",
         "edges": "{count} エッジ",
-        "tooBigWarning": "ノード数が多めです。中心ファイルを選ぶと見やすくなります"
+        "tooBigWarning": "ノード数が多めです。中心ファイルを選ぶと見やすくなります",
+        "truncatedWarning": "関係が多いため一部を読み込めませんでした。このグラフは完全ではありません"
       },
       "focus": {
         "label": "中心",

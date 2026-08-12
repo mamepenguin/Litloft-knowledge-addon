@@ -551,6 +551,12 @@ export interface ConnectionsGraphResponse {
   edges: GraphEdge[];
   orphan_count: number;
   orphans: GraphOrphan[];
+  /**
+   * The drive has more relations than one response carries, so an
+   * arbitrary subset was dropped. The graph is not merely smaller than
+   * reality — it is wrong in ways the picture cannot show.
+   */
+  truncated?: boolean;
 }
 
 export function getConnectionsGraph(

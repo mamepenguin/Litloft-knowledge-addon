@@ -308,10 +308,22 @@ export default function ConnectionsGraph({ drive }: Props) {
                 />
               )}
 
-              {nodes.length > TOO_BIG_THRESHOLD && !focusedId && (
+              {/* Truncation outranks the too-big hint: one says the graph
+                  is hard to read, the other says it is incomplete, and a
+                  reader who only sees the first will trust what they see.
+                  Focus mode does not fetch more, so this stays visible
+                  there too. */}
+              {data?.truncated ? (
                 <p className="rounded-xl border border-accent-amber/30 bg-accent-amber/10 px-3 py-2 text-xs text-accent-amber animate-fade-in">
-                  {t("stats.tooBigWarning")}
+                  {t("stats.truncatedWarning")}
                 </p>
+              ) : (
+                nodes.length > TOO_BIG_THRESHOLD &&
+                !focusedId && (
+                  <p className="rounded-xl border border-accent-amber/30 bg-accent-amber/10 px-3 py-2 text-xs text-accent-amber animate-fade-in">
+                    {t("stats.tooBigWarning")}
+                  </p>
+                )
               )}
 
               <div className="relative overflow-hidden rounded-2xl border border-bg-border bg-bg-card animate-fade-in">

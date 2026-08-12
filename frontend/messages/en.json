@@ -313,7 +313,8 @@
       "stats": {
         "nodes": "{count} nodes",
         "edges": "{count} edges",
-        "tooBigWarning": "Many nodes. Pick a center file for a clearer view."
+        "tooBigWarning": "Many nodes. Pick a center file for a clearer view.",
+        "truncatedWarning": "Some relations could not be loaded. This graph is incomplete."
       },
       "focus": {
         "label": "Center",
