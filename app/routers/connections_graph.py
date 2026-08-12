@@ -19,6 +19,11 @@ relation in either source). Non-note files that happen to have no
 relations are not surfaced — the dashboard is a notes-first view
 and listing every untagged video would dilute the signal.
 
+``truncated`` reports that the core returned a full page of relations,
+so some were dropped. Which ones is arbitrary, so the graph is not just
+smaller but misleading; the UI says so rather than presenting a partial
+picture as complete.
+
 Drive boundary: see hako ``-4selmRmM4uGucok5TX6N`` — addon must apply
 ``WHERE drive == header_drive`` even though the host proxy already
 validates the header.
@@ -43,7 +48,9 @@ router = APIRouter(tags=["connections-graph"])
 
 # Cap a single response to keep payloads small. Most drives stay well
 # under these limits; the warning ribbon at >200 nodes nudges the user
-# to use focus mode before reaching them.
+# to use focus mode before reaching them. When a drive does exceed the
+# relation cap the response sets ``truncated`` so the UI can say so —
+# the alternative is drawing an arbitrary subset as if it were whole.
 _MAX_RELATIONS = 5000
 _ORPHAN_SAMPLE = 20
 
@@ -78,6 +85,7 @@ class ConnectionsGraph(BaseModel):
     edges: list[GraphEdge]
     orphan_count: int
     orphans: list[OrphanItem]
+    truncated: bool = False
 
 
 _VIDEO_PREFIX = "video/"
@@ -157,6 +165,17 @@ async def get_connections_graph(
         )
     except InternalAPIError as e:
         raise HTTPException(status_code=502, detail=f"file_relations fetch failed: {e.detail}")
+
+    # The core applies ``LIMIT`` and says nothing about what it dropped, so a
+    # full page back is the only signal that relations went missing. Which
+    # ones is arbitrary, meaning the graph is not merely smaller but
+    # *wrong* — a clique can come back with some of its edges gone. Tell the
+    # user rather than draw a confident picture of partial data.
+    #
+    # Exactly ``_MAX_RELATIONS`` rows reports truncation with nothing
+    # actually dropped. Over-reporting a full page is the harmless side of
+    # this trade; silently rendering a partial graph is not.
+    truncated = len(relation_rows) >= _MAX_RELATIONS
 
     # ----- 3. Build unique edge set --------------------------------------
     # Key: tuple(sorted([a, b])). Value: edge kind ("related" beats "note_source").
@@ -264,4 +283,5 @@ async def get_connections_graph(
         edges=valid_edges,
         orphan_count=orphan_count,
         orphans=orphans,
+        truncated=truncated,
     )

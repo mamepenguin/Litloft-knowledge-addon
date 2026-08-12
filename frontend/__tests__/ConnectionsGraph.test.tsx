@@ -196,6 +196,52 @@ describe("ConnectionsGraph", () => {
     expect(node.style.getPropertyValue("--rh")).toBe("22");
   });
 
+  // A truncated graph is not merely smaller than reality — the core drops
+  // an arbitrary subset, so edges go missing without the picture showing
+  // any gap. Saying nothing would present partial data as complete.
+  it("warns when the response is truncated", async () => {
+    stubGraphFetch({ ...baseGraph, truncated: true });
+    render(<ConnectionsGraph drive="test-drive" />);
+
+    expect(await screen.findByText("stats.truncatedWarning")).toBeTruthy();
+  });
+
+  it("stays quiet when the response is complete", async () => {
+    stubGraphFetch(baseGraph);
+    render(<ConnectionsGraph drive="test-drive" />);
+
+    await waitFor(() => {
+      expect(screen.getByText("Note A")).toBeTruthy();
+    });
+    expect(screen.queryByText("stats.truncatedWarning")).toBeNull();
+  });
+
+  it("prefers the truncation warning over the too-many-nodes hint", async () => {
+    // Both ribbons look alike, so showing only the node-count hint on a
+    // truncated graph would tell the reader the view is merely cluttered
+    // when it is actually incomplete.
+    const nodes = Array.from({ length: 201 }, (_, i) => ({
+      id: `f${i}`,
+      title: `Node ${i}`,
+      path: `${i}.md`,
+      mime_kind: "md",
+      folder: "notes",
+      tags: [],
+      relation_count: 1,
+    }));
+    stubGraphFetch({
+      nodes,
+      edges: nodes.slice(1).map((n) => ({ a: "f0", b: n.id, kind: "related" })),
+      orphan_count: 0,
+      orphans: [],
+      truncated: true,
+    });
+    render(<ConnectionsGraph drive="test-drive" />);
+
+    expect(await screen.findByText("stats.truncatedWarning")).toBeTruthy();
+    expect(screen.queryByText("stats.tooBigWarning")).toBeNull();
+  });
+
   it("shows error message when API fails", async () => {
     const fetchMock = vi.fn(async () => ({
       ok: false,

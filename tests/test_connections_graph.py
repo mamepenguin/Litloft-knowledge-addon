@@ -8,6 +8,7 @@ Covers:
 - Orphan notes (no edge participation) listed separately
 - mime_kind classification (md / video / image / pdf / other)
 - 502 surfaced when Internal API fails
+- ``truncated`` when the core returns a full page of relations
 """
 from __future__ import annotations
 
@@ -93,6 +94,7 @@ class TestConnectionsGraph:
             "edges": [],
             "orphan_count": 0,
             "orphans": [],
+            "truncated": False,
         }
 
     def test_unions_file_relations_and_note_sources(
@@ -378,3 +380,110 @@ class TestConnectionsGraph:
             headers={**viewer_cookie, "X-Lit-Drive": "test-drive"},
         )
         assert r.status_code == 502
+
+
+class TestTruncation:
+    """A drive with more relations than one response carries.
+
+    The core applies ``LIMIT`` and says nothing about what it dropped, so
+    a full page back is the only available signal. Which rows are lost is
+    arbitrary, which makes the resulting graph misleading rather than
+    merely small — a clique can arrive with some of its edges missing.
+    """
+
+    @staticmethod
+    def _seed_relations(fake_internal, count: int) -> None:
+        fake_internal.relations_by_drive_override = {
+            "test-drive": [
+                {
+                    "id": i,
+                    "file_id_a": f"a{i}",
+                    "file_id_b": f"b{i}",
+                    "kind": "related",
+                    "created_at": None,
+                    "created_by": None,
+                }
+                for i in range(count)
+            ]
+        }
+        fake_internal.bulk_files_override = {
+            **{f"a{i}": _file_meta(f"a{i}") for i in range(count)},
+            **{f"b{i}": _file_meta(f"b{i}") for i in range(count)},
+        }
+
+    def _get(self, client, viewer_cookie):
+        return client.get(
+            "/connections-graph",
+            headers={**viewer_cookie, "X-Lit-Drive": "test-drive"},
+        )
+
+    def test_truncated_false_below_the_cap(
+        self, client, fake_internal, knowledge_db, viewer_cookie, monkeypatch
+    ):
+        import app.routers.connections_graph as cg
+
+        monkeypatch.setattr(cg, "_MAX_RELATIONS", 5)
+        self._seed_relations(fake_internal, 4)
+
+        body = self._get(client, viewer_cookie).json()
+        assert body["truncated"] is False
+        assert len(body["edges"]) == 4
+
+    def test_truncated_true_when_a_full_page_comes_back(
+        self, client, fake_internal, knowledge_db, viewer_cookie, monkeypatch
+    ):
+        import app.routers.connections_graph as cg
+
+        monkeypatch.setattr(cg, "_MAX_RELATIONS", 5)
+        self._seed_relations(fake_internal, 12)
+
+        body = self._get(client, viewer_cookie).json()
+        assert body["truncated"] is True
+        # The cap is what bounds the response, not the drive's real size.
+        assert len(body["edges"]) == 5
+
+    def test_exactly_at_the_cap_reports_truncated(
+        self, client, fake_internal, knowledge_db, viewer_cookie, monkeypatch
+    ):
+        # Nothing was actually dropped here. Reporting truncation anyway is
+        # the deliberate side of the trade: the response cannot distinguish
+        # "exactly a full page" from "a full page plus more", and a false
+        # warning is cheaper than silently drawing a partial graph.
+        import app.routers.connections_graph as cg
+
+        monkeypatch.setattr(cg, "_MAX_RELATIONS", 5)
+        self._seed_relations(fake_internal, 5)
+
+        assert self._get(client, viewer_cookie).json()["truncated"] is True
+
+    def test_note_source_edges_do_not_trigger_truncation(
+        self, client, fake_internal, knowledge_db, viewer_cookie, monkeypatch
+    ):
+        # Only file_relations are capped by the core. note_origin_sources
+        # come from the addon's own DB unbounded, so they must not count
+        # toward the signal.
+        import app.routers.connections_graph as cg
+
+        monkeypatch.setattr(cg, "_MAX_RELATIONS", 5)
+        fake_internal.relations_by_drive_override = {"test-drive": []}
+        session = knowledge_db()
+        try:
+            for i in range(8):
+                _seed_note(
+                    session,
+                    note_path=f"n{i}.md",
+                    note_file_id=f"note{i}",
+                )
+                _seed_source(
+                    session, note_path=f"n{i}.md", source_file_id=f"src{i}"
+                )
+        finally:
+            session.close()
+        fake_internal.bulk_files_override = {
+            **{f"note{i}": _file_meta(f"note{i}") for i in range(8)},
+            **{f"src{i}": _file_meta(f"src{i}", filename="s.mp4", mime="video/mp4") for i in range(8)},
+        }
+
+        body = self._get(client, viewer_cookie).json()
+        assert body["truncated"] is False
+        assert len(body["edges"]) == 8
