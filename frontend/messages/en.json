@@ -12,18 +12,10 @@
       "statsEmpty": "No notes yet",
       "shortcutSearch": "Search"
     },
-    "quickSwitcher": {
-      "title": "Open note",
-      "placeholder": "Search notes...",
-      "searching": "Searching...",
-      "emptyRecents": "No recently opened notes. Type to search.",
-      "noMatches": "No matching notes."
-    },
     "shortcuts": {
       "knowledge": "Knowledge",
       "knowledgeEditor": "Knowledge Editor",
       "focusSearch": "Focus search",
-      "quickSwitcher": "Quick switcher",
       "newNote": "New note",
       "save": "Save",
       "bold": "Bold",

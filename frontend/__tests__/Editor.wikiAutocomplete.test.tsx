@@ -12,9 +12,8 @@ import {
  * Phase C, spec 2026-05-12-markdown-link-three-forms.md §3.9.
  *
  * The Knowledge ``Editor`` textarea opens a wiki-link autocomplete
- * popup when the user types ``[[`` at the caret. The popup reuses
- * ``QuickSwitcher``'s candidate list rendering (drive-scoped search
- * hits). Confirm flow:
+ * popup when the user types ``[[`` at the caret. The popup renders
+ * drive-scoped search hits as its candidate list. Confirm flow:
  *
  *  - Enter             -> insert ``[[<basename>]]`` (human-readable
  *                          default)

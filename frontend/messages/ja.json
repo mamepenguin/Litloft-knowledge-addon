@@ -12,18 +12,10 @@
       "statsEmpty": "ノートなし",
       "shortcutSearch": "検索"
     },
-    "quickSwitcher": {
-      "title": "ノートを開く",
-      "placeholder": "ノートを検索...",
-      "searching": "検索中...",
-      "emptyRecents": "最近開いたノートはありません。検索を入力してください。",
-      "noMatches": "一致するノートがありません。"
-    },
     "shortcuts": {
       "knowledge": "Knowledge",
       "knowledgeEditor": "Knowledgeエディタ",
       "focusSearch": "検索にフォーカス",
-      "quickSwitcher": "クイックスイッチャー",
       "newNote": "新規ノート",
       "save": "保存",
       "bold": "太字",
