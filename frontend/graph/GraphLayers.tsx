@@ -3,11 +3,11 @@
 import type { CSSProperties } from "react";
 
 import type { GraphEdge, GraphNode } from "../api";
-import type { useGraphLayout } from "./useGraphLayout";
+import type { LayoutMap } from "./useGraphLayout";
 import type { PaletteColor } from "./graphPalette";
 import { screenCircleR, screenHitR } from "./graphGeometry";
 
-type Layout = ReturnType<typeof useGraphLayout>;
+type Layout = LayoutMap;
 
 /**
  * Geometry that depends on the viewport zoom, expressed in CSS so it can
