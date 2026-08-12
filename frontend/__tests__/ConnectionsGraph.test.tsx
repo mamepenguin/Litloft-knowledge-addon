@@ -63,6 +63,16 @@ function stubGraphFetch(payload: unknown, status = 200) {
   return fetchMock;
 }
 
+/** The graph SVG, picked out from the lucide icons by its viewBox. */
+function findGraphSvg(): SVGSVGElement {
+  const svgs = Array.from(document.querySelectorAll("svg")) as SVGSVGElement[];
+  const svg = svgs.find((s) =>
+    s.getAttribute("viewBox")?.startsWith("0 0 1100"),
+  );
+  if (!svg) throw new Error("graph svg not found");
+  return svg;
+}
+
 beforeEach(() => {
   _pushSpy.mockReset();
 });
@@ -144,6 +154,46 @@ describe("ConnectionsGraph", () => {
     expect(svg!.querySelector('[data-node-id="fA"]')).toBeTruthy();
     expect(svg!.querySelector('[data-node-id="fB"]')).toBeTruthy();
     expect(svg!.querySelector('[data-node-id="fC"]')).toBeTruthy();
+  });
+
+  // Pan/zoom writes geometry through CSS custom properties instead of
+  // re-rendering (design spec §3). Nothing else fails if the writer and
+  // the stylesheet stop agreeing on a name — node sizes just silently
+  // collapse to zero — so the contract is pinned here.
+  it("publishes the per-frame geometry variables on the svg root", async () => {
+    stubGraphFetch(baseGraph);
+    render(<ConnectionsGraph drive="test-drive" />);
+
+    await waitFor(() => {
+      expect(screen.getByText("Note A")).toBeTruthy();
+    });
+
+    const svg = findGraphSvg();
+    for (const name of ["--k", "--lf", "--lg"]) {
+      const value = svg.style.getPropertyValue(name);
+      expect(value, `${name} should be published`).not.toBe("");
+      expect(Number.isFinite(Number(value))).toBe(true);
+    }
+    // The label-visibility threshold is an attribute, not a class:
+    // React owns className on this element and would wipe a class.
+    expect(svg.getAttribute("data-labels")).toMatch(/^(on|off)$/);
+  });
+
+  it("publishes the per-node geometry constants on each node group", async () => {
+    stubGraphFetch(baseGraph);
+    render(<ConnectionsGraph drive="test-drive" />);
+
+    await waitFor(() => {
+      expect(screen.getByText("Note A")).toBeTruthy();
+    });
+
+    const node = findGraphSvg().querySelector(
+      '[data-node-id="fA"]',
+    ) as SVGGElement;
+    // relation_count 2 -> screenCircleR = 8 + 2 * 1.1 = 10.2,
+    // screenHitR = max(22, 10.2 * 1.6) = 22.
+    expect(node.style.getPropertyValue("--r")).toBe("10.2");
+    expect(node.style.getPropertyValue("--rh")).toBe("22");
   });
 
   it("shows error message when API fails", async () => {

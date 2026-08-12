@@ -1,16 +1,48 @@
 "use client";
 
+import type { CSSProperties } from "react";
+
 import type { GraphEdge, GraphNode } from "../api";
 import type { useGraphLayout } from "./useGraphLayout";
 import type { PaletteColor } from "./graphPalette";
-import {
-  LABEL_SCALE_THRESHOLD,
-  circleAttrR,
-  hitAttrR,
-  labelAttrFont,
-} from "./graphGeometry";
+import { screenCircleR, screenHitR } from "./graphGeometry";
 
 type Layout = ReturnType<typeof useGraphLayout>;
+
+/**
+ * Geometry that depends on the viewport zoom, expressed in CSS so it can
+ * follow pan/zoom without a React render.
+ *
+ * `--r` / `--rh` are per-node constants written by React once. `--k`,
+ * `--lf`, `--lg` are the per-frame scalars written onto the <svg> root
+ * by useGraphPanZoom's frame writer. In SVG `1px` is one user unit, so
+ * these calc() results land directly in the viewBox coordinate system.
+ *
+ * Only `translate` is used, never `scale()`: a pure translation is
+ * independent of transform-origin, whereas scaling would force a choice
+ * between transform-box values (`view-box` = SVG root origin, `fill-box`
+ * = the element's bbox corner) and neither is the node's own origin.
+ *
+ * Labels are hidden with `display: none` rather than skipped by React,
+ * so crossing the zoom threshold costs one attribute write instead of a
+ * full re-render — which is the entire point of the exercise.
+ */
+export const GRAPH_LAYER_CSS = `
+.lg-graph { touch-action: none; cursor: grab; }
+.lg-node circle.lg-body { r: calc(var(--r) * var(--k) * 1px); }
+.lg-node circle.lg-hit { r: calc(var(--rh) * var(--k) * 1px); }
+.lg-node text {
+  display: none;
+  font-size: calc(var(--lf) * 1px);
+  stroke-width: calc(var(--lf) * 0.28 * 1px);
+  transform: translateY(calc((var(--r) * var(--k) + var(--lg) + var(--lf)) * 1px));
+}
+.lg-graph[data-labels="on"] .lg-node text,
+.lg-graph.lg-filtered .lg-node text,
+.lg-node.is-selected text,
+.lg-node.is-center text,
+.lg-node.is-match text { display: inline; }
+`;
 
 export function EdgeLayer({
   edges,
@@ -58,33 +90,20 @@ export function NodeLayer({
   palette,
   selectedId,
   focusedId,
-  filtered,
   matchedIds,
-  scale,
-  fit,
 }: {
   nodes: GraphNode[];
   layout: Layout;
   palette: { colorFor(n: GraphNode): PaletteColor };
   selectedId: string | null;
   focusedId: string | null;
-  filtered: boolean;
   matchedIds: Set<string>;
-  scale: number;
-  fit: number;
 }) {
-  // When the graph is filtered (search / focus) the visible set is
-  // small, so always show labels regardless of zoom. Otherwise fall
-  // back to the Obsidian-style zoom threshold.
-  const showAllLabels = filtered || scale >= LABEL_SCALE_THRESHOLD;
-  const fontAttr = labelAttrFont(scale, fit);
-  const gapAttr = 6 / scale / (fit > 0 ? fit : 1);
   return (
     <g>
       {nodes.map((n) => {
         const p = layout.get(n.id);
         if (!p) return null;
-        const r = circleAttrR(n.relation_count, scale, fit);
         const color = palette.colorFor(n);
         const isSelected = selectedId === n.id;
         const isCenter = focusedId === n.id;
@@ -98,48 +117,53 @@ export function NodeLayer({
           : isSelected || isCenter
             ? `drop-shadow(0 0 ${isCenter ? 14 : 8}px var(--accent))`
             : undefined;
-        const showLabel =
-          showAllLabels || isSelected || isCenter || isMatch;
+        const className = [
+          "lg-node",
+          isSelected && "is-selected",
+          isCenter && "is-center",
+          isMatch && "is-match",
+        ]
+          .filter(Boolean)
+          .join(" ");
         return (
           <g
             key={n.id}
+            className={className}
             data-node-id={n.id}
             transform={`translate(${p.x},${p.y})`}
             cursor="pointer"
+            style={
+              {
+                "--r": String(screenCircleR(n.relation_count)),
+                "--rh": String(screenHitR(n.relation_count)),
+              } as CSSProperties
+            }
           >
+            <circle className="lg-hit" fill="transparent" stroke="none" />
             <circle
-              r={hitAttrR(n.relation_count, scale, fit)}
-              fill="transparent"
-              stroke="none"
-            />
-            <circle
-              r={r}
+              className="lg-body"
               fill={color.fill}
               stroke={color.stroke}
               strokeWidth={strokeWidth}
               vectorEffect="non-scaling-stroke"
               style={{ filter, pointerEvents: "none" }}
             />
-            {showLabel && (
-              <text
-                y={r + gapAttr + fontAttr}
-                textAnchor="middle"
-                style={{
-                  fill: isSelected || isCenter || isMatch
+            <text
+              textAnchor="middle"
+              style={{
+                fill:
+                  isSelected || isCenter || isMatch
                     ? "var(--text-primary)"
                     : "var(--text-muted)",
-                  fontWeight: isSelected || isCenter ? 500 : 400,
-                  pointerEvents: "none",
-                  fontSize: fontAttr,
-                  paintOrder: "stroke",
-                  stroke: "var(--bg-card)",
-                  strokeWidth: fontAttr * 0.28,
-                  strokeLinejoin: "round",
-                }}
-              >
-                {n.title.length > 24 ? n.title.slice(0, 23) + "…" : n.title}
-              </text>
-            )}
+                fontWeight: isSelected || isCenter ? 500 : 400,
+                pointerEvents: "none",
+                paintOrder: "stroke",
+                stroke: "var(--bg-card)",
+                strokeLinejoin: "round",
+              }}
+            >
+              {n.title.length > 24 ? n.title.slice(0, 23) + "…" : n.title}
+            </text>
           </g>
         );
       })}

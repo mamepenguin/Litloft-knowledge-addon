@@ -33,6 +33,11 @@ export function screenCircleR(rc: number): number {
   return 8 + Math.min(rc, 8) * 1.1; // 8 – 16.8
 }
 
+/** Screen-target radius of the transparent touch target. */
+export function screenHitR(rc: number): number {
+  return Math.max(MIN_HIT_SCREEN_R, screenCircleR(rc) * 1.6);
+}
+
 // `fit` is the viewBox->screen px ratio (preserveAspectRatio="meet").
 // Sizes are authored as screen-target px, so we divide by `fit` to undo
 // the SVG's uniform scale-to-fit. Without this the whole graph is
@@ -58,6 +63,44 @@ export function labelAttrFont(k: number, fit = 1): number {
     Math.max(LABEL_FONT_MIN, LABEL_FONT_MIN * Math.pow(k, 0.5)),
   );
   return px(desired / k, fit);
+}
+
+export interface FrameVars {
+  /** Multiplier turning a screen-target radius into user units. */
+  k: number;
+  /** Label font size in user units. */
+  lf: number;
+  /** Circle-to-label gap in user units. */
+  lg: number;
+}
+
+/**
+ * The per-frame half of the geometry, computed once per rendered frame
+ * instead of once per node.
+ *
+ * Every function above factors into `per-node constant × per-frame
+ * scalar`:
+ *
+ *   circleAttrR(rc, k, fit) = screenCircleR(rc) × frameVars(k, fit).k
+ *   hitAttrR(rc, k, fit)    = screenHitR(rc)    × frameVars(k, fit).k
+ *   labelAttrFont(k, fit)   =                     frameVars(k, fit).lf
+ *
+ * The node constants are written once into each node's CSS custom
+ * properties; these three scalars are written onto the SVG root on every
+ * frame. That split is what keeps pan and zoom off React's render path
+ * — see the design spec §3.1.
+ *
+ * The `fit` divisor lives here, inside `px()`, and must stay: it undoes
+ * the preserveAspectRatio="meet" scale-to-fit, without which labels and
+ * tap targets render at roughly a third of their intended size on a
+ * phone (the regression documented in the header comment above).
+ */
+export function frameVars(k: number, fit = 1): FrameVars {
+  return {
+    k: px(k >= 1 ? 1 / k : 1, fit),
+    lf: labelAttrFont(k, fit),
+    lg: px(6 / k, fit),
+  };
 }
 
 /** Breadth-first reachable set from `start` within `depth` hops. */
