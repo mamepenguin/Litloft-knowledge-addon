@@ -22,7 +22,11 @@ import {
 import { useGraphLayout } from "./graph/useGraphLayout";
 import { buildPalette, type ColorBy } from "./graph/graphPalette";
 import { bfsScope } from "./graph/graphGeometry";
-import { EdgeLayer, NodeLayer } from "./graph/GraphLayers";
+import {
+  EdgeLayer,
+  NodeLayer,
+  GRAPH_LAYER_CSS,
+} from "./graph/GraphLayers";
 import {
   GraphToolbar,
   GraphFocusBanner,
@@ -167,8 +171,13 @@ export default function ConnectionsGraph({ drive }: Props) {
   const [orphansOpen, setOrphansOpen] = useState(false);
 
   const panZoom = useGraphPanZoom();
-  const { state: pz, fitScale, attachRef, didDragRef, downTargetRef } =
-    panZoom;
+  const {
+    attachRef,
+    attachViewport,
+    attachZoomPill,
+    didDragRef,
+    downTargetRef,
+  } = panZoom;
 
   // Auto-fit the *active* bbox into the viewport whenever the rendered
   // node set changes — initial load, refresh that adds nodes, and every
@@ -309,14 +318,14 @@ export default function ConnectionsGraph({ drive }: Props) {
                 <svg
                   ref={attachRef}
                   viewBox={`0 0 ${PAN_ZOOM_VIEWBOX.width} ${PAN_ZOOM_VIEWBOX.height}`}
-                  className="block h-[420px] w-full select-none md:h-[560px]"
-                  style={{ touchAction: "none", cursor: "grab" }}
+                  className={`lg-graph block h-[420px] w-full select-none md:h-[560px]${
+                    visibleIds !== null ? " lg-filtered" : ""
+                  }`}
                   preserveAspectRatio="xMidYMid meet"
                   onPointerUp={handleSvgPointerUp}
                 >
-                  <g
-                    transform={`translate(${pz.tx} ${pz.ty}) scale(${pz.scale})`}
-                  >
+                  <style>{GRAPH_LAYER_CSS}</style>
+                  <g ref={attachViewport}>
                     <EdgeLayer
                       edges={activeEdges}
                       layout={layout}
@@ -328,10 +337,7 @@ export default function ConnectionsGraph({ drive }: Props) {
                       palette={palette}
                       selectedId={selectedId}
                       focusedId={focusedId}
-                      filtered={visibleIds !== null}
                       matchedIds={matchedIds}
-                      scale={pz.scale}
-                      fit={fitScale}
                     />
                   </g>
                 </svg>
@@ -348,8 +354,11 @@ export default function ConnectionsGraph({ drive }: Props) {
                   </ZoomButton>
                 </div>
 
-                <div className="absolute left-3 bottom-3 rounded-full border border-bg-border bg-bg-elevated px-2.5 py-1 text-[10px] tabular-nums text-text-muted">
-                  {Math.round(pz.scale * 100)}%
+                <div
+                  ref={attachZoomPill}
+                  className="absolute left-3 bottom-3 rounded-full border border-bg-border bg-bg-elevated px-2.5 py-1 text-[10px] tabular-nums text-text-muted"
+                >
+                  100%
                 </div>
 
                 {selectedNode && (
