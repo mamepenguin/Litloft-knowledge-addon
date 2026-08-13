@@ -46,7 +46,6 @@
     },
     "dashboard": {
       "capture": "Web clip",
-      "quickMemo": "Quick memo",
       "pasteHtml": "Paste HTML",
       "bookmarklet": "Bookmarklet",
       "clipHistory": "Recent clips",

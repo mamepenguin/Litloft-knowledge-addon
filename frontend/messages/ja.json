@@ -46,7 +46,6 @@
     },
     "dashboard": {
       "capture": "Webクリップ",
-      "quickMemo": "クイックメモ",
       "pasteHtml": "HTMLを貼り付け",
       "bookmarklet": "ブックマークレット",
       "clipHistory": "クリップ履歴",

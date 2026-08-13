@@ -17,11 +17,9 @@ import {
   ClipboardPaste,
   ExternalLink,
   Loader2,
-  SquarePen,
 } from "lucide-react";
 import { useCurrentDrive } from "@/components/CurrentDriveProvider";
 import { useWebSocket } from "@/hooks/useWebSocket";
-import { useCreateFile } from "@/hooks/useCreateFile";
 import { FolderPicker } from "@/components/FolderPicker";
 import {
   createClip,
@@ -251,29 +249,17 @@ function CaptureZone({
   const [pasteOpen, setPasteOpen] = useState(false);
   const [pasteUrl, setPasteUrl] = useState("");
   const [bookmarkletOpen, setBookmarkletOpen] = useState(false);
-  // Drive root: the Knowledge dashboard has no folder context (Topic 12
-  // specifies drive root as the dashboard's note-creation target).
-  const { createFile, isCreating } = useCreateFile(drive, "");
 
   return (
     <section className="flex flex-col gap-3">
+      {/* The dashboard's own "Quick memo" button is gone: Core's Quick Note
+          action sits in the header on every screen, so a second entry point
+          buried in the dashboard had no reason to exist.
+          Spec 2026-08-13-global-quick-note.md §11. */}
       <div className="flex items-center justify-between gap-2">
         <p className="text-[11px] font-semibold text-text-muted">
           {tDash("capture")}
         </p>
-        <button
-          type="button"
-          onClick={() => void createFile()}
-          disabled={isCreating}
-          className="inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs text-text-muted transition-colors hover:bg-bg-elevated hover:text-text-primary disabled:cursor-not-allowed disabled:opacity-50"
-        >
-          {isCreating ? (
-            <Loader2 size={12} className="animate-spin" strokeWidth={1.6} />
-          ) : (
-            <SquarePen size={12} strokeWidth={1.6} />
-          )}
-          {tDash("quickMemo")}
-        </button>
       </div>
 
       <ClipForm
