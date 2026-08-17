@@ -973,10 +973,14 @@ export default function Editor({
   // sections off-screen in the legacy vertical stack. ``fillHeight``
   // opts into the document-layout canvas where the editor scrolls
   // together with the canvas footer in a single scroll context —
-  // no flex-1, no max-h, no internal overflow. Just natural size.
+  // no max-h, no internal overflow. It still grows (``flex-1``) rather
+  // than sizing purely to content, so a short note leaves the sections
+  // below it at the bottom of the viewport instead of stranding them
+  // halfway up the canvas. The growth only ever adds height: the flex
+  // item's automatic minimum keeps a long note at its content size.
   let containerClass: string;
   if (inlineMode && fillHeight) {
-    containerClass = "flex flex-col";
+    containerClass = "flex flex-1 flex-col";
   } else if (inlineMode) {
     containerClass = "flex max-h-[70vh] min-h-[24rem] flex-col";
   } else {
@@ -1060,9 +1064,15 @@ export default function Editor({
           stateful DOM do not get destroyed when switching view modes.
           CSS visibility (hidden / display:none via Tailwind) controls what the
           user sees instead of conditional rendering. */}
+      {/* `flex-1` in both modes, but only the bounded mode gets
+          `min-h-0`: under fillHeight the pane must be free to exceed
+          the canvas (the page scrolls it), so it may only grow. The
+          grid's own `align-content: normal` then stretches the single
+          auto row, which is what carries the extra height down into
+          the textarea / preview instead of leaving dead space. */}
       <div
-        className={`grid ${
-          fillHeight ? "" : "flex-1 min-h-0"
+        className={`grid flex-1 ${
+          fillHeight ? "" : "min-h-0"
         } ${viewMode === "split" ? "md:grid-cols-2" : "grid-cols-1"}`}
       >
         <textarea
