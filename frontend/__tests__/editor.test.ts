@@ -70,8 +70,8 @@ describe("putFileContent", () => {
     const fetchMock = mockFetch([
       { ok: true, headers: { etag: '"new"' } },
     ]);
-    const newEtag = await putFileContent("f1", "hi", "old");
-    expect(newEtag).toBe("new");
+    const result = await putFileContent("f1", "hi", "old");
+    expect(result).toEqual({ etag: "new", versionAction: null });
     const call = fetchMock.mock.calls[0];
     expect(call[0]).toBe("/api/files/f1/content");
     expect(call[1].method).toBe("PUT");

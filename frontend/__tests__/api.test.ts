@@ -1,20 +1,32 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   createFolder,
+  getFileVersion,
+  getFileVersionDiff,
+  listFileVersions,
   listKnowledgeFiles,
   listKnowledgeFolders,
+  putFileContent,
   renameFile,
 } from "../api";
 
 type MockFetch = ReturnType<typeof vi.fn>;
 
-function mockFetch(responses: Array<{ ok: boolean; status?: number; body?: unknown }>) {
+function mockFetch(
+  responses: Array<{
+    ok: boolean;
+    status?: number;
+    body?: unknown;
+    headers?: Record<string, string>;
+  }>,
+) {
   const fetchMock = vi.fn(async () => {
     const next = responses.shift();
     if (!next) throw new Error("Unexpected fetch call");
     return {
       ok: next.ok,
       status: next.status ?? (next.ok ? 200 : 400),
+      headers: new Headers(next.headers ?? {}),
       json: async () => next.body,
     } as Response;
   });
@@ -100,5 +112,79 @@ describe("knowledge/api", () => {
   it("renameFile throws with server detail on error", async () => {
     mockFetch([{ ok: false, status: 400, body: { detail: "forbidden char" } }]);
     await expect(renameFile("id", "bad/name.md")).rejects.toThrow("forbidden char");
+  });
+
+  it("putFileContent sends the explicit version header only when requested", async () => {
+    const fetchMock = mockFetch([
+      {
+        ok: true,
+        headers: {
+          etag: '"v2"',
+          "x-litloft-version-action": "promoted",
+        },
+      },
+      { ok: true, headers: { etag: '"v3"' } },
+    ]);
+
+    await expect(
+      putFileContent("f 1", "pinned", "v1", "explicit"),
+    ).resolves.toEqual({ etag: "v2", versionAction: "promoted" });
+    await expect(putFileContent("f 1", "autosaved", "v2")).resolves.toEqual({
+      etag: "v3",
+      versionAction: null,
+    });
+
+    expect(fetchMock.mock.calls[0][0]).toBe("/api/files/f%201/content");
+    expect(fetchMock.mock.calls[0][1].headers).toMatchObject({
+      "Content-Type": "text/plain; charset=utf-8",
+      "If-Match": '"v1"',
+      "X-Litloft-Save-Kind": "explicit",
+    });
+    expect(fetchMock.mock.calls[1][1].headers).toMatchObject({
+      "Content-Type": "text/plain; charset=utf-8",
+      "If-Match": '"v2"',
+    });
+    expect(fetchMock.mock.calls[1][1].headers).not.toHaveProperty(
+      "X-Litloft-Save-Kind",
+    );
+  });
+
+  it("reads the paginated version list, body, and predecessor diff", async () => {
+    const fetchMock = mockFetch([
+      {
+        ok: true,
+        body: { versions: [], total: 0, limit: 25, offset: 50 },
+      },
+      { ok: true, body: { id: 7, content: "old body", etag: "old-etag" } },
+      {
+        ok: true,
+        body: {
+          id: 7,
+          lines: [
+            { kind: "del", text: "old\n" },
+            { kind: "add", text: "new\n" },
+          ],
+          lines_added: 1,
+          lines_removed: 1,
+        },
+      },
+    ]);
+
+    await expect(
+      listFileVersions("f/1", { limit: 25, offset: 50 }),
+    ).resolves.toMatchObject({ total: 0, limit: 25, offset: 50 });
+    await expect(getFileVersion("f/1", 7)).resolves.toMatchObject({
+      content: "old body",
+    });
+    await expect(getFileVersionDiff("f/1", 7)).resolves.toMatchObject({
+      lines_added: 1,
+      lines_removed: 1,
+    });
+
+    expect(fetchMock.mock.calls.map(([url]) => url)).toEqual([
+      "/api/files/f%2F1/versions?limit=25&offset=50",
+      "/api/files/f%2F1/versions/7",
+      "/api/files/f%2F1/versions/7/diff",
+    ]);
   });
 });

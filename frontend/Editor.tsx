@@ -34,6 +34,7 @@ import { useShortcuts } from "@/hooks/useShortcuts";
 import {
   ConflictError,
   getFileContent,
+  getFileVersion,
   putFileContent,
   renameFile,
 } from "./api";
@@ -56,6 +57,7 @@ import {
   type WikiLinkAutocompleteHandle,
   type WikiLinkSelection,
 } from "./WikiLinkAutocomplete";
+import VersionHistoryPanel from "./VersionHistoryPanel";
 
 interface Props {
   fileId: string;
@@ -133,6 +135,7 @@ type SaveState =
   | { kind: "idle" }
   | { kind: "saving" }
   | { kind: "saved"; at: number }
+  | { kind: "unchanged" }
   | { kind: "conflict" }
   | { kind: "error"; message: string };
 
@@ -182,6 +185,14 @@ export default function Editor({
   // knowledge route) keep their fully local fallback.
   const chrome = useMarkdownChrome();
   const [content, setContent] = useState<string | null>(null);
+  const contentRevisionRef = useRef(0);
+  const updateContent = useCallback(
+    (next: React.SetStateAction<string | null>) => {
+      contentRevisionRef.current += 1;
+      setContent(next);
+    },
+    [],
+  );
   // Phase 4 (spec §D5 / hako sFXCwZDluTPZZkbYuozwJ): track mobile
   // breakpoint so the view-mode toggle can drop the "split" option.
   // Split makes no sense at <768px (textarea + preview side-by-side
@@ -279,13 +290,43 @@ export default function Editor({
     const next: MarkdownSaveState =
       saveState.kind === "error"
         ? { status: "error", message: saveState.message }
-        : { status: saveState.kind };
+        : {
+            status:
+              saveState.kind === "unchanged" ? "saved" : saveState.kind,
+          };
     chrome.publishSaveState(next);
   }, [chrome, saveState]);
   const etagRef = useRef<string>("");
   const lastSavedRef = useRef<string>("");
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const fileGenerationRef = useRef({ fileId, generation: 0 });
+  if (fileGenerationRef.current.fileId !== fileId) {
+    fileGenerationRef.current = {
+      fileId,
+      generation: fileGenerationRef.current.generation + 1,
+    };
+  }
+  const fileGeneration = fileGenerationRef.current.generation;
+  const isCurrentGeneration = useCallback(
+    (generation: number) =>
+      fileGenerationRef.current.generation === generation,
+    [],
+  );
+  const saveQueueRef = useRef<{
+    generation: number;
+    tail: Promise<void>;
+  }>({ generation: fileGeneration, tail: Promise.resolve() });
+  if (saveQueueRef.current.generation !== fileGeneration) {
+    saveQueueRef.current = {
+      generation: fileGeneration,
+      tail: Promise.resolve(),
+    };
+  }
+  const contentFileIdRef = useRef(fileId);
+  const [restoreBusy, setRestoreBusy] = useState(false);
+  const restoreBusyRef = useRef(false);
+  restoreBusyRef.current = restoreBusy;
   const [fileLinkModalOpen, setFileLinkModalOpen] = useState(false);
   const savedSelRef = useRef<{ start: number; end: number } | null>(null);
   // Wiki-link autocomplete state. ``triggerStart`` is the offset
@@ -303,24 +344,59 @@ export default function Editor({
     { top: number; left: number; lineHeight: number } | null
   >(null);
 
+  const applyLiveContent = useCallback(
+    (nextContent: string, etag: string, generation: number) => {
+      if (!isCurrentGeneration(generation)) return false;
+      if (saveTimerRef.current) {
+        clearTimeout(saveTimerRef.current);
+        saveTimerRef.current = null;
+      }
+      etagRef.current = etag;
+      lastSavedRef.current = nextContent;
+      contentFileIdRef.current = fileGenerationRef.current.fileId;
+      updateContent(nextContent);
+      setSaveState({ kind: "idle" });
+      return true;
+    },
+    [isCurrentGeneration, updateContent],
+  );
+
+  const reloadLiveContent = useCallback(
+    async (generation: number) => {
+      const loaded = await getFileContent(fileId);
+      return applyLiveContent(loaded.content, loaded.etag, generation)
+        ? loaded
+        : null;
+    },
+    [applyLiveContent, fileId],
+  );
+
   useEffect(() => {
     let cancelled = false;
-    setContent(null);
+    restoreBusyRef.current = false;
+    setRestoreBusy(false);
+    updateContent(null);
     setLoadError(null);
     getFileContent(fileId)
       .then(({ content: c, etag }) => {
         if (cancelled) return;
-        etagRef.current = etag;
-        lastSavedRef.current = c;
-        setContent(c);
+        applyLiveContent(c, etag, fileGeneration);
       })
       .catch((e: Error) => {
-        if (!cancelled) setLoadError(e.message);
+        if (!cancelled && isCurrentGeneration(fileGeneration)) {
+          setLoadError(e.message);
+        }
       });
     return () => {
       cancelled = true;
     };
-  }, [fileId]);
+  }, [
+    applyLiveContent,
+    fileGeneration,
+    fileId,
+    isCurrentGeneration,
+    updateContent,
+  ]);
 
   // Fetch wiki-link resolutions whenever the file changes or a save
   // lands — the resolver re-runs against the new on-disk body, so we
@@ -363,45 +439,77 @@ export default function Editor({
     ta.focus();
   }, [autoFocus, contentLoaded, fileId]);
 
-  const performSave = useCallback(
-    async (text: string) => {
-      setSaveState({ kind: "saving" });
-      try {
-        const newEtag = await putFileContent(fileId, text, etagRef.current);
-        etagRef.current = newEtag;
-        lastSavedRef.current = text;
-        setSaveState({ kind: "saved", at: Date.now() });
-        // Trigger one wiki-resolutions refetch per successful save
-        // (see comment on the useEffect below).
-        setSavedRefetchSeq((s) => s + 1);
-        // Propagate frontmatter tag changes to core File.tags without
-        // waiting for the scanner's hourly pass. Every save fires this
-        // (idempotent — the scanner just reparses frontmatter). The
-        // core FilePreview's chip-edit path does the same trigger via
-        // saveFileTags; this covers the Editor's textarea path.
-        void fetch(
-          `/api/addons/knowledge/resync-tags/${encodeURIComponent(fileId)}`,
-          { method: "POST", credentials: "include" },
-        ).catch(() => {
-          // Best-effort; the scanner's hourly pass is the fallback.
-        });
-        // Signal the host (FileDetailContent) to refetch File.tags.
-        // Closes the content-mode UX gap where chip edits + immediate
-        // navigation left the file detail page sitting on a stale
-        // tags array until the next navigation (hako 0RnZ1KdtomAfIJPLAGIHA).
-        markdownContentRegistry.notifySaved(fileId);
-      } catch (err) {
-        if (err instanceof ConflictError) {
-          setSaveState({ kind: "conflict" });
-        } else {
-          setSaveState({
-            kind: "error",
-            message: (err as Error).message,
-          });
-        }
-      }
+  const enqueueSaveOperation = useCallback(
+    <T,>(operation: () => Promise<T>): Promise<T> => {
+      const queue = saveQueueRef.current;
+      const result = queue.tail.then(operation, operation);
+      queue.tail = result.then(
+        () => undefined,
+        () => undefined,
+      );
+      return result;
     },
-    [fileId],
+    [],
+  );
+
+  const notifySaveSucceeded = useCallback(
+    (generation: number) => {
+      if (!isCurrentGeneration(generation)) return;
+      setSavedRefetchSeq((s) => s + 1);
+      void fetch(
+        `/api/addons/knowledge/resync-tags/${encodeURIComponent(fileId)}`,
+        { method: "POST", credentials: "include" },
+      ).catch(() => {
+        // Best-effort; the scanner's hourly pass is the fallback.
+      });
+      markdownContentRegistry.notifySaved(fileId);
+    },
+    [fileId, isCurrentGeneration],
+  );
+
+  const performSave = useCallback(
+    (text: string, kind?: "explicit") =>
+      enqueueSaveOperation(async () => {
+        const generation = fileGeneration;
+        if (!isCurrentGeneration(generation)) return false;
+        setSaveState({ kind: "saving" });
+        try {
+          const result = await putFileContent(
+            fileId,
+            text,
+            etagRef.current,
+            kind,
+          );
+          if (!isCurrentGeneration(generation)) return false;
+          etagRef.current = result.etag;
+          lastSavedRef.current = text;
+          if (kind === "explicit" && result.versionAction === "unchanged") {
+            setSaveState({ kind: "unchanged" });
+          } else {
+            setSaveState({ kind: "saved", at: Date.now() });
+            notifySaveSucceeded(generation);
+          }
+          return true;
+        } catch (err) {
+          if (!isCurrentGeneration(generation)) return false;
+          if (err instanceof ConflictError) {
+            setSaveState({ kind: "conflict" });
+          } else {
+            setSaveState({
+              kind: "error",
+              message: (err as Error).message,
+            });
+          }
+          return false;
+        }
+      }),
+    [
+      enqueueSaveOperation,
+      fileGeneration,
+      fileId,
+      isCurrentGeneration,
+      notifySaveSucceeded,
+    ],
   );
 
   const contentRef = useRef<string | null>(null);
@@ -409,12 +517,14 @@ export default function Editor({
 
   useEffect(() => {
     if (content === null) return;
+    if (contentFileIdRef.current !== fileId) return;
+    if (restoreBusy) return;
     if (content === lastSavedRef.current) return;
     if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
     saveTimerRef.current = setTimeout(() => {
       performSave(content);
     }, AUTOSAVE_DEBOUNCE_MS);
-  }, [content, performSave]);
+  }, [content, fileId, performSave, restoreBusy]);
 
   // Publish dirty state into the global registry so the Phase 2.2
   // navigation guard / browser unload handler can ask "would
@@ -445,7 +555,7 @@ export default function Editor({
     if (content === null) return;
     const dispose = markdownContentRegistry.register(fileId, {
       getContent: () => contentRef.current ?? "",
-      setContent: (next) => setContent(next),
+      setContent: (next) => updateContent(next),
     });
     return dispose;
     // ``content === null`` flips exactly once (load complete); after
@@ -453,7 +563,7 @@ export default function Editor({
     // content edits flow through the ref without re-running this
     // effect, which keeps the registration stable.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [fileId, content === null]);
+  }, [fileId, content === null, updateContent]);
 
   // Pulse the registry on every content change so FileDetailContent
   // (subscribed via useSyncExternalStore) re-reads `getContent()` and
@@ -483,7 +593,6 @@ export default function Editor({
     // Intentionally key on `fileId` (not `performSave`) — we want the
     // cleanup to run exactly when the editor unmounts or switches
     // files, not on every callback identity change.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [fileId]);
 
   const uploadFile = useCallback(
@@ -513,19 +622,17 @@ export default function Editor({
         // Function replacer: a string replacement would special-case
         // `$&`/`$1`/`$$` if the filename contains `$`, mangling the
         // inserted markdown.
-        setContent((prev) =>
+        updateContent((prev) =>
           prev === null ? null : prev.replace(placeholder, () => final),
         );
       } catch {
-        setContent((prev) =>
+        updateContent((prev) =>
           prev === null ? null : prev.replace(placeholder, ""),
         );
         toast.error(t("uploadFailed", { name: file.name }));
       }
     },
-    // folderPathRef is a stable ref; setContent is a stable React setter.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [drive, toast, t],
+    [drive, toast, t, updateContent],
   );
 
   // Keep a ref to uploadFile so native event listeners always call the
@@ -566,7 +673,7 @@ export default function Editor({
         return { file, placeholder };
       });
       const insertion = specs.map((s) => s.placeholder).join("\n") + "\n";
-      setContent((prev) => {
+      updateContent((prev) => {
         if (prev === null) return null;
         return prev.slice(0, offset) + insertion + prev.slice(offset);
       });
@@ -594,7 +701,7 @@ export default function Editor({
         return { file, placeholder };
       });
       const insertion = specs.map((s) => s.placeholder).join("\n") + "\n";
-      setContent((prev) => {
+      updateContent((prev) => {
         if (prev === null) return null;
         return prev.slice(0, offset) + insertion + prev.slice(selEnd);
       });
@@ -640,13 +747,13 @@ export default function Editor({
         ta.selectionEnd,
         e.shiftKey,
       );
-      setContent(text);
+      updateContent(text);
       requestAnimationFrame(() => {
         ta.focus();
         ta.setSelectionRange(selStart, selEnd);
       });
     },
-    [wikiTrigger],
+    [updateContent, wikiTrigger],
   );
 
   // Inspects the textarea contents around the caret to decide whether
@@ -731,10 +838,10 @@ export default function Editor({
   const handleContentChange = useCallback(
     (e: React.ChangeEvent<HTMLTextAreaElement>) => {
       const next = e.target.value;
-      setContent(next);
+      updateContent(next);
       updateWikiTrigger(next, e.target.selectionStart);
     },
-    [updateWikiTrigger],
+    [updateContent, updateWikiTrigger],
   );
 
   const insertWikiLink = useCallback(
@@ -750,14 +857,14 @@ export default function Editor({
       const afterCaret = content.slice(ta.selectionStart);
       const newText = beforeBracket + inserted + afterCaret;
       const cursor = beforeBracket.length + inserted.length;
-      setContent(newText);
+      updateContent(newText);
       setWikiTrigger(null);
       requestAnimationFrame(() => {
         ta.focus();
         ta.setSelectionRange(cursor, cursor);
       });
     },
-    [content, wikiTrigger],
+    [content, updateContent, wikiTrigger],
   );
 
   const handleToolbar = useCallback((action: EditorAction) => {
@@ -769,12 +876,12 @@ export default function Editor({
       ta.selectionEnd,
       action,
     );
-    setContent(text);
+    updateContent(text);
     requestAnimationFrame(() => {
       ta.focus();
       ta.setSelectionRange(selStart, selEnd);
     });
-  }, [content]);
+  }, [content, updateContent]);
 
   const handleFileLinkRequest = useCallback(() => {
     const ta = textareaRef.current;
@@ -793,25 +900,131 @@ export default function Editor({
       const inserted = `[${filename}](loft://${fileId})`;
       const newText = content.slice(0, sel.start) + inserted + content.slice(sel.end);
       const cursor = sel.start + inserted.length;
-      setContent(newText);
+      updateContent(newText);
       requestAnimationFrame(() => {
         ta.focus();
         ta.setSelectionRange(cursor, cursor);
       });
     },
-    [content],
+    [content, updateContent],
   );
 
-  const flushSave = useCallback(() => {
+  const keepCurrentVersion = useCallback(() => {
+    if (restoreBusyRef.current) return;
     if (saveTimerRef.current) {
       clearTimeout(saveTimerRef.current);
       saveTimerRef.current = null;
     }
     const latest = contentRef.current;
-    if (latest !== null && latest !== lastSavedRef.current) {
-      void performSave(latest);
+    if (latest !== null) {
+      void performSave(latest, "explicit");
     }
   }, [performSave]);
+
+  const handleRestoreVersion = useCallback(
+    (versionId: number) => {
+      if (restoreBusyRef.current) return Promise.resolve(false);
+      if (saveTimerRef.current) {
+        clearTimeout(saveTimerRef.current);
+        saveTimerRef.current = null;
+      }
+      const generation = fileGeneration;
+      const draft = contentRef.current;
+      if (draft === null || !isCurrentGeneration(generation)) {
+        return Promise.resolve(false);
+      }
+      const revision = contentRevisionRef.current;
+      const draftWasDirty = draft !== lastSavedRef.current;
+      const contentIsUnchanged = () =>
+        isCurrentGeneration(generation) &&
+        contentRevisionRef.current === revision &&
+        contentRef.current === draft;
+
+      restoreBusyRef.current = true;
+      setRestoreBusy(true);
+      setWikiTrigger(null);
+      setFileLinkModalOpen(false);
+
+      return enqueueSaveOperation(async () => {
+        if (!contentIsUnchanged()) {
+          if (isCurrentGeneration(generation)) {
+            restoreBusyRef.current = false;
+            setRestoreBusy(false);
+          }
+          return false;
+        }
+        setSaveState({ kind: "saving" });
+        try {
+          // A dirty draft is valuable history too. Preserve it explicitly in
+          // this same serialized queue before reading or applying the target
+          // version, then carry its returned ETag into the restore PUT.
+          if (draftWasDirty) {
+            const draftResult = await putFileContent(
+              fileId,
+              draft,
+              etagRef.current,
+              "explicit",
+            );
+            if (!contentIsUnchanged()) return false;
+            etagRef.current = draftResult.etag;
+            lastSavedRef.current = draft;
+            notifySaveSucceeded(generation);
+          }
+
+          const version = await getFileVersion(fileId, versionId);
+          if (!contentIsUnchanged()) {
+            setSaveState({
+              kind: "error",
+              message: t("restoreContentChanged"),
+            });
+            return false;
+          }
+          const restoredResult = await putFileContent(
+            fileId,
+            version.content,
+            etagRef.current,
+            "explicit",
+          );
+          if (!isCurrentGeneration(generation)) return false;
+          // Keep the authoritative PUT result immediately, then reload the
+          // live body through the same path as external-change reload. Core
+          // may inject Markdown frontmatter (notably `id:`), so the historical
+          // request body is not necessarily byte-identical to what landed.
+          etagRef.current = restoredResult.etag;
+          const loaded = await reloadLiveContent(generation);
+          if (!loaded || !isCurrentGeneration(generation)) return false;
+          setSaveState({ kind: "saved", at: Date.now() });
+          notifySaveSucceeded(generation);
+          return true;
+        } catch (err) {
+          if (!isCurrentGeneration(generation)) return false;
+          if (err instanceof ConflictError) {
+            setSaveState({ kind: "conflict" });
+          } else {
+            setSaveState({
+              kind: "error",
+              message: (err as Error).message,
+            });
+          }
+          return false;
+        } finally {
+          if (isCurrentGeneration(generation)) {
+            restoreBusyRef.current = false;
+            setRestoreBusy(false);
+          }
+        }
+      });
+    },
+    [
+      enqueueSaveOperation,
+      fileGeneration,
+      fileId,
+      isCurrentGeneration,
+      notifySaveSucceeded,
+      reloadLiveContent,
+      t,
+    ],
+  );
 
   const cycleViewMode = useCallback(() => {
     const idx = VIEW_MODE_ROTATION.indexOf(viewMode);
@@ -828,7 +1041,12 @@ export default function Editor({
     "knowledge-editor",
     tShortcuts("knowledgeEditor"),
     [
-      { key: "ctrl+s", label: tShortcuts("save"), handler: flushSave, editingOnly: true },
+      {
+        key: "ctrl+s",
+        label: tShortcuts("keepVersion"),
+        handler: keepCurrentVersion,
+        editingOnly: true,
+      },
       {
         key: "ctrl+b",
         label: tShortcuts("bold"),
@@ -871,25 +1089,28 @@ export default function Editor({
   );
 
   async function handleReloadFromServer() {
+    const generation = fileGeneration;
     try {
-      const { content: c, etag } = await getFileContent(fileId);
-      etagRef.current = etag;
-      lastSavedRef.current = c;
-      setContent(c);
-      setSaveState({ kind: "idle" });
+      await reloadLiveContent(generation);
     } catch (e) {
-      setSaveState({ kind: "error", message: (e as Error).message });
+      if (isCurrentGeneration(generation)) {
+        setSaveState({ kind: "error", message: (e as Error).message });
+      }
     }
   }
 
   async function handleOverwrite() {
     if (content === null) return;
+    const generation = fileGeneration;
     try {
       const { etag } = await getFileContent(fileId);
+      if (!isCurrentGeneration(generation)) return;
       etagRef.current = etag;
       await performSave(content);
     } catch (e) {
-      setSaveState({ kind: "error", message: (e as Error).message });
+      if (isCurrentGeneration(generation)) {
+        setSaveState({ kind: "error", message: (e as Error).message });
+      }
     }
   }
 
@@ -1056,7 +1277,12 @@ export default function Editor({
         // `bg-bg-card` already gives it an opaque backdrop, so we only
         // add the positioning + a low z-index here.
         <div className="sticky top-0 z-10">
-          <EditorToolbar onAction={handleToolbar} onFileLinkRequest={handleFileLinkRequest} />
+          <EditorToolbar
+            onAction={handleToolbar}
+            onFileLinkRequest={handleFileLinkRequest}
+            onKeepVersion={keepCurrentVersion}
+            disabled={restoreBusy}
+          />
         </div>
       )}
 
@@ -1096,6 +1322,8 @@ export default function Editor({
           }
           aria-label={t("editArea")}
           placeholder={t("placeholder")}
+          disabled={restoreBusy}
+          aria-busy={restoreBusy}
         />
         <div
           className={`${
@@ -1129,6 +1357,12 @@ export default function Editor({
           </div>
         </div>
       </div>
+
+      <VersionHistoryPanel
+        fileId={fileId}
+        refreshKey={savedRefetchSeq}
+        onRestore={handleRestoreVersion}
+      />
 
       {wikiTrigger && (
         <WikiLinkAutocomplete
@@ -1287,6 +1521,13 @@ function SaveIndicator({ state }: { state: SaveState }) {
       <span className="flex items-center gap-1 text-xs text-text-muted">
         <CheckCircle2 size={12} className="text-accent-teal" />
         {t("saved")}
+      </span>
+    );
+  if (state.kind === "unchanged")
+    return (
+      <span className="flex items-center gap-1 text-xs text-text-muted">
+        <CheckCircle2 size={12} />
+        {t("noChanges")}
       </span>
     );
   if (state.kind === "conflict")

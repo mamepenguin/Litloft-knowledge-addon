@@ -17,7 +17,7 @@
       "knowledgeEditor": "Knowledge Editor",
       "focusSearch": "Focus search",
       "newNote": "New note",
-      "save": "Save",
+      "keepVersion": "Keep this version",
       "bold": "Bold",
       "italic": "Italic",
       "insertLink": "Insert link",
@@ -210,11 +210,13 @@
         "list": "List",
         "link": "Link",
         "code": "Code block",
-        "fileLink": "Insert file link"
+        "fileLink": "Insert file link",
+        "keepVersion": "Keep this version"
       },
       "status": {
         "saving": "Saving...",
         "saved": "Saved",
+        "noChanges": "No changes",
         "conflict": "Conflict detected"
       },
       "conflict": {
@@ -224,7 +226,25 @@
         "overwrite": "Overwrite with my changes",
         "dismiss": "Dismiss"
       },
-      "uploadFailed": "Failed to upload {name}"
+      "uploadFailed": "Failed to upload {name}",
+      "restoreContentChanged": "The note changed while the version was loading. Restore was canceled.",
+      "versions": {
+        "heading": "Version history",
+        "toggleOpen": "Open version history",
+        "toggleClose": "Close version history",
+        "loading": "Loading versions...",
+        "empty": "No versions yet.",
+        "explicit": "Kept version",
+        "selectedTitle": "Selected version",
+        "diff": "Changes from the previous version",
+        "preview": "Read-only preview",
+        "restore": "Restore this version",
+        "restoring": "Restoring...",
+        "loadingVersion": "Loading version...",
+        "previousPage": "Previous versions page",
+        "nextPage": "Next versions page",
+        "page": "{current} / {total}"
+      }
     },
     "fileLinkModal": {
       "title": "Insert file link",

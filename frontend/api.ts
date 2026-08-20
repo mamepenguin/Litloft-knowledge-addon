@@ -218,18 +218,34 @@ export class ConflictError extends Error {
   }
 }
 
+export type FileVersionWriteAction =
+  | "created"
+  | "collapsed"
+  | "promoted"
+  | "unchanged";
+
+export interface PutFileContentResult {
+  etag: string;
+  versionAction: FileVersionWriteAction | null;
+}
+
 export async function putFileContent(
   fileId: string,
   content: string,
   ifMatch: string,
-): Promise<string> {
+  kind?: "explicit",
+): Promise<PutFileContentResult> {
+  const headers: Record<string, string> = {
+    "Content-Type": "text/plain; charset=utf-8",
+    "If-Match": `"${ifMatch}"`,
+  };
+  if (kind === "explicit") {
+    headers["X-Litloft-Save-Kind"] = "explicit";
+  }
   const res = await fetch(`/api/files/${encodeURIComponent(fileId)}/content`, {
     method: "PUT",
     credentials: "include",
-    headers: {
-      "Content-Type": "text/plain; charset=utf-8",
-      "If-Match": `"${ifMatch}"`,
-    },
+    headers,
     body: content,
   });
   if (res.status === 412) throw new ConflictError();
@@ -237,7 +253,90 @@ export async function putFileContent(
     const data = await res.json().catch(() => null);
     throw new Error(data?.detail ?? `Error: ${res.status}`);
   }
-  return parseEtagHeader(res);
+  const action = res.headers.get("x-litloft-version-action");
+  const versionAction: FileVersionWriteAction | null =
+    action === "created" ||
+    action === "collapsed" ||
+    action === "promoted" ||
+    action === "unchanged"
+      ? action
+      : null;
+  return { etag: parseEtagHeader(res), versionAction };
+}
+
+export type FileVersionKind = "auto" | "explicit";
+
+export interface FileVersionSummary {
+  id: number;
+  created_at: string;
+  nickname: string | null;
+  kind: FileVersionKind;
+  size_bytes: number;
+  lines_added: number;
+  lines_removed: number;
+}
+
+export interface FileVersionListResponse {
+  versions: FileVersionSummary[];
+  total: number;
+  limit: number;
+  offset: number;
+}
+
+export interface FileVersionBody {
+  id: number;
+  content: string;
+  etag: string;
+}
+
+export interface FileVersionDiff {
+  id: number;
+  lines: Array<{
+    kind: "add" | "del" | "context";
+    text: string;
+  }>;
+  lines_added: number;
+  lines_removed: number;
+}
+
+async function getCoreJson<T>(url: string): Promise<T> {
+  const res = await fetch(url, { credentials: "include" });
+  if (!res.ok) {
+    const data = await res.json().catch(() => null);
+    throw new Error(data?.detail ?? `Error: ${res.status}`);
+  }
+  return res.json() as Promise<T>;
+}
+
+export async function listFileVersions(
+  fileId: string,
+  options: { limit?: number; offset?: number } = {},
+): Promise<FileVersionListResponse> {
+  const query = new URLSearchParams({
+    limit: String(options.limit ?? 50),
+    offset: String(options.offset ?? 0),
+  });
+  return getCoreJson<FileVersionListResponse>(
+    `/api/files/${encodeURIComponent(fileId)}/versions?${query}`,
+  );
+}
+
+export async function getFileVersion(
+  fileId: string,
+  versionId: number,
+): Promise<FileVersionBody> {
+  return getCoreJson<FileVersionBody>(
+    `/api/files/${encodeURIComponent(fileId)}/versions/${encodeURIComponent(versionId)}`,
+  );
+}
+
+export async function getFileVersionDiff(
+  fileId: string,
+  versionId: number,
+): Promise<FileVersionDiff> {
+  return getCoreJson<FileVersionDiff>(
+    `/api/files/${encodeURIComponent(fileId)}/versions/${encodeURIComponent(versionId)}/diff`,
+  );
 }
 
 export interface CreateTextFileBody {
