@@ -1,6 +1,16 @@
 "use client";
 
-import { Bold, Code, Heading1, Heading2, Heading3, Link, Link2, List } from "lucide-react";
+import {
+  Bold,
+  BookmarkPlus,
+  Code,
+  Heading1,
+  Heading2,
+  Heading3,
+  Link,
+  Link2,
+  List,
+} from "lucide-react";
 import { useTranslations } from "next-intl";
 
 export type EditorAction =
@@ -13,13 +23,21 @@ interface Props {
   onAction: (action: EditorAction) => void;
   /** Called when the user clicks the "insert file link" button. */
   onFileLinkRequest?: () => void;
+  /** Records the current body as an explicit, non-collapsible version. */
+  onKeepVersion: () => void;
+  disabled?: boolean;
 }
 
-export default function EditorToolbar({ onAction, onFileLinkRequest }: Props) {
+export default function EditorToolbar({
+  onAction,
+  onFileLinkRequest,
+  onKeepVersion,
+  disabled = false,
+}: Props) {
   const t = useTranslations("knowledge.editor.toolbar");
 
   const btnClass =
-    "inline-flex h-8 w-8 items-center justify-center rounded-lg text-text-muted transition-colors hover:bg-bg-elevated hover:text-text-primary";
+    "inline-flex h-8 w-8 items-center justify-center rounded-lg text-text-muted transition-colors hover:bg-bg-elevated hover:text-text-primary disabled:cursor-not-allowed disabled:opacity-40";
 
   return (
     <div
@@ -33,6 +51,7 @@ export default function EditorToolbar({ onAction, onFileLinkRequest }: Props) {
         aria-label={t("h1")}
         title={t("h1")}
         onClick={() => onAction({ kind: "prefix", text: "# " })}
+        disabled={disabled}
       >
         <Heading1 size={15} />
       </button>
@@ -42,6 +61,7 @@ export default function EditorToolbar({ onAction, onFileLinkRequest }: Props) {
         aria-label={t("h2")}
         title={t("h2")}
         onClick={() => onAction({ kind: "prefix", text: "## " })}
+        disabled={disabled}
       >
         <Heading2 size={15} />
       </button>
@@ -51,6 +71,7 @@ export default function EditorToolbar({ onAction, onFileLinkRequest }: Props) {
         aria-label={t("h3")}
         title={t("h3")}
         onClick={() => onAction({ kind: "prefix", text: "### " })}
+        disabled={disabled}
       >
         <Heading3 size={15} />
       </button>
@@ -61,6 +82,7 @@ export default function EditorToolbar({ onAction, onFileLinkRequest }: Props) {
         aria-label={t("bold")}
         title={t("bold")}
         onClick={() => onAction({ kind: "wrap", before: "**", after: "**" })}
+        disabled={disabled}
       >
         <Bold size={15} />
       </button>
@@ -70,6 +92,7 @@ export default function EditorToolbar({ onAction, onFileLinkRequest }: Props) {
         aria-label={t("list")}
         title={t("list")}
         onClick={() => onAction({ kind: "prefix", text: "- " })}
+        disabled={disabled}
       >
         <List size={15} />
       </button>
@@ -79,6 +102,7 @@ export default function EditorToolbar({ onAction, onFileLinkRequest }: Props) {
         aria-label={t("link")}
         title={t("link")}
         onClick={() => onAction({ kind: "link" })}
+        disabled={disabled}
       >
         <Link size={15} />
       </button>
@@ -88,6 +112,7 @@ export default function EditorToolbar({ onAction, onFileLinkRequest }: Props) {
         aria-label={t("code")}
         title={t("code")}
         onClick={() => onAction({ kind: "codeblock" })}
+        disabled={disabled}
       >
         <Code size={15} />
       </button>
@@ -100,11 +125,26 @@ export default function EditorToolbar({ onAction, onFileLinkRequest }: Props) {
             aria-label={t("fileLink")}
             title={t("fileLink")}
             onClick={onFileLinkRequest}
+            disabled={disabled}
           >
             <Link2 size={15} />
           </button>
         </>
       )}
+      <span className="mx-1.5 h-4 w-px bg-bg-border" />
+      <button
+        type="button"
+        className={`${btnClass} w-auto gap-1.5 px-2`}
+        aria-label={t("keepVersion")}
+        title={t("keepVersion")}
+        onClick={onKeepVersion}
+        disabled={disabled}
+      >
+        <BookmarkPlus size={15} />
+        <span className="hidden text-xs font-medium sm:inline">
+          {t("keepVersion")}
+        </span>
+      </button>
     </div>
   );
 }
