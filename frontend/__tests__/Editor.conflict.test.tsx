@@ -9,6 +9,7 @@ import {
 } from "@testing-library/react";
 
 import { dirtyRegistry } from "@/lib/dirtyRegistry";
+import { editorContent, setEditorContent } from "./editorTestDriver";
 
 vi.mock("next-intl", () => ({
   useTranslations:
@@ -81,7 +82,7 @@ afterEach(() => {
   vi.useRealTimers();
 });
 
-async function renderEditorAndTriggerConflict(): Promise<HTMLTextAreaElement> {
+async function renderEditorAndTriggerConflict(): Promise<HTMLElement> {
   stubFetch({
     "/api/files/f1/stream": [
       // Initial load
@@ -107,11 +108,9 @@ async function renderEditorAndTriggerConflict(): Promise<HTMLTextAreaElement> {
     />,
   );
 
-  const textarea = (await screen.findByLabelText(
-    "editArea",
-  )) as HTMLTextAreaElement;
+  const editor = await screen.findByLabelText("editArea");
 
-  fireEvent.change(textarea, { target: { value: "hello world" } });
+  setEditorContent(editor, "hello world");
 
   // Advance past the autosave debounce so the PUT fires.
   await act(async () => {
@@ -122,7 +121,7 @@ async function renderEditorAndTriggerConflict(): Promise<HTMLTextAreaElement> {
     expect(screen.getByText("title")).toBeInTheDocument();
   });
 
-  return textarea;
+  return editor;
 }
 
 describe("Editor ConflictModal portal (PR-6)", () => {
@@ -184,10 +183,8 @@ describe("Editor ConflictModal portal (PR-6)", () => {
       />,
     );
 
-    const textarea = (await screen.findByLabelText(
-      "editArea",
-    )) as HTMLTextAreaElement;
-    fireEvent.change(textarea, { target: { value: "hello local" } });
+    const editor = await screen.findByLabelText("editArea");
+    setEditorContent(editor, "hello local");
     await act(async () => {
       vi.advanceTimersByTime(2100);
     });
@@ -196,7 +193,7 @@ describe("Editor ConflictModal portal (PR-6)", () => {
     fireEvent.click(screen.getByText("reload"));
 
     await waitFor(() => {
-      expect(textarea.value).toBe("hello from server");
+      expect(editorContent(editor)).toBe("hello from server");
     });
     expect(screen.queryByText("title")).not.toBeInTheDocument();
   });
@@ -228,10 +225,8 @@ describe("Editor ConflictModal portal (PR-6)", () => {
       />,
     );
 
-    const textarea = (await screen.findByLabelText(
-      "editArea",
-    )) as HTMLTextAreaElement;
-    fireEvent.change(textarea, { target: { value: "force-write" } });
+    const editor = await screen.findByLabelText("editArea");
+    setEditorContent(editor, "force-write");
     await act(async () => {
       vi.advanceTimersByTime(2100);
     });

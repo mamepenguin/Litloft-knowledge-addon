@@ -13,6 +13,7 @@
 
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { editorContent } from "./editorTestDriver";
 
 vi.mock("next-intl", () => ({
   useTranslations:
@@ -108,8 +109,8 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
-function getTextarea() {
-  return screen.getByRole<HTMLTextAreaElement>("textbox", { name: "editArea" });
+function getEditor() {
+  return screen.getByRole<HTMLElement>("textbox", { name: "editArea" });
 }
 
 describe("Editor D&D / ペースト アップロード", () => {
@@ -125,13 +126,13 @@ describe("Editor D&D / ペースト アップロード", () => {
           inlineMode
         />,
       );
-      const ta = await waitFor(() => getTextarea());
+      const ta = await waitFor(() => getEditor());
 
       const file = new File(["data"], "photo.png", { type: "image/png" });
       fireEvent.drop(ta, { dataTransfer: { files: [file] } });
 
       await waitFor(() => {
-        expect(ta.value).toMatch(
+        expect(editorContent(ta)).toMatch(
           /!\[photo\.png uploading\.\.\.\]\(loft:\/\/pending-/,
         );
       });
@@ -150,16 +151,16 @@ describe("Editor D&D / ペースト アップロード", () => {
           inlineMode
         />,
       );
-      const ta = await waitFor(() => getTextarea());
+      const ta = await waitFor(() => getEditor());
 
       const file = new File(["data"], "photo.png", { type: "image/png" });
       fireEvent.drop(ta, { dataTransfer: { files: [file] } });
 
       await waitFor(() => {
-        expect(ta.value).toContain("![photo.png](loft://abc123def456)");
+        expect(editorContent(ta)).toContain("![photo.png](loft://abc123def456)");
       });
       // placeholder は残らない
-      expect(ta.value).not.toContain("uploading...");
+      expect(editorContent(ta)).not.toContain("uploading...");
     });
 
     it("非画像ファイルをドロップ → [name](loft://id) 形式", async () => {
@@ -175,7 +176,7 @@ describe("Editor D&D / ペースト アップロード", () => {
           inlineMode
         />,
       );
-      const ta = await waitFor(() => getTextarea());
+      const ta = await waitFor(() => getEditor());
 
       const file = new File(["data"], "document.pdf", {
         type: "application/pdf",
@@ -183,10 +184,10 @@ describe("Editor D&D / ペースト アップロード", () => {
       fireEvent.drop(ta, { dataTransfer: { files: [file] } });
 
       await waitFor(() => {
-        expect(ta.value).toContain("[document.pdf](loft://xyz789ghi012)");
+        expect(editorContent(ta)).toContain("[document.pdf](loft://xyz789ghi012)");
       });
       // 画像形式（![]()）ではない
-      expect(ta.value).not.toMatch(/!\[document\.pdf\]/);
+      expect(editorContent(ta)).not.toMatch(/!\[document\.pdf\]/);
     });
 
     it("複数ファイル同時ドロップ → 各 placeholder が独立して置換される", async () => {
@@ -204,7 +205,7 @@ describe("Editor D&D / ペースト アップロード", () => {
           inlineMode
         />,
       );
-      const ta = await waitFor(() => getTextarea());
+      const ta = await waitFor(() => getEditor());
 
       const files = [
         new File(["a"], "img_a.png", { type: "image/png" }),
@@ -213,10 +214,10 @@ describe("Editor D&D / ペースト アップロード", () => {
       fireEvent.drop(ta, { dataTransfer: { files } });
 
       await waitFor(() => {
-        expect(ta.value).toContain("![img_a.png](loft://aaa111bbb222)");
-        expect(ta.value).toContain("![img_b.jpg](loft://ccc333ddd444)");
+        expect(editorContent(ta)).toContain("![img_a.png](loft://aaa111bbb222)");
+        expect(editorContent(ta)).toContain("![img_b.jpg](loft://ccc333ddd444)");
       });
-      expect(ta.value).not.toContain("uploading...");
+      expect(editorContent(ta)).not.toContain("uploading...");
     });
 
     it("アップロード失敗 → placeholder 削除 + toast.error 表示", async () => {
@@ -232,7 +233,7 @@ describe("Editor D&D / ペースト アップロード", () => {
           inlineMode
         />,
       );
-      const ta = await waitFor(() => getTextarea());
+      const ta = await waitFor(() => getEditor());
 
       const file = new File(["data"], "photo.png", { type: "image/png" });
       fireEvent.drop(ta, { dataTransfer: { files: [file] } });
@@ -243,7 +244,7 @@ describe("Editor D&D / ペースト アップロード", () => {
         expect(toastErrorMock).toHaveBeenCalled();
       });
       // placeholder は残らない
-      expect(ta.value).not.toContain("uploading...");
+      expect(editorContent(ta)).not.toContain("uploading...");
     });
 
     it("drive と folderPath がアップロード API に渡される", async () => {
@@ -258,7 +259,7 @@ describe("Editor D&D / ペースト アップロード", () => {
           inlineMode
         />,
       );
-      const ta = await waitFor(() => getTextarea());
+      const ta = await waitFor(() => getEditor());
 
       const file = new File(["data"], "photo.png", { type: "image/png" });
       fireEvent.drop(ta, { dataTransfer: { files: [file] } });
@@ -286,7 +287,7 @@ describe("Editor D&D / ペースト アップロード", () => {
           inlineMode
         />,
       );
-      const ta = await waitFor(() => getTextarea());
+      const ta = await waitFor(() => getEditor());
 
       const file = new File(["data"], "pasted.png", { type: "image/png" });
       const clipboardEvent = {
@@ -298,7 +299,7 @@ describe("Editor D&D / ペースト アップロード", () => {
       fireEvent.paste(ta, clipboardEvent);
 
       await waitFor(() => {
-        expect(ta.value).toContain("![pasted.png](loft://img000000001)");
+        expect(editorContent(ta)).toContain("![pasted.png](loft://img000000001)");
       });
     });
 
@@ -314,7 +315,7 @@ describe("Editor D&D / ペースト アップロード", () => {
           inlineMode
         />,
       );
-      const ta = await waitFor(() => getTextarea());
+      const ta = await waitFor(() => getEditor());
 
       const preventDefault = vi.fn();
       fireEvent.paste(ta, {

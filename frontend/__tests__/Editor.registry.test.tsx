@@ -1,7 +1,8 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, cleanup, render, screen, waitFor } from "@testing-library/react";
 
 import { markdownContentRegistry } from "@/lib/markdownContentRegistry";
+import { editorContent, setEditorContent } from "./editorTestDriver";
 
 // Phase 3.5 spec 2026-05-10 §D2 / hako ZWLqXgdTwt9le4dAI3U8C: the
 // Editor publishes its `content` state into the registry so the
@@ -100,7 +101,7 @@ describe("Editor markdownContentRegistry integration", () => {
     expect(entry!.getContent()).toBe("hello");
   });
 
-  it("reflects textarea edits via getContent()", async () => {
+  it("reflects editor transactions via getContent()", async () => {
     stubFetch({
       "/api/files/f1/stream": [
         { ok: true, text: "hello", headers: { etag: '"abc"' } },
@@ -109,10 +110,8 @@ describe("Editor markdownContentRegistry integration", () => {
 
     render(<Editor fileId="f1" filename="note.md" drive="d" inlineMode />);
 
-    const textarea = (await screen.findByLabelText(
-      "editArea",
-    )) as HTMLTextAreaElement;
-    fireEvent.change(textarea, { target: { value: "hello world" } });
+    const editor = await screen.findByLabelText("editArea");
+    setEditorContent(editor, "hello world");
 
     await waitFor(() => {
       const entry = markdownContentRegistry.lookup("f1");
@@ -120,10 +119,10 @@ describe("Editor markdownContentRegistry integration", () => {
     });
   });
 
-  it("propagates external setContent() into the editor's textarea", async () => {
+  it("propagates external setContent() into the editor", async () => {
     // The whole point of the registry: the inspector calls setContent
     // with a rewritten body (frontmatter + new tags), and the
-    // editor's textarea reflects that change so the user sees the
+    // editor reflects that change so the user sees the
     // updated YAML and the editor's own autosave handles the PUT.
     stubFetch({
       "/api/files/f1/stream": [
@@ -133,17 +132,15 @@ describe("Editor markdownContentRegistry integration", () => {
 
     render(<Editor fileId="f1" filename="note.md" drive="d" inlineMode />);
 
-    const textarea = (await screen.findByLabelText(
-      "editArea",
-    )) as HTMLTextAreaElement;
-    expect(textarea.value).toBe("initial");
+    const editor = await screen.findByLabelText("editArea");
+    expect(editorContent(editor)).toBe("initial");
 
     const entry = markdownContentRegistry.lookup("f1");
     expect(entry).not.toBeNull();
     entry!.setContent("---\ntags: [foo]\n---\ninitial");
 
     await waitFor(() => {
-      expect(textarea.value).toBe("---\ntags: [foo]\n---\ninitial");
+      expect(editorContent(editor)).toBe("---\ntags: [foo]\n---\ninitial");
     });
   });
 
@@ -174,10 +171,8 @@ describe("Editor markdownContentRegistry integration", () => {
 
       render(<Editor fileId="f1" filename="note.md" drive="d" inlineMode />);
 
-      const textarea = (await screen.findByLabelText(
-        "editArea",
-      )) as HTMLTextAreaElement;
-      fireEvent.change(textarea, { target: { value: "hello world" } });
+      const editor = await screen.findByLabelText("editArea");
+      setEditorContent(editor, "hello world");
 
       await act(async () => {
         vi.advanceTimersByTime(2100);

@@ -1,7 +1,8 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, cleanup, render, screen, waitFor } from "@testing-library/react";
 
 import { dirtyRegistry } from "@/lib/dirtyRegistry";
+import { editorContent, setEditorContent } from "./editorTestDriver";
 
 vi.mock("next-intl", () => ({
   useTranslations:
@@ -151,12 +152,10 @@ describe("Editor inlineMode", () => {
       />,
     );
 
-    const textarea = (await screen.findByLabelText(
-      "editArea",
-    )) as HTMLTextAreaElement;
+    const editor = await screen.findByLabelText("editArea");
     expect(dirtyRegistry.isDirty("f1")).toBe(false);
 
-    fireEvent.change(textarea, { target: { value: "hello world" } });
+    setEditorContent(editor, "hello world");
     await waitFor(() => {
       expect(dirtyRegistry.isDirty("f1")).toBe(true);
     });
@@ -174,16 +173,14 @@ describe("Editor inlineMode", () => {
 
     render(<Editor fileId="f1" drive="d" onBack={() => undefined} inlineMode />);
 
-    const textarea = (await screen.findByLabelText(
-      "editArea",
-    )) as HTMLTextAreaElement;
-    expect(textarea.value).toBe("stable");
+    const editor = await screen.findByLabelText("editArea");
+    expect(editorContent(editor)).toBe("stable");
     // Re-set to the same value — must not flip dirty.
-    fireEvent.change(textarea, { target: { value: "stable" } });
+    setEditorContent(editor, "stable");
     expect(dirtyRegistry.isDirty("f1")).toBe(false);
   });
 
-  it("focuses the textarea once content has loaded when autoFocus is true", async () => {
+  it("focuses the editor once content has loaded when autoFocus is true", async () => {
     stubFetch({
       "/api/files/f1/stream": [
         { ok: true, text: "hello", headers: { etag: '"abc"' } },
@@ -201,11 +198,9 @@ describe("Editor inlineMode", () => {
       />,
     );
 
-    const textarea = (await screen.findByLabelText(
-      "editArea",
-    )) as HTMLTextAreaElement;
+    const editor = await screen.findByLabelText("editArea");
     await waitFor(() => {
-      expect(document.activeElement).toBe(textarea);
+      expect(document.activeElement).toBe(editor);
     });
   });
 
@@ -226,14 +221,12 @@ describe("Editor inlineMode", () => {
       />,
     );
 
-    const textarea = (await screen.findByLabelText(
-      "editArea",
-    )) as HTMLTextAreaElement;
+    const editor = await screen.findByLabelText("editArea");
     // Give the autoFocus effect a chance to (not) run.
     await act(async () => {
       await Promise.resolve();
     });
-    expect(document.activeElement).not.toBe(textarea);
+    expect(document.activeElement).not.toBe(editor);
   });
 
   it("fetches the filename from the core API when not supplied", async () => {

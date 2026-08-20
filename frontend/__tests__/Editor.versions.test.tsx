@@ -11,6 +11,7 @@ import {
 import { ShortcutsProvider } from "@/components/ShortcutsProvider";
 import { dirtyRegistry } from "@/lib/dirtyRegistry";
 import { markdownContentRegistry } from "@/lib/markdownContentRegistry";
+import { editorContent, setEditorContent } from "./editorTestDriver";
 
 vi.mock("next-intl", () => ({
   useTranslations:
@@ -98,9 +99,7 @@ describe("Editor explicit versions", () => {
     vi.stubGlobal("fetch", fetchMock);
 
     renderEditor();
-    const textarea = (await screen.findByLabelText(
-      "knowledge.editor.editArea",
-    )) as HTMLTextAreaElement;
+    const textarea = await screen.findByLabelText("knowledge.editor.editArea");
     // The shortcut context is enabled only after the async content load.
     // Open the real provider's cheat sheet once to wait until that context
     // has been pushed, then close it before dispatching from the textarea.
@@ -163,10 +162,8 @@ describe("Editor explicit versions", () => {
     vi.stubGlobal("fetch", fetchMock);
 
     renderEditor();
-    const textarea = (await screen.findByLabelText(
-      "knowledge.editor.editArea",
-    )) as HTMLTextAreaElement;
-    fireEvent.change(textarea, { target: { value: "dirty body" } });
+    const textarea = await screen.findByLabelText("knowledge.editor.editArea");
+    setEditorContent(textarea, "dirty body");
     fireEvent.click(
       screen.getByRole("button", {
         name: "knowledge.editor.toolbar.keepVersion",
@@ -208,14 +205,12 @@ describe("Editor explicit versions", () => {
     vi.stubGlobal("fetch", fetchMock);
 
     renderEditor();
-    const textarea = (await screen.findByLabelText(
-      "knowledge.editor.editArea",
-    )) as HTMLTextAreaElement;
-    fireEvent.change(textarea, { target: { value: "autosave body" } });
+    const textarea = await screen.findByLabelText("knowledge.editor.editArea");
+    setEditorContent(textarea, "autosave body");
     await act(async () => vi.advanceTimersByTime(2100));
     await waitFor(() => expect(contentPuts).toHaveLength(1));
 
-    fireEvent.change(textarea, { target: { value: "explicit body" } });
+    setEditorContent(textarea, "explicit body");
     fireEvent.click(
       screen.getByRole("button", {
         name: "knowledge.editor.toolbar.keepVersion",
@@ -286,9 +281,7 @@ describe("Editor explicit versions", () => {
     vi.stubGlobal("fetch", fetchMock);
 
     renderEditor();
-    const textarea = (await screen.findByLabelText(
-      "knowledge.editor.editArea",
-    )) as HTMLTextAreaElement;
+    const textarea = await screen.findByLabelText("knowledge.editor.editArea");
     fireEvent.click(
       screen.getByRole("button", {
         name: "knowledge.editor.versions.toggleOpen",
@@ -315,7 +308,7 @@ describe("Editor explicit versions", () => {
       "If-Match": '"stale-held"',
       "X-Litloft-Save-Kind": "explicit",
     });
-    expect(textarea.value).toBe("current");
+    expect(editorContent(textarea)).toBe("current");
   });
 
   it("applies a restored body through the reload state path and cancels pending autosave", async () => {
@@ -384,10 +377,8 @@ describe("Editor explicit versions", () => {
     vi.stubGlobal("fetch", fetchMock);
 
     renderEditor();
-    const textarea = (await screen.findByLabelText(
-      "knowledge.editor.editArea",
-    )) as HTMLTextAreaElement;
-    fireEvent.change(textarea, { target: { value: "pending local edit" } });
+    const textarea = await screen.findByLabelText("knowledge.editor.editArea");
+    setEditorContent(textarea, "pending local edit");
     expect(dirtyRegistry.isDirty("f1")).toBe(true);
 
     fireEvent.click(
@@ -405,7 +396,7 @@ describe("Editor explicit versions", () => {
     );
 
     await waitFor(() =>
-      expect(textarea.value).toBe("---\nid: injected\n---\nrestored"),
+      expect(editorContent(textarea)).toBe("---\nid: injected\n---\nrestored"),
     );
     expect(markdownContentRegistry.lookup("f1")?.getContent()).toBe(
       "---\nid: injected\n---\nrestored",
@@ -426,9 +417,7 @@ describe("Editor explicit versions", () => {
       "X-Litloft-Save-Kind": "explicit",
     });
 
-    fireEvent.change(textarea, {
-      target: { value: "---\nid: injected\n---\nafter restore edit" },
-    });
+    setEditorContent(textarea, "---\nid: injected\n---\nafter restore edit");
     await act(async () => vi.advanceTimersByTime(2100));
     await waitFor(() => expect(contentPuts).toHaveLength(3));
     expect(contentPuts[2].headers).toMatchObject({
@@ -492,10 +481,8 @@ describe("Editor explicit versions", () => {
     vi.stubGlobal("fetch", fetchMock);
 
     renderEditor();
-    const textarea = (await screen.findByLabelText(
-      "knowledge.editor.editArea",
-    )) as HTMLTextAreaElement;
-    fireEvent.change(textarea, { target: { value: "unsaved draft" } });
+    const textarea = await screen.findByLabelText("knowledge.editor.editArea");
+    setEditorContent(textarea, "unsaved draft");
     fireEvent.click(
       screen.getByRole("button", {
         name: "knowledge.editor.versions.toggleOpen",
@@ -518,7 +505,7 @@ describe("Editor explicit versions", () => {
     expect(contentPuts).toHaveLength(1);
     expect(contentPuts[0].body).toBe("unsaved draft");
     expect(versionBodyReads).toBe(1);
-    expect(textarea.value).toBe("unsaved draft");
+    expect(editorContent(textarea)).toBe("unsaved draft");
   });
 
   it("disables editing while loading a restore and aborts if content revision changes", async () => {
@@ -583,9 +570,7 @@ describe("Editor explicit versions", () => {
     vi.stubGlobal("fetch", fetchMock);
 
     renderEditor();
-    const textarea = (await screen.findByLabelText(
-      "knowledge.editor.editArea",
-    )) as HTMLTextAreaElement;
+    const textarea = await screen.findByLabelText("knowledge.editor.editArea");
     fireEvent.click(
       screen.getByRole("button", {
         name: "knowledge.editor.versions.toggleOpen",
@@ -598,7 +583,9 @@ describe("Editor explicit versions", () => {
       }),
     );
 
-    await waitFor(() => expect(textarea).toBeDisabled());
+    await waitFor(() =>
+      expect(textarea).toHaveAttribute("contenteditable", "false"),
+    );
     expect(
       screen.getByRole("button", {
         name: "knowledge.editor.toolbar.keepVersion",
@@ -614,8 +601,10 @@ describe("Editor explicit versions", () => {
       );
     });
 
-    await waitFor(() => expect(textarea).not.toBeDisabled());
-    expect(textarea.value).toBe("external edit");
+    await waitFor(() =>
+      expect(textarea).toHaveAttribute("contenteditable", "true"),
+    );
+    expect(editorContent(textarea)).toBe("external edit");
     expect(contentPuts).toHaveLength(0);
 
     await act(async () => vi.advanceTimersByTime(2100));
@@ -664,10 +653,8 @@ describe("Editor explicit versions", () => {
         <Editor fileId="a" filename="a.md" drive="d" inlineMode />
       </ShortcutsProvider>,
     );
-    const textarea = (await screen.findByLabelText(
-      "knowledge.editor.editArea",
-    )) as HTMLTextAreaElement;
-    fireEvent.change(textarea, { target: { value: "alpha dirty" } });
+    const textarea = await screen.findByLabelText("knowledge.editor.editArea");
+    setEditorContent(textarea, "alpha dirty");
     await act(async () => vi.advanceTimersByTime(2100));
     await waitFor(() => expect(aContentPuts).toBe(1));
 
@@ -676,19 +663,17 @@ describe("Editor explicit versions", () => {
         <Editor fileId="b" filename="b.md" drive="d" inlineMode />
       </ShortcutsProvider>,
     );
-    const bTextarea = (await screen.findByLabelText(
-      "knowledge.editor.editArea",
-    )) as HTMLTextAreaElement;
-    await waitFor(() => expect(bTextarea.value).toBe("bravo"));
+    const bTextarea = await screen.findByLabelText("knowledge.editor.editArea");
+    await waitFor(() => expect(editorContent(bTextarea)).toBe("bravo"));
     await act(async () => {
       resolveASave(response({ headers: { etag: '"a-after"' } }));
     });
-    expect(bTextarea.value).toBe("bravo");
+    expect(editorContent(bTextarea)).toBe("bravo");
     expect(
       screen.queryByText("knowledge.editor.status.saved"),
     ).not.toBeInTheDocument();
 
-    fireEvent.change(bTextarea, { target: { value: "bravo dirty" } });
+    setEditorContent(bTextarea, "bravo dirty");
     await act(async () => vi.advanceTimersByTime(2100));
     await waitFor(() => expect(bContentPuts).toHaveLength(1));
     expect(bContentPuts[0].headers).toMatchObject({
@@ -761,9 +746,7 @@ describe("Editor explicit versions", () => {
         <Editor fileId="a" filename="a.md" drive="d" inlineMode />
       </ShortcutsProvider>,
     );
-    const textarea = (await screen.findByLabelText(
-      "knowledge.editor.editArea",
-    )) as HTMLTextAreaElement;
+    const textarea = await screen.findByLabelText("knowledge.editor.editArea");
     fireEvent.click(
       screen.getByRole("button", {
         name: "knowledge.editor.versions.toggleOpen",
@@ -775,22 +758,22 @@ describe("Editor explicit versions", () => {
         name: "knowledge.editor.versions.restore",
       }),
     );
-    await waitFor(() => expect(textarea).toBeDisabled());
+    await waitFor(() =>
+      expect(textarea).toHaveAttribute("contenteditable", "false"),
+    );
 
     view.rerender(
       <ShortcutsProvider>
         <Editor fileId="b" filename="b.md" drive="d" inlineMode />
       </ShortcutsProvider>,
     );
-    const bTextarea = (await screen.findByLabelText(
-      "knowledge.editor.editArea",
-    )) as HTMLTextAreaElement;
-    await waitFor(() => expect(bTextarea.value).toBe("bravo"));
+    const bTextarea = await screen.findByLabelText("knowledge.editor.editArea");
+    await waitFor(() => expect(editorContent(bTextarea)).toBe("bravo"));
     await act(async () => {
       resolveARestore(response({ headers: { etag: '"a-restored"' } }));
     });
 
-    expect(bTextarea.value).toBe("bravo");
+    expect(editorContent(bTextarea)).toBe("bravo");
     expect(aStreamReads).toBe(1);
   });
 });
