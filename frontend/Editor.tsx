@@ -50,8 +50,9 @@ import EditorToolbar, {
   type EditorAction,
 } from "./EditorToolbar";
 import FileLinkModal from "./FileLinkModal";
-import { applyIndent } from "./editorIndent";
-import { getCaretCoordinates } from "./textareaCaret";
+import MarkdownEditor, {
+  type MarkdownEditorHandle,
+} from "./MarkdownEditor";
 import {
   WikiLinkAutocomplete,
   type WikiLinkAutocompleteHandle,
@@ -93,7 +94,7 @@ interface Props {
    * already provides the title, breadcrumb, delete affordance and
    * sidebar — re-rendering them here would compete for the same
    * space. ``inlineMode`` strips those bits and lets the editor body
-   * (toolbar + textarea/preview) sit flush inside the slot.
+   * (toolbar + editor/preview) sit flush inside the slot.
    *
    * Also publishes dirty state into ``dirtyRegistry`` (always; the
    * registry is harmless when nothing reads it). The Knowledge
@@ -104,10 +105,10 @@ interface Props {
   /**
    * Phase 2 PR-3 (case P): when ``KnowledgeEditSection`` mounts the
    * editor in response to ``?file={id}&edit=1`` (the canonical URL
-   * that ``useCreateFile`` now resolves to), focus the textarea once
+   * that ``useCreateFile`` now resolves to), focus the editor once
    * the content has loaded so the user lands directly in the edit
    * surface. Re-fires when ``fileId`` changes — navigating between
-   * notes with ``?edit=1`` keeps focus on the textarea.
+   * notes with ``?edit=1`` keeps focus on the editor.
    */
   autoFocus?: boolean;
   /**
@@ -185,17 +186,44 @@ export default function Editor({
   // knowledge route) keep their fully local fallback.
   const chrome = useMarkdownChrome();
   const [content, setContent] = useState<string | null>(null);
+  const contentRef = useRef<string | null>(null);
+  const editorRef = useRef<MarkdownEditorHandle | null>(null);
   const contentRevisionRef = useRef(0);
+  const adoptContent = useCallback((next: string | null) => {
+    contentRef.current = next;
+    contentRevisionRef.current += 1;
+    setContent(next);
+  }, []);
   const updateContent = useCallback(
-    (next: React.SetStateAction<string | null>) => {
+    (
+      next: React.SetStateAction<string | null>,
+      options?: { addToHistory?: boolean },
+    ) => {
+      const previous = contentRef.current;
+      const resolved =
+        typeof next === "function" ? next(previous) : next;
+      if (resolved === null) {
+        adoptContent(null);
+        return;
+      }
+      const editor = editorRef.current;
+      if (editor) {
+        editor.setContent(resolved, options);
+        return;
+      }
       contentRevisionRef.current += 1;
-      setContent(next);
+      contentRef.current = resolved;
+      setContent(resolved);
     },
+    [adoptContent],
+  );
+  const readCurrentContent = useCallback(
+    () => editorRef.current?.getContent() ?? contentRef.current,
     [],
   );
   // Phase 4 (spec §D5 / hako sFXCwZDluTPZZkbYuozwJ): track mobile
   // breakpoint so the view-mode toggle can drop the "split" option.
-  // Split makes no sense at <768px (textarea + preview side-by-side
+  // Split makes no sense at <768px (editor + preview side-by-side
   // would each be ~half of a 375px viewport). Already implicit in the
   // Knowledge Page.tsx host; centralised here so the inline-mounted
   // Editor in FileDetailContent also gets the right toggle set.
@@ -298,7 +326,6 @@ export default function Editor({
   }, [chrome, saveState]);
   const etagRef = useRef<string>("");
   const lastSavedRef = useRef<string>("");
-  const textareaRef = useRef<HTMLTextAreaElement | null>(null);
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const fileGenerationRef = useRef({ fileId, generation: 0 });
   if (fileGenerationRef.current.fileId !== fileId) {
@@ -338,7 +365,7 @@ export default function Editor({
   } | null>(null);
   const wikiAutocompleteRef = useRef<WikiLinkAutocompleteHandle | null>(null);
   // Viewport-space anchor for the autocomplete popup. Recomputed
-  // whenever the trigger moves or the textarea scrolls / the viewport
+  // whenever the trigger moves or the editor scrolls / the viewport
   // resizes. ``null`` falls the popup back to legacy in-flow placement.
   const [wikiAnchor, setWikiAnchor] = useState<
     { top: number; left: number; lineHeight: number } | null
@@ -354,7 +381,7 @@ export default function Editor({
       etagRef.current = etag;
       lastSavedRef.current = nextContent;
       contentFileIdRef.current = fileGenerationRef.current.fileId;
-      updateContent(nextContent);
+      updateContent(nextContent, { addToHistory: false });
       setSaveState({ kind: "idle" });
       return true;
     },
@@ -433,10 +460,10 @@ export default function Editor({
     if (!autoFocus) return;
     if (!contentLoaded) return;
     if (autoFocusedFileIdRef.current === fileId) return;
-    const ta = textareaRef.current;
-    if (!ta) return;
+    const editor = editorRef.current;
+    if (!editor) return;
     autoFocusedFileIdRef.current = fileId;
-    ta.focus();
+    editor.focus();
   }, [autoFocus, contentLoaded, fileId]);
 
   const enqueueSaveOperation = useCallback(
@@ -512,9 +539,6 @@ export default function Editor({
     ],
   );
 
-  const contentRef = useRef<string | null>(null);
-  contentRef.current = content;
-
   useEffect(() => {
     if (content === null) return;
     if (contentFileIdRef.current !== fileId) return;
@@ -522,9 +546,10 @@ export default function Editor({
     if (content === lastSavedRef.current) return;
     if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
     saveTimerRef.current = setTimeout(() => {
-      performSave(content);
+      const latest = readCurrentContent();
+      if (latest !== null) performSave(latest);
     }, AUTOSAVE_DEBOUNCE_MS);
-  }, [content, fileId, performSave, restoreBusy]);
+  }, [content, fileId, performSave, readCurrentContent, restoreBusy]);
 
   // Publish dirty state into the global registry so the Phase 2.2
   // navigation guard / browser unload handler can ask "would
@@ -541,7 +566,7 @@ export default function Editor({
   // expose the editor's content as a (getContent, setContent) pair
   // so the inspector's EditableTagChips can run in content-mode and
   // mutate this same string instead of doing its own GET/PUT round
-  // trip. Single writer (the editor's textarea autosave) owns the
+  // trip. Single writer (the editor's autosave) owns the
   // server etag, eliminating the inspector-vs-editor race.
   //
   // Only published once content has loaded (the registry contract
@@ -554,7 +579,7 @@ export default function Editor({
   useEffect(() => {
     if (content === null) return;
     const dispose = markdownContentRegistry.register(fileId, {
-      getContent: () => contentRef.current ?? "",
+      getContent: () => readCurrentContent() ?? "",
       setContent: (next) => updateContent(next),
     });
     return dispose;
@@ -563,7 +588,7 @@ export default function Editor({
     // content edits flow through the ref without re-running this
     // effect, which keeps the registration stable.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [fileId, content === null, updateContent]);
+  }, [fileId, content === null, readCurrentContent, updateContent]);
 
   // Pulse the registry on every content change so FileDetailContent
   // (subscribed via useSyncExternalStore) re-reads `getContent()` and
@@ -579,7 +604,7 @@ export default function Editor({
   useEffect(() => {
     return () => {
       if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
-      const latest = contentRef.current;
+      const latest = readCurrentContent();
       if (latest !== null && latest !== lastSavedRef.current) {
         // Fire-and-forget direct PUT instead of `performSave` — the
         // component is unmounting, so its `setSaveState` calls would
@@ -593,7 +618,7 @@ export default function Editor({
     // Intentionally key on `fileId` (not `performSave`) — we want the
     // cleanup to run exactly when the editor unmounts or switches
     // files, not on every callback identity change.
-  }, [fileId]);
+  }, [fileId, readCurrentContent]);
 
   const uploadFile = useCallback(
     async (file: File, placeholder: string) => {
@@ -640,30 +665,8 @@ export default function Editor({
   const uploadFileRef = useRef(uploadFile);
   uploadFileRef.current = uploadFile;
 
-  // Native event listeners for D&D and image paste. Using addEventListener
-  // directly on the textarea element (instead of React's onDrop/onDragOver
-  // synthetic events) prevents parent UploadZone handlers from intercepting
-  // the events before they reach the textarea.
-  useEffect(() => {
-    const taOrNull = textareaRef.current;
-    if (!taOrNull) return;
-    // Assign to a new const so TypeScript carries the narrowed non-null type
-    // into the nested event handler closures below.
-    const ta = taOrNull;
-
-    function onDragOver(e: DragEvent) {
-      if (e.dataTransfer?.types.includes("Files")) {
-        e.preventDefault();
-        e.stopPropagation();
-      }
-    }
-
-    function onDrop(e: DragEvent) {
-      e.preventDefault();
-      e.stopPropagation();
-      const files = Array.from(e.dataTransfer?.files ?? []);
-      if (files.length === 0) return;
-      const offset = ta.selectionStart;
+  const handleDropFiles = useCallback(
+    (files: File[], offset: number) => {
       const specs = files.map((file) => {
         const uuid = nextUploadPlaceholderId();
         const isImage = file.type.startsWith("image/");
@@ -677,24 +680,20 @@ export default function Editor({
         if (prev === null) return null;
         return prev.slice(0, offset) + insertion + prev.slice(offset);
       });
+      const editor = editorRef.current;
+      if (editor) {
+        editor.focus();
+        editor.setSelection(offset + insertion.length);
+      }
       for (const { file, placeholder } of specs) {
         void uploadFileRef.current(file, placeholder);
       }
-    }
+    },
+    [updateContent],
+  );
 
-    function onPaste(e: ClipboardEvent) {
-      const items = Array.from(e.clipboardData?.items ?? []);
-      const imageItems = items.filter((item) =>
-        item.type.startsWith("image/"),
-      );
-      if (imageItems.length === 0) return;
-      e.preventDefault();
-      const files = imageItems
-        .map((item) => item.getAsFile())
-        .filter((f): f is File => f !== null);
-      if (files.length === 0) return;
-      const offset = ta.selectionStart;
-      const selEnd = ta.selectionEnd;
+  const handlePasteImages = useCallback(
+    (files: File[], offset: number, selEnd: number) => {
       const specs = files.map((file) => {
         const uuid = nextUploadPlaceholderId();
         const placeholder = `![${file.name} uploading...](loft://pending-${uuid})`;
@@ -705,26 +704,20 @@ export default function Editor({
         if (prev === null) return null;
         return prev.slice(0, offset) + insertion + prev.slice(selEnd);
       });
+      const editor = editorRef.current;
+      if (editor) {
+        editor.focus();
+        editor.setSelection(offset + insertion.length);
+      }
       for (const { file, placeholder } of specs) {
         void uploadFileRef.current(file, placeholder);
       }
-    }
-
-    ta.addEventListener("dragover", onDragOver);
-    ta.addEventListener("drop", onDrop);
-    ta.addEventListener("paste", onPaste);
-    return () => {
-      ta.removeEventListener("dragover", onDragOver);
-      ta.removeEventListener("drop", onDrop);
-      ta.removeEventListener("paste", onPaste);
-    };
-    // textareaRef.current is stable once content loads; setContent is a
-    // stable React setter. uploadFileRef is updated every render.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [contentLoaded]);
+    },
+    [updateContent],
+  );
 
   const handleKeyDown = useCallback(
-    (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    (e: KeyboardEvent) => {
       // Wiki-link autocomplete intercepts keyboard nav first. If the
       // popup is open and consumed the key (ArrowUp/Down, Enter, Esc),
       // skip the editor's own handling.
@@ -732,33 +725,20 @@ export default function Editor({
         wikiTrigger &&
         wikiAutocompleteRef.current?.handleKeyDown(e)
       ) {
-        return;
+        return true;
       }
       if (e.key === "Escape") {
-        e.currentTarget.blur();
-        return;
+        editorRef.current?.blur();
+        return true;
       }
-      if (e.key !== "Tab") return;
-      e.preventDefault();
-      const ta = e.currentTarget;
-      const { text, selStart, selEnd } = applyIndent(
-        ta.value,
-        ta.selectionStart,
-        ta.selectionEnd,
-        e.shiftKey,
-      );
-      updateContent(text);
-      requestAnimationFrame(() => {
-        ta.focus();
-        ta.setSelectionRange(selStart, selEnd);
-      });
+      return false;
     },
-    [updateContent, wikiTrigger],
+    [wikiTrigger],
   );
 
-  // Inspects the textarea contents around the caret to decide whether
+  // Inspects the editor contents around the caret to decide whether
   // a wiki-link autocomplete popup should be open and, if so, what
-  // query to pass to it. Called from the textarea's onChange handler.
+  // query to pass to it.
   const updateWikiTrigger = useCallback(
     (value: string, caret: number) => {
       // Walk backwards from the caret looking for ``[[``. A whitespace
@@ -794,29 +774,32 @@ export default function Editor({
   );
 
   // Compute the popup's viewport-space anchor whenever the trigger
-  // moves. Re-runs on textarea scroll and window resize so the popup
+  // moves. Re-runs on the CM6 scroller and window resize so the popup
   // follows the caret instead of getting stranded.
   useEffect(() => {
     if (!wikiTrigger) {
       setWikiAnchor(null);
       return;
     }
-    const ta = textareaRef.current;
-    if (!ta) return;
+    const editor = editorRef.current;
+    if (!editor) return;
     const compute = () => {
-      const taLocal = textareaRef.current;
-      if (!taLocal) return;
+      const current = editorRef.current;
+      if (!current) return;
       // Anchor at the position of the opening ``[[`` — wikiTrigger.start
       // is the offset right after ``[[``, so subtract 2 to land on the
       // first ``[``.
       const offset = Math.max(0, wikiTrigger.start - 2);
       try {
-        const coords = getCaretCoordinates(taLocal, offset);
-        const rect = taLocal.getBoundingClientRect();
+        const coords = current.coordsAtPos(offset);
+        if (!coords) {
+          setWikiAnchor(null);
+          return;
+        }
         setWikiAnchor({
-          top: rect.top + coords.top,
-          left: rect.left + coords.left,
-          lineHeight: coords.height,
+          top: coords.top,
+          left: coords.left,
+          lineHeight: coords.bottom - coords.top,
         });
       } catch {
         setWikiAnchor(null);
@@ -825,68 +808,71 @@ export default function Editor({
     compute();
     const onScroll = () => compute();
     const onResize = () => compute();
-    ta.addEventListener("scroll", onScroll);
+    editor.view.scrollDOM.addEventListener("scroll", onScroll);
     window.addEventListener("resize", onResize);
     window.addEventListener("scroll", onScroll, true);
     return () => {
-      ta.removeEventListener("scroll", onScroll);
+      editor.view.scrollDOM.removeEventListener("scroll", onScroll);
       window.removeEventListener("resize", onResize);
       window.removeEventListener("scroll", onScroll, true);
     };
   }, [wikiTrigger]);
 
-  const handleContentChange = useCallback(
-    (e: React.ChangeEvent<HTMLTextAreaElement>) => {
-      const next = e.target.value;
-      updateContent(next);
-      updateWikiTrigger(next, e.target.selectionStart);
+  const handleEditorChange = useCallback(
+    (next: string) => {
+      adoptContent(next);
+      const head = editorRef.current?.getSelection().end ?? next.length;
+      updateWikiTrigger(next, head);
     },
-    [updateContent, updateWikiTrigger],
+    [adoptContent, updateWikiTrigger],
   );
 
   const insertWikiLink = useCallback(
     (sel: WikiLinkSelection, shift: boolean) => {
-      const ta = textareaRef.current;
-      if (!ta || content === null || !wikiTrigger) return;
+      const editor = editorRef.current;
+      const current = editor?.getContent() ?? null;
+      if (!editor || current === null || !wikiTrigger) return;
       // Replace from the opening ``[[`` (triggerStart - 2) through the
       // current caret with the rendered link form.
       const linkBody =
         shift && sel.mdId ? sel.mdId : sel.basename;
       const inserted = `[[${linkBody}]]`;
-      const beforeBracket = content.slice(0, wikiTrigger.start - 2);
-      const afterCaret = content.slice(ta.selectionStart);
+      const beforeBracket = current.slice(0, wikiTrigger.start - 2);
+      const afterCaret = current.slice(editor.getSelection().end);
       const newText = beforeBracket + inserted + afterCaret;
       const cursor = beforeBracket.length + inserted.length;
       updateContent(newText);
       setWikiTrigger(null);
       requestAnimationFrame(() => {
-        ta.focus();
-        ta.setSelectionRange(cursor, cursor);
+        editor.focus();
+        editor.setSelection(cursor);
       });
     },
-    [content, updateContent, wikiTrigger],
+    [updateContent, wikiTrigger],
   );
 
   const handleToolbar = useCallback((action: EditorAction) => {
-    const ta = textareaRef.current;
-    if (!ta || content === null) return;
+    const editor = editorRef.current;
+    if (!editor) return;
+    const current = editor.getContent();
+    const selection = editor.getSelection();
     const { text, selStart, selEnd } = applyEditorAction(
-      ta.value,
-      ta.selectionStart,
-      ta.selectionEnd,
+      current,
+      selection.start,
+      selection.end,
       action,
     );
     updateContent(text);
     requestAnimationFrame(() => {
-      ta.focus();
-      ta.setSelectionRange(selStart, selEnd);
+      editor.focus();
+      editor.setSelection(selStart, selEnd);
     });
-  }, [content, updateContent]);
+  }, [updateContent]);
 
   const handleFileLinkRequest = useCallback(() => {
-    const ta = textareaRef.current;
-    if (ta) {
-      savedSelRef.current = { start: ta.selectionStart, end: ta.selectionEnd };
+    const editor = editorRef.current;
+    if (editor) {
+      savedSelRef.current = editor.getSelection();
     }
     setFileLinkModalOpen(true);
   }, []);
@@ -894,19 +880,21 @@ export default function Editor({
   const handleFileLinkInsert = useCallback(
     ({ filename, fileId }: { filename: string; fileId: string }) => {
       setFileLinkModalOpen(false);
-      const ta = textareaRef.current;
-      if (!ta || content === null) return;
-      const sel = savedSelRef.current ?? { start: ta.selectionStart, end: ta.selectionEnd };
+      const editor = editorRef.current;
+      if (!editor) return;
+      const current = editor.getContent();
+      const sel = savedSelRef.current ?? editor.getSelection();
       const inserted = `[${filename}](loft://${fileId})`;
-      const newText = content.slice(0, sel.start) + inserted + content.slice(sel.end);
+      const newText =
+        current.slice(0, sel.start) + inserted + current.slice(sel.end);
       const cursor = sel.start + inserted.length;
       updateContent(newText);
       requestAnimationFrame(() => {
-        ta.focus();
-        ta.setSelectionRange(cursor, cursor);
+        editor.focus();
+        editor.setSelection(cursor);
       });
     },
-    [content, updateContent],
+    [updateContent],
   );
 
   const keepCurrentVersion = useCallback(() => {
@@ -915,11 +903,11 @@ export default function Editor({
       clearTimeout(saveTimerRef.current);
       saveTimerRef.current = null;
     }
-    const latest = contentRef.current;
+    const latest = readCurrentContent();
     if (latest !== null) {
       void performSave(latest, "explicit");
     }
-  }, [performSave]);
+  }, [performSave, readCurrentContent]);
 
   const handleRestoreVersion = useCallback(
     (versionId: number) => {
@@ -929,7 +917,7 @@ export default function Editor({
         saveTimerRef.current = null;
       }
       const generation = fileGeneration;
-      const draft = contentRef.current;
+      const draft = readCurrentContent();
       if (draft === null || !isCurrentGeneration(generation)) {
         return Promise.resolve(false);
       }
@@ -938,7 +926,7 @@ export default function Editor({
       const contentIsUnchanged = () =>
         isCurrentGeneration(generation) &&
         contentRevisionRef.current === revision &&
-        contentRef.current === draft;
+        readCurrentContent() === draft;
 
       restoreBusyRef.current = true;
       setRestoreBusy(true);
@@ -1021,6 +1009,7 @@ export default function Editor({
       fileId,
       isCurrentGeneration,
       notifySaveSucceeded,
+      readCurrentContent,
       reloadLiveContent,
       t,
     ],
@@ -1100,13 +1089,14 @@ export default function Editor({
   }
 
   async function handleOverwrite() {
-    if (content === null) return;
+    const latest = readCurrentContent();
+    if (latest === null) return;
     const generation = fileGeneration;
     try {
       const { etag } = await getFileContent(fileId);
       if (!isCurrentGeneration(generation)) return;
       etagRef.current = etag;
-      await performSave(content);
+      await performSave(latest);
     } catch (e) {
       if (isCurrentGeneration(generation)) {
         setSaveState({ kind: "error", message: (e as Error).message });
@@ -1119,8 +1109,9 @@ export default function Editor({
       clearTimeout(saveTimerRef.current);
       saveTimerRef.current = null;
     }
-    if (contentRef.current !== null) {
-      lastSavedRef.current = contentRef.current;
+    const latest = readCurrentContent();
+    if (latest !== null) {
+      lastSavedRef.current = latest;
     }
     onDelete?.();
   }
@@ -1155,7 +1146,7 @@ export default function Editor({
       };
     } catch (err) {
       // Malformed YAML — fall back to treating the whole document as
-      // body. The textarea still shows the broken YAML so the user
+      // body. The editor still shows the broken YAML so the user
       // can fix it. Surface the parse error to the preview pane so the
       // user knows why the fm-card disappeared (Phase 3 review
       // follow-up, hako ZWLqXgdTwt9le4dAI3U8C).
@@ -1271,7 +1262,7 @@ export default function Editor({
       {viewMode !== "preview" && (
         // Sticky directly below the host chrome (MarkdownDocumentLayout's
         // 48px top bar / Knowledge Page's own header) so the formatting
-        // affordances stay reachable while the textarea content scrolls
+        // affordances stay reachable while the editor content scrolls
         // past. `top-0` anchors against the nearest scroll ancestor,
         // which is the layout's main column. The EditorToolbar's own
         // `bg-bg-card` already gives it an opaque backdrop, so we only
@@ -1295,35 +1286,30 @@ export default function Editor({
           the canvas (the page scrolls it), so it may only grow. The
           grid's own `align-content: normal` then stretches the single
           auto row, which is what carries the extra height down into
-          the textarea / preview instead of leaving dead space. */}
+          the editor / preview instead of leaving dead space. */}
       <div
         className={`grid flex-1 ${
           fillHeight ? "" : "min-h-0"
         } ${viewMode === "split" ? "md:grid-cols-2" : "grid-cols-1"}`}
       >
-        <textarea
-          ref={textareaRef}
-          value={content}
-          onChange={handleContentChange}
+        <MarkdownEditor
+          ref={editorRef}
+          initialContent={content}
+          onChange={handleEditorChange}
+          onSelectionChange={updateWikiTrigger}
           onKeyDown={handleKeyDown}
-          spellCheck={false}
+          onDropFiles={handleDropFiles}
+          onPasteImages={handlePasteImages}
+          fillHeight={fillHeight}
           className={`${
             fillHeight ? "w-full" : "h-full w-full"
-          } resize-none bg-bg-primary px-8 py-6 font-mono text-[13.5px] leading-relaxed text-text-primary focus:outline-none ${
+          } bg-bg-primary ${
             viewMode === "split" ? "border-r border-bg-border" : ""
           } ${viewMode === "preview" ? "hidden" : ""}`}
-          style={
-            fillHeight
-              ? ({
-                  fieldSizing: "content",
-                  minHeight: "24rem",
-                } as React.CSSProperties)
-              : undefined
-          }
-          aria-label={t("editArea")}
+          ariaLabel={t("editArea")}
           placeholder={t("placeholder")}
           disabled={restoreBusy}
-          aria-busy={restoreBusy}
+          ariaBusy={restoreBusy}
         />
         <div
           className={`${
