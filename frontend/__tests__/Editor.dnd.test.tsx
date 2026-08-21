@@ -13,7 +13,12 @@
 
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
-import { editorContent } from "./editorTestDriver";
+import {
+  editorContent,
+  editorSelection,
+  getEditorView,
+  setEditorSelection,
+} from "./editorTestDriver";
 
 vi.mock("next-intl", () => ({
   useTranslations:
@@ -163,6 +168,36 @@ describe("Editor D&D / ペースト アップロード", () => {
       expect(editorContent(ta)).not.toContain("uploading...");
     });
 
+    it("ドロップ挿入と非同期 placeholder 置換の後もキャレットを追従する", async () => {
+      stubContentFetch("body\n");
+      completeUploadMock.mockResolvedValue({ id: "abc123def456" });
+
+      render(
+        <Editor
+          fileId="f1"
+          filename="note.md"
+          folderPath="notes/"
+          drive="d"
+          inlineMode
+        />,
+      );
+      const editor = await waitFor(() => getEditor());
+      const view = getEditorView(editor);
+      vi.spyOn(view, "posAtCoords").mockReturnValue(2);
+
+      const file = new File(["data"], "photo.png", { type: "image/png" });
+      fireEvent.drop(editor, { dataTransfer: { files: [file] } });
+
+      const inserted = "![photo.png](loft://abc123def456)\n";
+      await waitFor(() =>
+        expect(editorContent(editor)).toBe(`bo${inserted}dy\n`),
+      );
+      expect(editorSelection(editor)).toEqual({
+        start: 2 + inserted.length,
+        end: 2 + inserted.length,
+      });
+    });
+
     it("非画像ファイルをドロップ → [name](loft://id) 形式", async () => {
       stubContentFetch("body\n");
       completeUploadMock.mockResolvedValue({ id: "xyz789ghi012" });
@@ -300,6 +335,39 @@ describe("Editor D&D / ペースト アップロード", () => {
 
       await waitFor(() => {
         expect(editorContent(ta)).toContain("![pasted.png](loft://img000000001)");
+      });
+    });
+
+    it("画像ペーストと非同期 placeholder 置換の後も選択末尾へキャレットを置く", async () => {
+      stubContentFetch("body\n");
+      completeUploadMock.mockResolvedValue({ id: "img000000001" });
+
+      render(
+        <Editor
+          fileId="f1"
+          filename="note.md"
+          folderPath="notes/"
+          drive="d"
+          inlineMode
+        />,
+      );
+      const editor = await waitFor(() => getEditor());
+      setEditorSelection(editor, 1, 3);
+
+      const file = new File(["data"], "pasted.png", { type: "image/png" });
+      fireEvent.paste(editor, {
+        clipboardData: {
+          items: [{ type: "image/png", getAsFile: () => file }],
+        },
+      });
+
+      const inserted = "![pasted.png](loft://img000000001)\n";
+      await waitFor(() =>
+        expect(editorContent(editor)).toBe(`b${inserted}y\n`),
+      );
+      expect(editorSelection(editor)).toEqual({
+        start: 1 + inserted.length,
+        end: 1 + inserted.length,
       });
     });
 

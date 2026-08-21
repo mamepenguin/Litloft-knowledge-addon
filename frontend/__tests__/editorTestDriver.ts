@@ -29,3 +29,14 @@ export function editorSelection(editor: HTMLElement): {
   const selection = getEditorView(editor).state.selection.main;
   return { start: selection.from, end: selection.to };
 }
+
+export function setEditorSelection(
+  editor: HTMLElement,
+  start: number,
+  end = start,
+): void {
+  const view = getEditorView(editor);
+  act(() => {
+    view.dispatch({ selection: EditorSelection.range(start, end) });
+  });
+}

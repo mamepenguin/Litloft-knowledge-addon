@@ -13,9 +13,16 @@ function frontmatterEnd(state: EditorState): number {
   if (state.doc.lines < 2 || state.doc.line(1).text.trim() !== "---") {
     return 0;
   }
+  let startsWithMapping = false;
   for (let number = 2; number <= state.doc.lines; number += 1) {
     const line = state.doc.line(number);
-    if (line.text.trim() === "---") return line.to;
+    const text = line.text.trim();
+    if (text === "---") return startsWithMapping ? line.to : 0;
+    if (startsWithMapping || text === "" || text.startsWith("#")) continue;
+    startsWithMapping = /^(?:[A-Za-z_][\w.-]*|"[^"]+"|'[^']+')\s*:(?:\s|$)/.test(
+      text,
+    );
+    if (!startsWithMapping) return 0;
   }
   return 0;
 }
@@ -185,7 +192,7 @@ function buildDecorations(view: EditorView): DecorationSet {
           }
           return;
         }
-        if (name === "TaskMarker") {
+        if (name === "TaskMarker" && inactiveLine) {
           const marker = state.doc.sliceString(node.from, node.to);
           ranges.push(
             Decoration.replace({

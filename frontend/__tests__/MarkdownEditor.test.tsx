@@ -96,6 +96,20 @@ describe("MarkdownEditor live preview", () => {
     expect(editor.getContent()).toBe(doc);
   });
 
+  it("reveals the raw task marker on the active line", async () => {
+    const doc = "plain\n- [ ] task";
+    const { container, editor } = mount(doc);
+    const taskLine = () =>
+      Array.from(container.querySelectorAll<HTMLElement>(".cm-line"))[1];
+
+    expect(taskLine()?.querySelector('input[type="checkbox"]')).not.toBeNull();
+
+    editor.focus();
+    editor.setSelection(doc.indexOf("["));
+    await waitFor(() => expect(taskLine()?.textContent).toBe("- [ ] task"));
+    expect(taskLine()?.querySelector('input[type="checkbox"]')).toBeNull();
+  });
+
   it("uses compact vertical spacing around horizontal rules", () => {
     const { container } = mount("plain\n\n---\n\nplain");
     const rule = container.querySelector<HTMLElement>(
@@ -128,6 +142,15 @@ describe("MarkdownEditor live preview", () => {
       .toBe(true);
     expect(container.querySelector(".cm-live-h1")).not.toBeNull();
     expect(container.querySelector(".cm-live-strong")).not.toBeNull();
+  });
+
+  it("does not mistake leading horizontal rules for frontmatter", () => {
+    const doc = "---\n\n# Real heading\n\n---\n\n# After";
+    const { container, editor } = mount(doc);
+
+    expect(editor.getContent()).toBe(doc);
+    expect(container.querySelectorAll(".cm-live-h1")).toHaveLength(2);
+    expect(container.querySelectorAll(".cm-live-horizontal-rule")).toHaveLength(2);
   });
 
   it("decorates the v1 syntax scope while leaving tables raw", () => {
@@ -186,6 +209,48 @@ describe("MarkdownEditor live preview", () => {
 
     expect(editor.getContent()).toBe(doc);
     expect(onChange).not.toHaveBeenCalled();
+  });
+
+  it("does not run CM6 Shift-Mod-k before the core shortcut", () => {
+    const doc = "keep this line\nsecond";
+    const { editor } = mount(doc);
+    editor.focus();
+    editor.setSelection(4);
+    vi.spyOn(editor.view, "coordsAtPos").mockReturnValue(
+      new DOMRect(0, 0, 0, 16),
+    );
+
+    fireEvent.keyDown(editor.view.contentDOM, {
+      key: "k",
+      ctrlKey: true,
+      shiftKey: true,
+    });
+
+    expect(editor.getContent()).toBe(doc);
+  });
+
+  it("does not run CM6 Shift-Mod-backslash before the core shortcut", () => {
+    const { editor } = mount("(inside)");
+    editor.focus();
+    editor.setSelection(0);
+
+    fireEvent.keyDown(editor.view.contentDOM, {
+      key: "\\",
+      ctrlKey: true,
+      shiftKey: true,
+    });
+
+    expect(editor.getSelection()).toEqual({ start: 0, end: 0 });
+  });
+
+  it("preserves the caret across programmatic content replacement", () => {
+    const { editor } = mount("0123456789");
+    editor.focus();
+    editor.setSelection(6);
+
+    editor.setContent("abcdefghij", { addToHistory: false });
+
+    expect(editor.getSelection()).toEqual({ start: 6, end: 6 });
   });
 
   it("excludes programmatic replacements from undo history", () => {

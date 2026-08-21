@@ -2,7 +2,12 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { act, cleanup, render, screen, waitFor } from "@testing-library/react";
 
 import { markdownContentRegistry } from "@/lib/markdownContentRegistry";
-import { editorContent, setEditorContent } from "./editorTestDriver";
+import {
+  editorContent,
+  editorSelection,
+  setEditorContent,
+  setEditorSelection,
+} from "./editorTestDriver";
 
 // Phase 3.5 spec 2026-05-10 §D2 / hako ZWLqXgdTwt9le4dAI3U8C: the
 // Editor publishes its `content` state into the registry so the
@@ -134,13 +139,19 @@ describe("Editor markdownContentRegistry integration", () => {
 
     const editor = await screen.findByLabelText("editArea");
     expect(editorContent(editor)).toBe("initial");
+    setEditorSelection(editor, 4);
 
     const entry = markdownContentRegistry.lookup("f1");
     expect(entry).not.toBeNull();
-    entry!.setContent("---\ntags: [foo]\n---\ninitial");
+    const prefix = "---\ntags: [foo]\n---\n";
+    act(() => entry!.setContent(`${prefix}initial`));
 
     await waitFor(() => {
-      expect(editorContent(editor)).toBe("---\ntags: [foo]\n---\ninitial");
+      expect(editorContent(editor)).toBe(`${prefix}initial`);
+    });
+    expect(editorSelection(editor)).toEqual({
+      start: prefix.length + 4,
+      end: prefix.length + 4,
     });
   });
 

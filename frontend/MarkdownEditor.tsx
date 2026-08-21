@@ -66,22 +66,22 @@ const blockedCoreShortcuts = new Set([
   "mod-i",
   "mod-k",
   "mod-e",
-  "mod-shift-k",
-  "mod-shift-\\",
+  "shift-mod-k",
+  "shift-mod-\\",
   "cmd-s",
   "cmd-b",
   "cmd-i",
   "cmd-k",
   "cmd-e",
-  "cmd-shift-k",
-  "cmd-shift-\\",
+  "shift-cmd-k",
+  "shift-cmd-\\",
   "ctrl-s",
   "ctrl-b",
   "ctrl-i",
   "ctrl-k",
   "ctrl-e",
-  "ctrl-shift-k",
-  "ctrl-shift-\\",
+  "shift-ctrl-k",
+  "shift-ctrl-\\",
 ]);
 
 const filteredDefaultKeymap = defaultKeymap.filter((binding) =>
@@ -89,6 +89,44 @@ const filteredDefaultKeymap = defaultKeymap.filter((binding) =>
     .filter((key): key is string => typeof key === "string")
     .every((key) => !blockedCoreShortcuts.has(key.toLowerCase())),
 );
+
+function replacementFor(current: string, next: string) {
+  let from = 0;
+  while (from < current.length && from < next.length) {
+    if (current.charCodeAt(from) !== next.charCodeAt(from)) break;
+    from += 1;
+  }
+
+  let currentTo = current.length;
+  let nextTo = next.length;
+  while (currentTo > from && nextTo > from) {
+    if (current.charCodeAt(currentTo - 1) !== next.charCodeAt(nextTo - 1)) {
+      break;
+    }
+    currentTo -= 1;
+    nextTo -= 1;
+  }
+
+  return { from, currentTo, insert: next.slice(from, nextTo) };
+}
+
+function mapSelectionPosition(
+  position: number,
+  from: number,
+  currentTo: number,
+  insertLength: number,
+  nextLength: number,
+): number {
+  let mapped: number;
+  if (position <= from) {
+    mapped = position;
+  } else if (position >= currentTo) {
+    mapped = position + insertLength - (currentTo - from);
+  } else {
+    mapped = from + Math.min(position - from, insertLength);
+  }
+  return Math.max(0, Math.min(mapped, nextLength));
+}
 
 const editorTheme = EditorView.theme({
   "&": {
@@ -371,9 +409,28 @@ const MarkdownEditor = forwardRef<MarkdownEditorHandle, Props>(
           getContent: () => requireView().state.doc.toString(),
           setContent: (next, options) => {
             const view = requireView();
-            if (next === view.state.doc.toString()) return;
+            const current = view.state.doc.toString();
+            if (next === current) return;
+            const { from, currentTo, insert } = replacementFor(current, next);
+            const selection = view.state.selection.main;
             view.dispatch({
-              changes: { from: 0, to: view.state.doc.length, insert: next },
+              changes: { from, to: currentTo, insert },
+              selection: EditorSelection.range(
+                mapSelectionPosition(
+                  selection.anchor,
+                  from,
+                  currentTo,
+                  insert.length,
+                  next.length,
+                ),
+                mapSelectionPosition(
+                  selection.head,
+                  from,
+                  currentTo,
+                  insert.length,
+                  next.length,
+                ),
+              ),
               annotations:
                 options?.addToHistory === false
                   ? Transaction.addToHistory.of(false)

@@ -680,6 +680,11 @@ export default function Editor({
         if (prev === null) return null;
         return prev.slice(0, offset) + insertion + prev.slice(offset);
       });
+      const editor = editorRef.current;
+      if (editor) {
+        editor.focus();
+        editor.setSelection(offset + insertion.length);
+      }
       for (const { file, placeholder } of specs) {
         void uploadFileRef.current(file, placeholder);
       }
@@ -699,6 +704,11 @@ export default function Editor({
         if (prev === null) return null;
         return prev.slice(0, offset) + insertion + prev.slice(selEnd);
       });
+      const editor = editorRef.current;
+      if (editor) {
+        editor.focus();
+        editor.setSelection(offset + insertion.length);
+      }
       for (const { file, placeholder } of specs) {
         void uploadFileRef.current(file, placeholder);
       }
