@@ -28,6 +28,8 @@ import {
   placeholder as placeholderExtension,
 } from "@codemirror/view";
 
+import { markdownLivePreview } from "./livePreview";
+
 export interface MarkdownEditorHandle {
   readonly view: EditorView;
   getContent: () => string;
@@ -94,12 +96,11 @@ const editorTheme = EditorView.theme({
     minHeight: "24rem",
     backgroundColor: "var(--bg-primary)",
     color: "var(--text-primary)",
-    fontSize: "13.5px",
+    fontSize: "16px",
   },
   "&.cm-focused": { outline: "none" },
   ".cm-scroller": {
-    fontFamily:
-      'ui-monospace, "SFMono-Regular", Menlo, Monaco, Consolas, monospace',
+    fontFamily: "system-ui, sans-serif",
     lineHeight: "1.625",
     overflow: "auto",
   },
@@ -113,6 +114,88 @@ const editorTheme = EditorView.theme({
   },
   ".cm-selectionBackground, &.cm-focused .cm-selectionBackground": {
     backgroundColor: "color-mix(in srgb, var(--focus-ring) 24%, transparent)",
+  },
+  ".cm-live-h1": {
+    fontSize: "1.75em",
+    fontWeight: "700",
+    lineHeight: "1.35",
+  },
+  ".cm-live-h2": {
+    fontSize: "1.35em",
+    fontWeight: "700",
+    lineHeight: "1.4",
+  },
+  ".cm-live-h3": {
+    fontSize: "1.15em",
+    fontWeight: "650",
+    lineHeight: "1.45",
+  },
+  ".cm-live-h4": {
+    fontSize: "1.03em",
+    fontWeight: "650",
+    lineHeight: "1.45",
+  },
+  ".cm-live-h5": {
+    fontSize: "0.95em",
+    fontWeight: "650",
+    lineHeight: "1.45",
+  },
+  ".cm-live-h6": {
+    color: "var(--text-muted)",
+    fontSize: "0.9em",
+    fontWeight: "650",
+    lineHeight: "1.45",
+  },
+  ".cm-live-strong": { fontWeight: "650" },
+  ".cm-live-emphasis": { fontStyle: "italic" },
+  ".cm-live-strikethrough": { textDecoration: "line-through" },
+  ".cm-live-inline-code": {
+    backgroundColor: "var(--bg-elevated)",
+    borderRadius: "4px",
+    fontFamily:
+      'ui-monospace, "SFMono-Regular", Menlo, Monaco, Consolas, monospace',
+    fontSize: "0.85em",
+    padding: "0.12em 0.38em",
+  },
+  ".cm-live-link": {
+    color: "var(--accent)",
+    textDecoration: "underline",
+    textUnderlineOffset: "2px",
+  },
+  ".cm-live-blockquote": {
+    backgroundColor: "var(--bg-elevated)",
+    borderLeft: "3px solid var(--accent)",
+    color: "var(--text-muted)",
+    paddingLeft: "1em",
+  },
+  ".cm-live-code-block": {
+    backgroundColor: "var(--bg-elevated)",
+    borderLeft: "1px solid var(--bg-border)",
+    borderRight: "1px solid var(--bg-border)",
+    fontFamily:
+      'ui-monospace, "SFMono-Regular", Menlo, Monaco, Consolas, monospace',
+    fontSize: "0.85em",
+    lineHeight: "1.6",
+    paddingLeft: "1.1em",
+    paddingRight: "1.1em",
+  },
+  ".cm-live-task-checkbox": {
+    accentColor: "var(--accent)",
+    margin: "0 0.45em 0 0",
+    verticalAlign: "middle",
+  },
+  ".cm-live-list-marker": {
+    color: "var(--text-muted)",
+    fontWeight: "600",
+  },
+  ".cm-live-list-marker-ordered": {
+    fontVariantNumeric: "tabular-nums",
+  },
+  ".cm-live-horizontal-rule": {
+    borderTop: "1px solid var(--bg-border)",
+    display: "block",
+    height: "1px",
+    margin: "0.5em 0",
   },
 });
 
@@ -162,6 +245,7 @@ const MarkdownEditor = forwardRef<MarkdownEditorHandle, Props>(
           doc: initialContent,
           extensions: [
             markdown({ base: markdownLanguage }),
+            markdownLivePreview,
             history(),
             indentUnit.of("  "),
             keymap.of([indentWithTab, ...filteredDefaultKeymap, ...historyKeymap]),
