@@ -108,9 +108,5 @@ export default function MediaCaptureAction({
     );
   }
 
-  return (
-    <div className="flex justify-end px-3 pt-2">
-      {button}
-    </div>
-  );
+  return button;
 }
