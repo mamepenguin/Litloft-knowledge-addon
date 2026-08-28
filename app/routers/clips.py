@@ -43,6 +43,11 @@ from app.services.worker import ClipTask
 
 logger = logging.getLogger(__name__)
 
+#: The tier every clip is created with. A clip is text someone else
+#: wrote, saved off a promising headline; it grounds nothing until the
+#: viewer reads it and vouches for it in the core UI.
+CLIP_INGEST_TIER = "unverified"
+
 router = APIRouter(prefix="/clips", tags=["clips"])
 
 
@@ -145,6 +150,32 @@ async def _create_placeholder(
                 raise HTTPException(status_code=502, detail=str(e2))
         else:
             raise HTTPException(status_code=502, detail=str(e))
+
+    # A clip is someone else's prose, saved because a headline looked
+    # promising. It must not ground an Ask answer until the viewer has read
+    # it and vouched for it, so it lands unverified before anything can
+    # index it.
+    #
+    # This failing loudly is deliberate. The realistic cause is a missing
+    # CORE_INTERNAL_SECRET, which is a constant of the deployment rather than
+    # an intermittent fault: the operator hits it on their first clip and
+    # fixes it once. Degrading quietly would instead land every clip as a
+    # trusted source, which is the exact defect this whole path exists to
+    # prevent.
+    try:
+        await client.declare_trust_tier(created["id"], CLIP_INGEST_TIER)
+    except InternalAPIError as e:
+        if e.status_code != 409:
+            # 409 means the viewer already ruled on this file and their
+            # decision stands — an acceptable outcome, not a failure.
+            raise HTTPException(
+                status_code=502,
+                detail=(
+                    "Clip saved but could not be marked unverified "
+                    f"({e}). The placeholder file was left in place; "
+                    "check CORE_INTERNAL_SECRET and clip again."
+                ),
+            )
     return created, _compute_etag(content)
 
 

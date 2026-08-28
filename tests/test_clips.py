@@ -246,3 +246,85 @@ class TestFrontmatterSchema:
         assert "status" not in fm.metadata
         assert "title" not in fm.metadata
         assert "clipped_at" not in fm.metadata
+
+
+def test_clip_lands_unverified(
+    client, knowledge_db, fake_clips_internal, fake_worker, viewer_cookie,
+    stub_dns,
+):
+    """A clip is someone else's prose until the viewer vouches for it.
+
+    Landing verified would let a page saved off a promising headline be
+    quoted back as evidence in an Ask answer.
+    """
+    fake_clips_internal.captured_trust_declarations = []
+    r = client.post(
+        "/clips",
+        json={"url": "https://example.com/article"},
+        headers={**viewer_cookie, "X-Lit-Drive": "test-drive"},
+    )
+
+    assert r.status_code == 202
+    file_id = r.json()["file_id"]
+    assert fake_clips_internal.captured_trust_declarations == [
+        {"file_id": file_id, "tier": "unverified"}
+    ]
+
+
+def test_pasted_clip_lands_unverified(
+    client, knowledge_db, fake_clips_internal, fake_worker, viewer_cookie,
+):
+    fake_clips_internal.captured_trust_declarations = []
+    r = client.post(
+        "/clips/pasted",
+        json={
+            "url": "https://example.com/article",
+            "html": "<html><body><article>Body text here.</article></body></html>",
+        },
+        headers={**viewer_cookie, "X-Lit-Drive": "test-drive"},
+    )
+
+    assert r.status_code == 201
+    file_id = r.json()["file_id"]
+    assert fake_clips_internal.captured_trust_declarations == [
+        {"file_id": file_id, "tier": "unverified"}
+    ]
+
+
+def test_clip_fails_loudly_when_trust_cannot_be_declared(
+    client, knowledge_db, fake_clips_internal, fake_worker, viewer_cookie,
+    stub_dns,
+):
+    """Degrading quietly would land every clip as a trusted source.
+
+    The realistic cause is an unset CORE_INTERNAL_SECRET, which is a constant
+    of the deployment: the operator hits it on the first clip and fixes it
+    once.
+    """
+    fake_clips_internal.raise_on_declare_trust_tier = 503
+
+    r = client.post(
+        "/clips",
+        json={"url": "https://example.com/article"},
+        headers={**viewer_cookie, "X-Lit-Drive": "test-drive"},
+    )
+
+    assert r.status_code == 502
+    assert "unverified" in r.json()["detail"]
+    assert "CORE_INTERNAL_SECRET" in r.json()["detail"]
+
+
+def test_clip_accepts_409_because_the_viewer_already_ruled(
+    client, knowledge_db, fake_clips_internal, fake_worker, viewer_cookie,
+    stub_dns,
+):
+    """409 means a person got there first — the outcome the design wants."""
+    fake_clips_internal.raise_on_declare_trust_tier = 409
+
+    r = client.post(
+        "/clips",
+        json={"url": "https://example.com/article"},
+        headers={**viewer_cookie, "X-Lit-Drive": "test-drive"},
+    )
+
+    assert r.status_code == 202
