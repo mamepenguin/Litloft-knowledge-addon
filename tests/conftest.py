@@ -79,12 +79,28 @@ class FakeInternalClient:
     file_info_override: dict[str, dict] = {}
     # If not None, ``get_file`` raises InternalAPIError with this status.
     raise_on_get_file: int | None = None
+    # Trust-tier declarations made at ingest, so tests can assert that a
+    # clip lands unverified rather than grounding Ask straight away.
+    captured_trust_declarations: list[dict] = []
+    # If not None, ``declare_trust_tier`` raises with this status.
+    raise_on_declare_trust_tier: int | None = None
 
     def __init__(self, credential=None):
         self._credential = credential
 
     async def accessible_drives(self) -> list[str]:
         return list(FakeInternalClient.accessible_drives_override)
+
+    async def declare_trust_tier(self, file_id: str, tier: str) -> None:
+        from app.internal_client import InternalAPIError
+
+        if FakeInternalClient.raise_on_declare_trust_tier is not None:
+            raise InternalAPIError(
+                FakeInternalClient.raise_on_declare_trust_tier, "boom"
+            )
+        FakeInternalClient.captured_trust_declarations.append(
+            {"file_id": file_id, "tier": tier}
+        )
 
     async def create_text_file(self, drive, path, content, conflict_mode="rename"):
         from app.internal_client import InternalAPIError
@@ -271,6 +287,8 @@ def fake_internal(monkeypatch):
     FakeInternalClient.relations_by_drive_override = {}
     FakeInternalClient.raise_on_bulk_files = None
     FakeInternalClient.raise_on_relations_by_drive = None
+    FakeInternalClient.captured_trust_declarations = []
+    FakeInternalClient.raise_on_declare_trust_tier = None
     import app.routers.note_from_file as note_from_file_router
 
     monkeypatch.setattr(distill, "InternalClient", FakeInternalClient)

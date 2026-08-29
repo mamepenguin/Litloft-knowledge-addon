@@ -213,6 +213,35 @@ class InternalClient:
         if r.status_code != 204:
             raise InternalAPIError(r.status_code, r.text)
 
+    async def declare_trust_tier(self, file_id: str, tier: str) -> None:
+        """Declare a file's trust tier at ingest time.
+
+        A clip is text someone else wrote, fetched because a headline looked
+        promising. Until the viewer has actually read it and vouched for it,
+        it must not ground an Ask answer, so it lands ``unverified``.
+
+        This is a declaration, not a judgement: core deliberately leaves
+        ``trust_reviewed_at`` untouched here, and only the viewer's own action
+        in the core UI stamps it.
+
+        Raises ``InternalAPIError`` on 404 (file gone), 403 (secret mismatch),
+        503 (core has no secret configured), 422 (unknown tier), or **409 —
+        the viewer already ruled on this file, and their decision stands.**
+        Callers treat 409 as an acceptable outcome, not a failure.
+        """
+        headers: dict[str, str] = {"Content-Type": "application/json"}
+        if CORE_INTERNAL_SECRET:
+            headers["X-Internal-Secret"] = CORE_INTERNAL_SECRET
+        async with httpx.AsyncClient(timeout=10.0) as client:
+            r = await client.put(
+                f"{HOMEVAULT_INTERNAL_URL}"
+                f"/api/internal/files/{file_id}/trust-tier",
+                headers=headers,
+                json={"tier": tier},
+            )
+        if r.status_code != 204:
+            raise InternalAPIError(r.status_code, r.text)
+
     async def get_file_text_content(self, file_id: str) -> str:
         """Fetch a file's text content via the gated internal endpoint.
 
