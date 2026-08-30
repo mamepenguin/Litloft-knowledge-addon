@@ -28,6 +28,7 @@ from app.services.extractors.generic import (
     extract_with_trafilatura,
     sanitize_html,
 )
+from app.services.extractors.preprocess import preprocess_html
 
 logger = logging.getLogger(__name__)
 
@@ -62,11 +63,17 @@ def extract_article(html: str, url: str | None = None) -> ExtractedArticle:
         if article is not None and body_bytes(article.markdown) >= MIN_BODY_BYTES:
             return article
 
-    primary = extract_with_trafilatura(html)
+    # Generic repairs run here rather than at the top of the function, so
+    # site extractors see the document exactly as fetched. See
+    # ``extractors/preprocess.py`` for why the ordering is load-bearing.
+    # One pass, shared by both generic extractors.
+    generic_html = preprocess_html(html)
+
+    primary = extract_with_trafilatura(generic_html)
     if primary is not None and body_bytes(primary.markdown) >= MIN_BODY_BYTES:
         return primary
 
-    fallback = extract_with_readability(html)
+    fallback = extract_with_readability(generic_html)
     if fallback is not None and body_bytes(fallback.markdown) >= MIN_BODY_BYTES:
         return fallback
 
