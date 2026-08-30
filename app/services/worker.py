@@ -42,7 +42,7 @@ from app.services.fetcher import BlockedURL, FetchError, fetch_html
 # Minimum post-extraction body size before we consider the clip a real
 # success. Below this the job is marked failed — the UI then offers the
 # paste-HTML retry instead of writing a frontmatter-only .md.
-# Kept in sync with extractor._MIN_BODY_BYTES but duplicated here so
+# Kept in sync with extractors.base.MIN_BODY_BYTES but duplicated here so
 # tests can tune it without reaching into extractor internals.
 _MIN_EXTRACTED_BODY_BYTES = 100
 
