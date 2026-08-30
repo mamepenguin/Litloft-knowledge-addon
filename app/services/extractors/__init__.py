@@ -12,9 +12,11 @@ disjoint by hostname.
 from __future__ import annotations
 
 from app.services.extractors.base import SiteExtractor
+from app.services.extractors.sites.cookien import CookienExtractor
 from app.services.extractors.sites.zenn import ZennExtractor
 
 REGISTRY: tuple[SiteExtractor, ...] = (
+    CookienExtractor(),
     ZennExtractor(),
 )
 

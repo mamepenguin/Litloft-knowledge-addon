@@ -81,8 +81,12 @@ def _adopt_descriptive_attrs(el, fallback_images) -> None:
                 break
 
 
-def _resolve_lazy_media(doc) -> None:
+def resolve_lazy_media(doc) -> None:
     """Point ``src`` at the real URL for deferred images and iframes.
+
+    Public because site parsers walk their own parsed tree and need the
+    same repair before reading it; ``preprocess_html`` is just the
+    string-level entry point for the generic passes.
 
     Lazy-load plugins defer both element types — cookien's recipe video
     is an ``<iframe>`` carrying only ``data-src`` — so a resolver written
@@ -150,7 +154,7 @@ def preprocess_html(html: str) -> str:
         return html
     try:
         doc = lhtml.fromstring(html)
-        _resolve_lazy_media(doc)
+        resolve_lazy_media(doc)
         return etree.tostring(doc, encoding="unicode", method="html")
     except Exception:
         return html
