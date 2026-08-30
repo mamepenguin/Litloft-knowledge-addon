@@ -64,7 +64,9 @@ def test_sanitize_keeps_http_links():
 
 def test_extract_rejects_oversize(monkeypatch):
     # Post-extraction body would exceed the cap
-    monkeypatch.setattr("app.services.extractor.CLIP_MAX_BODY_BYTES", 100)
+    # Patched on ``app.config`` rather than on the module that checks it,
+    # so the target survives extractors moving between modules.
+    monkeypatch.setattr("app.config.CLIP_MAX_BODY_BYTES", 100)
     big = _BASIC_PAGE.replace(
         "Another paragraph for body weight.",
         "x" * 500,
