@@ -2,6 +2,8 @@
 
 import { useCallback, useEffect, useState } from "react";
 import type { CoreFileItem, CoreFolderItem } from "../api";
+import { useShortcuts } from "@/hooks/useShortcuts";
+import { OVERLAY_PRIORITY } from "@/lib/shortcuts";
 
 export type ContextTarget =
   | { kind: "file"; item: CoreFileItem }
@@ -51,14 +53,26 @@ export function useContextMenu() {
     return () => document.removeEventListener("mousedown", handler);
   }, [contextMenu]);
 
-  useEffect(() => {
-    if (!contextMenu) return;
-    const handler = (e: KeyboardEvent) => {
-      if (e.key === "Escape") setContextMenu(null);
-    };
-    document.addEventListener("keydown", handler);
-    return () => document.removeEventListener("keydown", handler);
-  }, [contextMenu]);
+  // Escape goes through the shortcut stack rather than a listener of
+  // its own. Only registered while a menu is open, so it cannot take
+  // the key from whatever is beneath it the rest of the time.
+  // `editingOnly: false`: a menu can be opened from a row whose input
+  // still holds focus, and the provider treats that as "editing".
+  useShortcuts(
+    "knowledge-context-menu",
+    "Close",
+    [
+      {
+        key: "escape",
+        label: "Close",
+        editingOnly: false,
+        hidden: true,
+        handler: closeContextMenu,
+      },
+    ],
+    contextMenu !== null,
+    OVERLAY_PRIORITY,
+  );
 
   return { contextMenu, openContextMenu, closeContextMenu };
 }
