@@ -156,7 +156,7 @@ export default function FolderView({
           type="button"
           onClick={handleCreateNote}
           disabled={creating}
-          className="flex items-center gap-1.5 rounded-lg bg-accent/15 px-2.5 py-1.5 text-xs font-medium text-accent hover:bg-accent/25 disabled:opacity-50"
+          className="flex items-center gap-1.5 rounded-lg bg-accent/15 px-2.5 py-1.5 text-xs font-medium text-accent hover:bg-accent/25 disabled:bg-sand disabled:text-warm-silver disabled:cursor-not-allowed"
         >
           <Plus size={12} />
           {t("newNote")}

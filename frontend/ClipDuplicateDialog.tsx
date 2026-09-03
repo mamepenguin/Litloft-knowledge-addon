@@ -87,7 +87,7 @@ export default function ClipDuplicateDialog({
             type="button"
             onClick={handleCreateNew}
             disabled={submitting}
-            className="inline-flex w-full items-center justify-center gap-1.5 rounded-2xl bg-accent px-4 py-2 text-sm font-medium text-white hover:bg-accent-hover disabled:opacity-50"
+            className="inline-flex w-full items-center justify-center gap-1.5 rounded-2xl bg-accent px-4 py-2 text-sm font-medium text-white hover:bg-accent-hover disabled:bg-sand disabled:text-warm-silver disabled:cursor-not-allowed"
           >
             {submitting ? (
               <Loader2 size={14} className="animate-spin" strokeWidth={1.6} />

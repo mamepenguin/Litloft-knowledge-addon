@@ -209,7 +209,7 @@ function ClipForm({
         <button
           type="submit"
           disabled={submitting || !url.trim()}
-          className="inline-flex items-center justify-center gap-1.5 rounded-2xl bg-accent px-4 py-2 text-sm font-medium text-white hover:bg-accent-hover disabled:cursor-not-allowed disabled:opacity-50"
+          className="inline-flex items-center justify-center gap-1.5 rounded-2xl bg-accent px-4 py-2 text-sm font-medium text-white hover:bg-accent-hover disabled:cursor-not-allowed disabled:bg-sand disabled:text-warm-silver"
         >
           {submitting ? (
             <Loader2 size={14} className="animate-spin" strokeWidth={1.6} />
@@ -400,7 +400,7 @@ function StatusDot({ status }: { status: RecentJob["status"] }) {
   }
   if (status === "failed") {
     return (
-      <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-danger-bg">
+      <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-danger/15">
         <AlertTriangle size={10} strokeWidth={2.5} className="text-danger" />
       </span>
     );

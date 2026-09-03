@@ -16,6 +16,8 @@ import {
 import { useTranslations } from "next-intl";
 
 import { FileSaveDialog } from "@/components/FileSaveDialog";
+import { useShortcuts } from "@/hooks/useShortcuts";
+import { OVERLAY_PRIORITY } from "@/lib/shortcuts";
 import { useToast } from "@/components/ToastProvider";
 import { useSourceCaptures } from "@/hooks/useSourceCaptures";
 import {
@@ -106,6 +108,23 @@ export default function CaptureBasket({ drive }: { drive: string }) {
     const timer = window.setInterval(() => setDestinationNow(new Date()), 30_000);
     return () => window.clearInterval(timer);
   }, [open]);
+
+  // Esc closes the basket — keyboard-shortcuts.md promises that of every
+  // overlay. Registering in the shortcut stack rather than listening on
+  // `document` is what makes "the topmost one" true: ShortcutsProvider walks
+  // the stack and returns on the first match, so the cheat sheet or a search
+  // modal above the basket consumes the key alone. A second raw listener would
+  // fire alongside whatever the stack picked and close both.
+  //
+  // The save dialog is the exception: it does listen on `document`, so the
+  // basket leaves the stack entirely while that is open.
+  useShortcuts(
+    "knowledge-capture-basket",
+    t("title"),
+    [{ key: "escape", label: t("close"), handler: () => setOpen(false), hidden: true }],
+    open && !saveDialogOpen,
+    OVERLAY_PRIORITY,
+  );
 
   useEffect(() => {
     setSelected((current) => {
@@ -390,7 +409,7 @@ export default function CaptureBasket({ drive }: { drive: string }) {
                     type="button"
                     onClick={() => void commitQuick()}
                     disabled={chosen.length === 0 || submitting}
-                    className="inline-flex w-full items-center justify-center gap-2 rounded-lg bg-accent px-4 py-2.5 text-sm font-medium text-white hover:bg-accent-hover disabled:opacity-50"
+                    className="inline-flex w-full items-center justify-center gap-2 rounded-lg bg-accent px-4 py-2.5 text-sm font-medium text-white hover:bg-accent-hover disabled:bg-sand disabled:text-warm-silver disabled:cursor-not-allowed"
                   >
                     <Quote size={16} />
                     {t("quickAppend", { filename: previewDestination.filename })}
@@ -414,7 +433,7 @@ export default function CaptureBasket({ drive }: { drive: string }) {
                   ))}
                 </div>
                 {targetMode === "new" ? (
-                  <button type="button" onClick={openSaveDialog} disabled={chosen.length === 0} className="inline-flex w-full items-center justify-center gap-2 rounded-lg bg-accent px-4 py-2.5 text-sm font-medium text-white hover:bg-accent-hover disabled:opacity-50"><FilePlus2 size={16} />{t("saveNew", { count: chosen.length })}</button>
+                  <button type="button" onClick={openSaveDialog} disabled={chosen.length === 0} className="inline-flex w-full items-center justify-center gap-2 rounded-lg bg-accent px-4 py-2.5 text-sm font-medium text-white hover:bg-accent-hover disabled:bg-sand disabled:text-warm-silver disabled:cursor-not-allowed"><FilePlus2 size={16} />{t("saveNew", { count: chosen.length })}</button>
                 ) : (
                   <div className="space-y-2">
                     <div className="relative">
@@ -426,7 +445,7 @@ export default function CaptureBasket({ drive }: { drive: string }) {
                         {searching ? <p className="p-3 text-xs text-text-muted">{t("searching")}</p> : hits.map((hit) => <button key={hit.file_id} type="button" onClick={() => void chooseExisting(hit)} className="block w-full truncate px-3 py-2 text-left text-sm text-text-primary hover:bg-bg-elevated">{hit.title || hit.filename}</button>)}
                       </div>
                     )}
-                    <button type="button" onClick={() => void commitExisting()} disabled={!target || chosen.length === 0 || submitting} className="w-full rounded-lg bg-accent px-4 py-2.5 text-sm font-medium text-white hover:bg-accent-hover disabled:opacity-50">{target ? t("appendTo", { filename: target.filename }) : t("chooseNote")}</button>
+                    <button type="button" onClick={() => void commitExisting()} disabled={!target || chosen.length === 0 || submitting} className="w-full rounded-lg bg-accent px-4 py-2.5 text-sm font-medium text-white hover:bg-accent-hover disabled:bg-sand disabled:text-warm-silver disabled:cursor-not-allowed">{target ? t("appendTo", { filename: target.filename }) : t("chooseNote")}</button>
                   </div>
                 )}
                 </div>}

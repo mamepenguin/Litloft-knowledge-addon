@@ -1,6 +1,9 @@
-import { beforeEach, describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { fireEvent, render, screen, within } from "@testing-library/react";
 
+import { ShortcutsProvider } from "@/components/ShortcutsProvider";
+import { useShortcuts } from "@/hooks/useShortcuts";
+import { OVERLAY_PRIORITY } from "@/lib/shortcuts";
 import CaptureBasket from "@/addons/knowledge/CaptureBasket";
 import { defaultCaptureFilename } from "@/addons/knowledge/CaptureBasket";
 import {
@@ -128,5 +131,103 @@ describe("CaptureBasket", () => {
       }),
     ).toBeVisible();
     expect(screen.getByText("Captures/Inbox.md")).toBeVisible();
+  });
+});
+
+// keyboard-shortcuts.md promises Esc closes the topmost modal on every page,
+// and "topmost" is implemented by ShortcutsProvider walking its stack and
+// returning on the first match. A handler bound straight to `document` fires
+// alongside whatever the stack picked — the basket used to close together with
+// a cheat sheet or a search modal opened over it.
+describe("CaptureBasket Escape handling", () => {
+  function openBasket() {
+    fireEvent.click(screen.getByRole("button", { name: TITLE }));
+    expect(screen.getByRole("dialog", { name: TITLE })).toBeInTheDocument();
+  }
+
+  /** A second surface in the stack, above or below the basket as needed. */
+  function Other({
+    onEscape,
+    priority,
+  }: {
+    onEscape: () => void;
+    priority: number;
+  }) {
+    useShortcuts(
+      "surface-other",
+      "Other",
+      [{ key: "escape", label: "close", handler: onEscape, editingOnly: false }],
+      true,
+      priority,
+    );
+    return null;
+  }
+
+  it("closes on Escape", () => {
+    render(
+      <ShortcutsProvider>
+        <CaptureBasket drive="family" />
+      </ShortcutsProvider>,
+    );
+    openBasket();
+
+    fireEvent.keyDown(document, { key: "Escape" });
+
+    expect(screen.queryByRole("dialog", { name: TITLE })).toBeNull();
+  });
+
+  it("leaves the basket open when a surface above it takes the key", () => {
+    const closeOther = vi.fn();
+    render(
+      <ShortcutsProvider>
+        <CaptureBasket drive="family" />
+        <Other onEscape={closeOther} priority={OVERLAY_PRIORITY + 1} />
+      </ShortcutsProvider>,
+    );
+    openBasket();
+
+    fireEvent.keyDown(document, { key: "Escape" });
+
+    expect(closeOther).toHaveBeenCalledTimes(1);
+    expect(screen.getByRole("dialog", { name: TITLE })).toBeInTheDocument();
+  });
+
+  it("lets Escape through to a lower surface while it is closed", () => {
+    // The other surface sits *below* the basket on purpose. With it above, a
+    // basket that registered unconditionally would still lose the key and this
+    // would pass against the bug it exists to catch.
+    const closeOther = vi.fn();
+    render(
+      <ShortcutsProvider>
+        <CaptureBasket drive="family" />
+        <Other onEscape={closeOther} priority={OVERLAY_PRIORITY - 1} />
+      </ShortcutsProvider>,
+    );
+
+    fireEvent.keyDown(document, { key: "Escape" });
+
+    expect(closeOther).toHaveBeenCalledTimes(1);
+  });
+
+  it("stands down while the filename dialog is open above it", () => {
+    // `FileSaveDialog` listens on `document` rather than joining the stack, so
+    // the basket cannot out-rank it — it leaves the stack entirely instead.
+    // Without that, one Escape closes the dialog and the basket together.
+    render(
+      <ShortcutsProvider>
+        <CaptureBasket drive="family" />
+      </ShortcutsProvider>,
+    );
+    openBasket();
+
+    const basket = screen.getByRole("dialog", { name: TITLE });
+    fireEvent.click(within(basket).getByRole("button", { name: OTHER_METHODS }));
+    fireEvent.click(within(basket).getByRole("button", { name: SAVE_NEW }));
+    expect(screen.getByRole("dialog", { name: SAVE_NEW_TITLE })).toBeInTheDocument();
+
+    fireEvent.keyDown(document, { key: "Escape" });
+
+    expect(screen.queryByRole("dialog", { name: SAVE_NEW_TITLE })).toBeNull();
+    expect(screen.getByRole("dialog", { name: TITLE })).toBeInTheDocument();
   });
 });
