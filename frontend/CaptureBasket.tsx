@@ -16,6 +16,8 @@ import {
 import { useTranslations } from "next-intl";
 
 import { FileSaveDialog } from "@/components/FileSaveDialog";
+import { useShortcuts } from "@/hooks/useShortcuts";
+import { OVERLAY_PRIORITY } from "@/lib/shortcuts";
 import { useToast } from "@/components/ToastProvider";
 import { useSourceCaptures } from "@/hooks/useSourceCaptures";
 import {
@@ -108,16 +110,21 @@ export default function CaptureBasket({ drive }: { drive: string }) {
   }, [open]);
 
   // Esc closes the basket — keyboard-shortcuts.md promises that of every
-  // overlay. The save dialog opens above it and runs its own Escape handler, so
-  // while that is up this one stands down and only the topmost surface closes.
-  useEffect(() => {
-    if (!open || saveDialogOpen) return;
-    function onKey(event: KeyboardEvent) {
-      if (event.key === "Escape") setOpen(false);
-    }
-    document.addEventListener("keydown", onKey);
-    return () => document.removeEventListener("keydown", onKey);
-  }, [open, saveDialogOpen]);
+  // overlay. Registering in the shortcut stack rather than listening on
+  // `document` is what makes "the topmost one" true: ShortcutsProvider walks
+  // the stack and returns on the first match, so the cheat sheet or a search
+  // modal above the basket consumes the key alone. A second raw listener would
+  // fire alongside whatever the stack picked and close both.
+  //
+  // The save dialog is the exception: it does listen on `document`, so the
+  // basket leaves the stack entirely while that is open.
+  useShortcuts(
+    "knowledge-capture-basket",
+    t("title"),
+    [{ key: "escape", label: t("close"), handler: () => setOpen(false), hidden: true }],
+    open && !saveDialogOpen,
+    OVERLAY_PRIORITY,
+  );
 
   useEffect(() => {
     setSelected((current) => {
