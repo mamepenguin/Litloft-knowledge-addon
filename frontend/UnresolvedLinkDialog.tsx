@@ -3,6 +3,8 @@
 import { useEffect, useRef, useState } from "react";
 import { useTranslations } from "next-intl";
 import { createTextFile, type CoreFileItem } from "./api";
+import { useShortcuts } from "@/hooks/useShortcuts";
+import { OVERLAY_PRIORITY } from "@/lib/shortcuts";
 
 interface Props {
   drive: string;
@@ -72,16 +74,27 @@ export default function UnresolvedLinkDialog({
     }
   }, [open, target, defaultFolder]);
 
-  // Escape closes the dialog. Attached at document level so the
-  // handler fires regardless of where focus lives.
-  useEffect(() => {
-    if (!open) return;
-    function onKey(e: KeyboardEvent) {
-      if (e.key === "Escape") onClose();
-    }
-    document.addEventListener("keydown", onKey);
-    return () => document.removeEventListener("keydown", onKey);
-  }, [open, onClose]);
+  // Escape goes through the shortcut stack instead of a listener of its
+  // own, so an overlay pushed on top wins the key rather than both
+  // layers closing on one press. `editingOnly: false` is load-bearing:
+  // the provider counts a focused input as "editing", and the default
+  // (`undefined`) means "only when not editing" — which in a dialog
+  // that focuses its own field is never.
+  useShortcuts(
+    "knowledge-unresolved-link-dialog",
+    "Dialog",
+    [
+      {
+        key: "escape",
+        label: "Close",
+        editingOnly: false,
+        hidden: true,
+        handler: onClose,
+      },
+    ],
+    open,
+    OVERLAY_PRIORITY,
+  );
 
   useEffect(() => {
     if (open) filenameRef.current?.focus();

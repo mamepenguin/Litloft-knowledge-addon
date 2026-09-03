@@ -1,10 +1,11 @@
 "use client";
 
-import { useEffect } from "react";
 import { useTranslations } from "next-intl";
 import { Link2, X } from "lucide-react";
 import ClipInput, { type ClipDuplicateMatch } from "./ClipInput";
 import type { ClipJob } from "./api";
+import { useShortcuts } from "@/hooks/useShortcuts";
+import { OVERLAY_PRIORITY } from "@/lib/shortcuts";
 
 export interface RecentJob {
   status: "fetching" | "ready" | "failed";
@@ -45,14 +46,27 @@ export default function ClipModal({
 }: Props) {
   const t = useTranslations("knowledge.clip");
 
-  useEffect(() => {
-    if (!open) return;
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") onClose();
-    };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [open, onClose]);
+  // Escape goes through the shortcut stack instead of a listener of its
+  // own, so an overlay pushed on top wins the key rather than both
+  // layers closing on one press. `editingOnly: false` is load-bearing:
+  // the provider counts a focused input as "editing", and the default
+  // (`undefined`) means "only when not editing" — which in a dialog
+  // that focuses its own field is never.
+  useShortcuts(
+    "knowledge-clip-modal",
+    "Dialog",
+    [
+      {
+        key: "escape",
+        label: "Close",
+        editingOnly: false,
+        hidden: true,
+        handler: onClose,
+      },
+    ],
+    open,
+    OVERLAY_PRIORITY,
+  );
 
   if (!open) return null;
 

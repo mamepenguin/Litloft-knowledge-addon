@@ -33,6 +33,8 @@ import {
   ZoomButton,
 } from "./graph/GraphControls";
 import { GraphDetailCard, GraphOrphanPanel } from "./graph/GraphPanels";
+import { useShortcuts } from "@/hooks/useShortcuts";
+import { OVERLAY_PRIORITY } from "@/lib/shortcuts";
 
 // ---- Component -------------------------------------------------------
 
@@ -221,12 +223,35 @@ export default function ConnectionsGraph({ drive }: Props) {
     }
   }, [didDragRef, downTargetRef]);
 
+  // Escape steps back one level — out of a focus, then out of a
+  // selection — and goes through the shortcut stack so it is only
+  // claimed while there is something to step out of. Bound to `window`
+  // it was claimed always, which meant a graph rendered under an open
+  // dialog answered the same press.
+  useShortcuts(
+    "knowledge-graph-selection",
+    "Graph",
+    [
+      {
+        key: "escape",
+        label: "Clear selection",
+        editingOnly: false,
+        hidden: true,
+        handler: () => {
+          if (focusedId) setFocusedId(null);
+          else if (selectedId) setSelectedId(null);
+        },
+      },
+    ],
+    focusedId !== null || selectedId !== null,
+    OVERLAY_PRIORITY,
+  );
+
+  // Zoom stays on its own listener: these are not Escape, and moving
+  // them would change which of them fire while a field has focus.
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") {
-        if (focusedId) setFocusedId(null);
-        else if (selectedId) setSelectedId(null);
-      } else if (e.key === "+" || e.key === "=") {
+      if (e.key === "+" || e.key === "=") {
         panZoom.zoomIn();
       } else if (e.key === "-") {
         panZoom.zoomOut();
@@ -234,7 +259,7 @@ export default function ConnectionsGraph({ drive }: Props) {
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [focusedId, selectedId, panZoom]);
+  }, [panZoom]);
 
   const selectedNode = selectedId ? nodeById.get(selectedId) : null;
 

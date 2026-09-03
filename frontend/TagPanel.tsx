@@ -4,6 +4,8 @@ import { useEffect, useRef, useState } from "react";
 import { Plus, X } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { getFileTags, listDriveTags, updateFileTags } from "./api";
+import { useShortcuts } from "@/hooks/useShortcuts";
+import { OVERLAY_PRIORITY } from "@/lib/shortcuts";
 
 interface Props {
   fileId: string;
@@ -58,13 +60,27 @@ export default function TagPanel({ fileId, drive, x, y, onClose }: Props) {
     return () => document.removeEventListener("mousedown", handler);
   }, [onClose]);
 
-  useEffect(() => {
-    const handler = (e: KeyboardEvent) => {
-      if (e.key === "Escape") onClose();
-    };
-    document.addEventListener("keydown", handler);
-    return () => document.removeEventListener("keydown", handler);
-  }, [onClose]);
+  // Escape goes through the shortcut stack instead of a listener of its
+  // own, so an overlay pushed on top wins the key rather than both
+  // layers closing on one press. `editingOnly: false` is load-bearing:
+  // the provider counts a focused input as "editing", and the default
+  // (`undefined`) means "only when not editing" — which in a dialog
+  // that focuses its own field is never.
+  useShortcuts(
+    "knowledge-tag-panel",
+    "Dialog",
+    [
+      {
+        key: "escape",
+        label: "Close",
+        editingOnly: false,
+        hidden: true,
+        handler: onClose,
+      },
+    ],
+    true,
+    OVERLAY_PRIORITY,
+  );
 
   useEffect(() => {
     const trimmed = input.trim().toLowerCase();

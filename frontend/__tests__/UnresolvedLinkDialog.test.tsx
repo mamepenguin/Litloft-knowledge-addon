@@ -7,6 +7,8 @@ import {
   waitFor,
 } from "@testing-library/react";
 
+import { ShortcutsProvider } from "@/components/ShortcutsProvider";
+
 /**
  * Phase C, spec 2026-05-12-markdown-link-three-forms.md §3.8.
  *
@@ -83,7 +85,14 @@ function renderDialog(overrides: Partial<DialogProps> = {}) {
     onCreated: vi.fn(),
     ...overrides,
   };
-  const utils = render(<UnresolvedLinkDialog {...props} />);
+  // Wrapped as the app wraps it: Escape reaches the dialog through the
+  // shortcut stack, which AppShell mounts around everything. Rendering
+  // it bare would test a tree that does not exist in the browser.
+  const utils = render(
+    <ShortcutsProvider>
+      <UnresolvedLinkDialog {...props} />
+    </ShortcutsProvider>,
+  );
   return { ...utils, props };
 }
 
