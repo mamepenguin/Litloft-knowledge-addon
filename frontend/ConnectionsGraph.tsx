@@ -34,7 +34,6 @@ import {
 } from "./graph/GraphControls";
 import { GraphDetailCard, GraphOrphanPanel } from "./graph/GraphPanels";
 import { useShortcuts } from "@/hooks/useShortcuts";
-import { OVERLAY_PRIORITY } from "@/lib/shortcuts";
 
 // ---- Component -------------------------------------------------------
 
@@ -228,6 +227,14 @@ export default function ConnectionsGraph({ drive }: Props) {
   // claimed while there is something to step out of. Bound to `window`
   // it was claimed always, which meant a graph rendered under an open
   // dialog answered the same press.
+  //
+  // Plain tier, deliberately. `OVERLAY_PRIORITY` means "I am the
+  // frontmost layer", and a selection is not: it is page state,
+  // established before anything opens over it. In the overlay tier it
+  // would outrank every tier-0 Escape in the app — open the sidebar
+  // over a graph with a node selected and Escape would clear the
+  // selection nobody can see instead of closing the sidebar. Push
+  // order gives the right answer without that.
   useShortcuts(
     "knowledge-graph-selection",
     "Graph",
@@ -244,7 +251,6 @@ export default function ConnectionsGraph({ drive }: Props) {
       },
     ],
     focusedId !== null || selectedId !== null,
-    OVERLAY_PRIORITY,
   );
 
   // Zoom stays on its own listener: these are not Escape, and moving
