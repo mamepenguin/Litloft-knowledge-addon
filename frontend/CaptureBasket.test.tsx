@@ -145,13 +145,20 @@ describe("CaptureBasket Escape handling", () => {
     expect(screen.getByRole("dialog", { name: TITLE })).toBeInTheDocument();
   }
 
-  function Above({ onEscape }: { onEscape: () => void }) {
+  /** A second surface in the stack, above or below the basket as needed. */
+  function Other({
+    onEscape,
+    priority,
+  }: {
+    onEscape: () => void;
+    priority: number;
+  }) {
     useShortcuts(
-      "surface-above",
-      "Above",
+      "surface-other",
+      "Other",
       [{ key: "escape", label: "close", handler: onEscape, editingOnly: false }],
       true,
-      OVERLAY_PRIORITY + 1,
+      priority,
     );
     return null;
   }
@@ -170,32 +177,57 @@ describe("CaptureBasket Escape handling", () => {
   });
 
   it("leaves the basket open when a surface above it takes the key", () => {
-    const closeAbove = vi.fn();
+    const closeOther = vi.fn();
     render(
       <ShortcutsProvider>
         <CaptureBasket drive="family" />
-        <Above onEscape={closeAbove} />
+        <Other onEscape={closeOther} priority={OVERLAY_PRIORITY + 1} />
       </ShortcutsProvider>,
     );
     openBasket();
 
     fireEvent.keyDown(document, { key: "Escape" });
 
-    expect(closeAbove).toHaveBeenCalledTimes(1);
+    expect(closeOther).toHaveBeenCalledTimes(1);
     expect(screen.getByRole("dialog", { name: TITLE })).toBeInTheDocument();
   });
 
-  it("does not answer Escape while it is closed", () => {
-    const closeAbove = vi.fn();
+  it("lets Escape through to a lower surface while it is closed", () => {
+    // The other surface sits *below* the basket on purpose. With it above, a
+    // basket that registered unconditionally would still lose the key and this
+    // would pass against the bug it exists to catch.
+    const closeOther = vi.fn();
     render(
       <ShortcutsProvider>
         <CaptureBasket drive="family" />
-        <Above onEscape={closeAbove} />
+        <Other onEscape={closeOther} priority={OVERLAY_PRIORITY - 1} />
       </ShortcutsProvider>,
     );
 
     fireEvent.keyDown(document, { key: "Escape" });
 
-    expect(closeAbove).toHaveBeenCalledTimes(1);
+    expect(closeOther).toHaveBeenCalledTimes(1);
+  });
+
+  it("stands down while the filename dialog is open above it", () => {
+    // `FileSaveDialog` listens on `document` rather than joining the stack, so
+    // the basket cannot out-rank it — it leaves the stack entirely instead.
+    // Without that, one Escape closes the dialog and the basket together.
+    render(
+      <ShortcutsProvider>
+        <CaptureBasket drive="family" />
+      </ShortcutsProvider>,
+    );
+    openBasket();
+
+    const basket = screen.getByRole("dialog", { name: TITLE });
+    fireEvent.click(within(basket).getByRole("button", { name: OTHER_METHODS }));
+    fireEvent.click(within(basket).getByRole("button", { name: SAVE_NEW }));
+    expect(screen.getByRole("dialog", { name: SAVE_NEW_TITLE })).toBeInTheDocument();
+
+    fireEvent.keyDown(document, { key: "Escape" });
+
+    expect(screen.queryByRole("dialog", { name: SAVE_NEW_TITLE })).toBeNull();
+    expect(screen.getByRole("dialog", { name: TITLE })).toBeInTheDocument();
   });
 });
