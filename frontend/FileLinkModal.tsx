@@ -13,11 +13,14 @@ interface Props {
 }
 
 function fileIcon(type: string | undefined) {
+  // One colour for every type, as in core's FileTypeIcon: the glyph says what
+  // the file is, and the row's accent is spent on something the reader can act on.
+  const cls = "shrink-0 text-text-muted";
   switch (type) {
-    case "video": return <Film size={14} className="shrink-0 text-accent" />;
-    case "audio": return <Music size={14} className="shrink-0 text-accent-green" />;
-    case "image": return <Image size={14} className="shrink-0 text-accent-pink" />;
-    default:      return <FileText size={14} className="shrink-0 text-text-muted" />;
+    case "video": return <Film size={14} className={cls} />;
+    case "audio": return <Music size={14} className={cls} />;
+    case "image": return <Image size={14} className={cls} />;
+    default:      return <FileText size={14} className={cls} />;
   }
 }
 

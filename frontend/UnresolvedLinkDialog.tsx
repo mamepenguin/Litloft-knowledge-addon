@@ -175,7 +175,7 @@ export default function UnresolvedLinkDialog({
             type="button"
             onClick={handleCreate}
             disabled={disabled}
-            className="rounded-lg bg-accent-cta px-3 py-1.5 text-sm font-medium text-white hover:bg-accent disabled:cursor-not-allowed disabled:opacity-50"
+            className="rounded-lg bg-accent-cta px-3 py-1.5 text-sm font-medium text-white hover:bg-accent disabled:cursor-not-allowed disabled:bg-sand disabled:text-warm-silver "
           >
             {t("create")}
           </button>

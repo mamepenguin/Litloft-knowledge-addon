@@ -150,7 +150,7 @@ function StatusBadge({
     status === "ready"
       ? "bg-accent-teal/15 text-accent-teal"
       : status === "failed"
-        ? "bg-danger-bg text-danger"
+        ? "bg-danger/15 text-danger"
         : "bg-accent-amber/15 text-accent-amber";
   return (
     <span

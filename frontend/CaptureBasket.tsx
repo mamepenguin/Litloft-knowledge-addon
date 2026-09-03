@@ -107,6 +107,18 @@ export default function CaptureBasket({ drive }: { drive: string }) {
     return () => window.clearInterval(timer);
   }, [open]);
 
+  // Esc closes the basket — keyboard-shortcuts.md promises that of every
+  // overlay. The save dialog opens above it and runs its own Escape handler, so
+  // while that is up this one stands down and only the topmost surface closes.
+  useEffect(() => {
+    if (!open || saveDialogOpen) return;
+    function onKey(event: KeyboardEvent) {
+      if (event.key === "Escape") setOpen(false);
+    }
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, [open, saveDialogOpen]);
+
   useEffect(() => {
     setSelected((current) => {
       const valid = new Set(captures.map((capture) => capture.id));
@@ -390,7 +402,7 @@ export default function CaptureBasket({ drive }: { drive: string }) {
                     type="button"
                     onClick={() => void commitQuick()}
                     disabled={chosen.length === 0 || submitting}
-                    className="inline-flex w-full items-center justify-center gap-2 rounded-lg bg-accent px-4 py-2.5 text-sm font-medium text-white hover:bg-accent-hover disabled:opacity-50"
+                    className="inline-flex w-full items-center justify-center gap-2 rounded-lg bg-accent px-4 py-2.5 text-sm font-medium text-white hover:bg-accent-hover disabled:bg-sand disabled:text-warm-silver disabled:cursor-not-allowed"
                   >
                     <Quote size={16} />
                     {t("quickAppend", { filename: previewDestination.filename })}
@@ -414,7 +426,7 @@ export default function CaptureBasket({ drive }: { drive: string }) {
                   ))}
                 </div>
                 {targetMode === "new" ? (
-                  <button type="button" onClick={openSaveDialog} disabled={chosen.length === 0} className="inline-flex w-full items-center justify-center gap-2 rounded-lg bg-accent px-4 py-2.5 text-sm font-medium text-white hover:bg-accent-hover disabled:opacity-50"><FilePlus2 size={16} />{t("saveNew", { count: chosen.length })}</button>
+                  <button type="button" onClick={openSaveDialog} disabled={chosen.length === 0} className="inline-flex w-full items-center justify-center gap-2 rounded-lg bg-accent px-4 py-2.5 text-sm font-medium text-white hover:bg-accent-hover disabled:bg-sand disabled:text-warm-silver disabled:cursor-not-allowed"><FilePlus2 size={16} />{t("saveNew", { count: chosen.length })}</button>
                 ) : (
                   <div className="space-y-2">
                     <div className="relative">
@@ -426,7 +438,7 @@ export default function CaptureBasket({ drive }: { drive: string }) {
                         {searching ? <p className="p-3 text-xs text-text-muted">{t("searching")}</p> : hits.map((hit) => <button key={hit.file_id} type="button" onClick={() => void chooseExisting(hit)} className="block w-full truncate px-3 py-2 text-left text-sm text-text-primary hover:bg-bg-elevated">{hit.title || hit.filename}</button>)}
                       </div>
                     )}
-                    <button type="button" onClick={() => void commitExisting()} disabled={!target || chosen.length === 0 || submitting} className="w-full rounded-lg bg-accent px-4 py-2.5 text-sm font-medium text-white hover:bg-accent-hover disabled:opacity-50">{target ? t("appendTo", { filename: target.filename }) : t("chooseNote")}</button>
+                    <button type="button" onClick={() => void commitExisting()} disabled={!target || chosen.length === 0 || submitting} className="w-full rounded-lg bg-accent px-4 py-2.5 text-sm font-medium text-white hover:bg-accent-hover disabled:bg-sand disabled:text-warm-silver disabled:cursor-not-allowed">{target ? t("appendTo", { filename: target.filename }) : t("chooseNote")}</button>
                   </div>
                 )}
                 </div>}

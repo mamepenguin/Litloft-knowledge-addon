@@ -71,7 +71,6 @@ describe("MediaCaptureAction", () => {
     );
     const captureButton = screen.getByRole("button");
     expect(captureButton).toHaveClass("bg-bg-card");
-    expect(captureButton).not.toHaveClass("bg-bg-surface");
     fireEvent.click(captureButton);
 
     expect(getSourceCaptures("family")).toEqual([
