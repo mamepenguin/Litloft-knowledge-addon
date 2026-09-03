@@ -1,6 +1,9 @@
-import { beforeEach, describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { fireEvent, render, screen, within } from "@testing-library/react";
 
+import { ShortcutsProvider } from "@/components/ShortcutsProvider";
+import { useShortcuts } from "@/hooks/useShortcuts";
+import { OVERLAY_PRIORITY } from "@/lib/shortcuts";
 import CaptureBasket from "@/addons/knowledge/CaptureBasket";
 import { defaultCaptureFilename } from "@/addons/knowledge/CaptureBasket";
 import {
@@ -128,5 +131,71 @@ describe("CaptureBasket", () => {
       }),
     ).toBeVisible();
     expect(screen.getByText("Captures/Inbox.md")).toBeVisible();
+  });
+});
+
+// keyboard-shortcuts.md promises Esc closes the topmost modal on every page,
+// and "topmost" is implemented by ShortcutsProvider walking its stack and
+// returning on the first match. A handler bound straight to `document` fires
+// alongside whatever the stack picked — the basket used to close together with
+// a cheat sheet or a search modal opened over it.
+describe("CaptureBasket Escape handling", () => {
+  function openBasket() {
+    fireEvent.click(screen.getByRole("button", { name: TITLE }));
+    expect(screen.getByRole("dialog", { name: TITLE })).toBeInTheDocument();
+  }
+
+  function Above({ onEscape }: { onEscape: () => void }) {
+    useShortcuts(
+      "surface-above",
+      "Above",
+      [{ key: "escape", label: "close", handler: onEscape, editingOnly: false }],
+      true,
+      OVERLAY_PRIORITY + 1,
+    );
+    return null;
+  }
+
+  it("closes on Escape", () => {
+    render(
+      <ShortcutsProvider>
+        <CaptureBasket drive="family" />
+      </ShortcutsProvider>,
+    );
+    openBasket();
+
+    fireEvent.keyDown(document, { key: "Escape" });
+
+    expect(screen.queryByRole("dialog", { name: TITLE })).toBeNull();
+  });
+
+  it("leaves the basket open when a surface above it takes the key", () => {
+    const closeAbove = vi.fn();
+    render(
+      <ShortcutsProvider>
+        <CaptureBasket drive="family" />
+        <Above onEscape={closeAbove} />
+      </ShortcutsProvider>,
+    );
+    openBasket();
+
+    fireEvent.keyDown(document, { key: "Escape" });
+
+    expect(closeAbove).toHaveBeenCalledTimes(1);
+    expect(screen.getByRole("dialog", { name: TITLE })).toBeInTheDocument();
+  });
+
+  it("does not answer Escape while it is closed", () => {
+    const closeAbove = vi.fn();
+    render(
+      <ShortcutsProvider>
+        <CaptureBasket drive="family" />
+        <Above onEscape={closeAbove} />
+      </ShortcutsProvider>,
+    );
+
+    fireEvent.keyDown(document, { key: "Escape" });
+
+    expect(closeAbove).toHaveBeenCalledTimes(1);
   });
 });
