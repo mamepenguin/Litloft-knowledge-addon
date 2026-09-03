@@ -116,13 +116,27 @@ export default function CaptureBasket({ drive }: { drive: string }) {
   // modal above the basket consumes the key alone. A second raw listener would
   // fire alongside whatever the stack picked and close both.
   //
-  // The save dialog is the exception: it does listen on `document`, so the
-  // basket leaves the stack entirely while that is open.
+  // `editingOnly: false` because the basket's own destination radios are
+  // inputs, and the provider counts a focused input as "editing" — with
+  // the flag left off, one Tab into the radios makes Escape do nothing.
+  //
+  // The save dialog used to be an exception here: it listened on
+  // `document`, so the basket had to leave the stack entirely while it
+  // was open. That dialog is on the stack now and pushes later, so it
+  // wins the key by push order and the exception is gone.
   useShortcuts(
     "knowledge-capture-basket",
     t("title"),
-    [{ key: "escape", label: t("close"), handler: () => setOpen(false), hidden: true }],
-    open && !saveDialogOpen,
+    [
+      {
+        key: "escape",
+        label: t("close"),
+        editingOnly: false,
+        handler: () => setOpen(false),
+        hidden: true,
+      },
+    ],
+    open,
     OVERLAY_PRIORITY,
   );
 
