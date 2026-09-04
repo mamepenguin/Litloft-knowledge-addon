@@ -1,6 +1,7 @@
 """Tests for the frontmatter parse/compose helpers."""
 from __future__ import annotations
 
+import sys
 from datetime import datetime, timezone
 
 from app.services.frontmatter import compose, iso_z, parse, strip
@@ -66,6 +67,42 @@ class TestParse:
         result = parse(text)
         assert result.metadata == {}
         assert result.body == "body\n"
+
+    def test_deeply_nested_flow_does_not_raise(self):
+        """The broad except at ``safe_load`` also has to hold here.
+
+        This parser mirrors ``backend/app/services/frontmatter.py`` because
+        the two live in different containers and cannot share code, so it
+        mirrors that module's regression test as well.
+
+        The recursion budget is pinned to the depth this test starts
+        from, so "safe_load overflows" is guaranteed here rather than
+        inferred from the interpreter's default limit and PyYAML's frames
+        per nesting level. ``depth`` only has to be comfortably past the
+        budget; its exact value carries no meaning.
+
+        Asserting the body comes back whole is what distinguishes the
+        except arm: every other arm of parse() returns the stripped body.
+        """
+        depth = 500
+        frontmatter = "[" * depth + "1" + "]" * depth
+        content = f"---\nvalue: {frontmatter}\n---\n\nbody\n"
+
+        here = 0
+        frame = sys._getframe()
+        while frame is not None:
+            here += 1
+            frame = frame.f_back
+
+        previous = sys.getrecursionlimit()
+        sys.setrecursionlimit(here + 100)
+        try:
+            result = parse(content)
+        finally:
+            sys.setrecursionlimit(previous)
+
+        assert result.metadata == {}
+        assert result.body == content
 
 
 class TestCompose:
