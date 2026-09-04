@@ -270,8 +270,7 @@
     "createNote": {
       "button": "Create note",
       "creating": "Creating…",
-      "error": "Failed to create note",
-      "description": "Create a new note linked to this file."
+      "error": "Failed to create note"
     },
     "createNoteDialog": {
       "title": "Create note",

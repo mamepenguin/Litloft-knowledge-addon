@@ -270,8 +270,7 @@
     "createNote": {
       "button": "ノートを作成",
       "creating": "作成中…",
-      "error": "ノートの作成に失敗しました",
-      "description": "このファイルにリンクされたノートを作成します"
+      "error": "ノートの作成に失敗しました"
     },
     "createNoteDialog": {
       "title": "ノートを作成",

@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { cleanup, render, screen } from "@testing-library/react";
+import { cleanup, render, screen, waitFor } from "@testing-library/react";
 
 // Stub useTranslations before importing components that use it.
 vi.mock("next-intl", () => ({
@@ -73,13 +73,18 @@ describe("KnowledgeEditSection", () => {
     expect(link.getAttribute("href")).toBe("/drive/d/addons/knowledge?edit=f1");
   });
 
-  it("renders Create note button for non-text files (no editor link)", async () => {
+  it("renders nothing for non-text files", async () => {
+    // "Create note" was drawn here for every kind of file. It is a
+    // `[...]` menu entry now, so this slot has nothing to say about a
+    // video — see `CreateNoteMenuItem.test.tsx` for where the behaviour
+    // went.
     stubFetch({
       "/api/files/f2": { id: "f2", mime_type: "video/mp4", filename: "x.mp4" },
     });
-    render(<KnowledgeEditSection fileId="f2" drive="d" />);
-    await screen.findByRole("button", { name: /create note/i });
+    const { container } = render(<KnowledgeEditSection fileId="f2" drive="d" />);
+    await waitFor(() => expect(container).toBeEmptyDOMElement());
     expect(screen.queryByRole("link")).toBeNull();
+    expect(screen.queryByRole("button")).toBeNull();
   });
 
   it("renders nothing when fetch fails", async () => {
@@ -89,13 +94,14 @@ describe("KnowledgeEditSection", () => {
     expect(container.innerHTML).toBe("");
   });
 
-  // C2 採用 (spec 2026-05-10 §3): Markdown のみ編集対象。Create note ボタンは表示。
-  it("shows Create note button but no editor for text/plain (C2: editor markdown-only)", async () => {
+  // C2 採用 (spec 2026-05-10 §3): Markdown のみ編集対象。
+  it("renders nothing for text/plain (C2: editor markdown-only)", async () => {
     stubFetch({
       "/api/files/f3": { id: "f3", mime_type: "text/plain", filename: "n.txt" },
     });
-    render(<KnowledgeEditSection fileId="f3" drive="d" />);
-    await screen.findByRole("button", { name: /create note/i });
+    const { container } = render(<KnowledgeEditSection fileId="f3" drive="d" />);
+    await waitFor(() => expect(container).toBeEmptyDOMElement());
     expect(screen.queryByRole("link")).toBeNull();
+    expect(screen.queryByRole("button")).toBeNull();
   });
 });

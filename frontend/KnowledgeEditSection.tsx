@@ -3,13 +3,12 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
-import { FilePlus, Pencil } from "lucide-react";
+import { Pencil } from "lucide-react";
 import { useTranslations } from "next-intl";
 import type { DocumentCaptureController } from "@/lib/documentCapture";
 
 import { isInlineKnowledgeEditorEnabled } from "@/lib/featureFlags";
 import { usePolicy } from "@/hooks/usePolicy";
-import CreateNoteDialog from "./CreateNoteDialog";
 import Editor from "./Editor";
 import MediaCaptureAction from "./MediaCaptureAction";
 
@@ -26,12 +25,18 @@ interface FileMeta {
 const EDITABLE_MIMES = new Set(["text/markdown"]);
 
 /**
- * File-detail slot for Knowledge addon actions.
+ * File-detail slot for the Knowledge editor.
  *
- * Shows an "Edit note" CTA for `.md` files and a "Create note" button for
- * all file types (including `.md`). The "Create note" button opens
- * CreateNoteDialog which lets the user set filename + folder before
- * calling POST /note-from-file.
+ * `.md` only, and only the editor: either the inline one, or a link to
+ * the full one where the inline editor is switched off. Every other kind
+ * of file gets nothing here.
+ *
+ * "Create note" used to live here too, as a card with a heading and a
+ * sentence of explanation drawn on every file detail page whether or not
+ * anyone was going to make a note. It is a `file-actions-menu` entry now
+ * (`CreateNoteMenuItem`) — an occasional, deliberate act, which is what
+ * the `[...]` menu is for — and that is what leaves this component with
+ * nothing to say about a video or an archive.
  */
 export default function KnowledgeEditSection({
   fileId,
@@ -43,10 +48,8 @@ export default function KnowledgeEditSection({
   fillHeight?: boolean;
 }) {
   const tEdit = useTranslations("knowledge.editSection");
-  const tCreate = useTranslations("knowledge.createNote");
   const searchParams = useSearchParams();
   const [file, setFile] = useState<FileMeta | null | undefined>(undefined);
-  const [dialogOpen, setDialogOpen] = useState(false);
   const [documentCaptureController, setDocumentCaptureController] =
     useState<DocumentCaptureController | null>(null);
   const policy = usePolicy(drive, "knowledge", "editor");
@@ -71,93 +74,53 @@ export default function KnowledgeEditSection({
 
   const isMarkdown = EDITABLE_MIMES.has(file.mime_type);
 
-  const createNoteBtn = (
-    <button
-      onClick={() => setDialogOpen(true)}
-      className="inline-flex items-center gap-2 rounded-lg border border-bg-border bg-bg-card px-3 py-1.5 text-sm font-medium text-text-primary hover:bg-bg-elevated"
-    >
-      <FilePlus size={14} />
-      {tCreate("button")}
-    </button>
-  );
+  if (!isMarkdown) return null;
 
-  const stem = file.filename.replace(/\.[^./\\]+$/, "");
-
-  const dialog = (
-    <CreateNoteDialog
-      drive={drive}
-      sourceFileId={fileId}
-      defaultStem={stem}
-      open={dialogOpen}
-      onClose={() => setDialogOpen(false)}
-    />
-  );
-
-  if (isMarkdown) {
-    if (isInlineKnowledgeEditorEnabled()) {
-      const autoFocus = searchParams.get("edit") === "1";
-      return (
-        <>
-          <Editor
-            fileId={file.id}
-            filename={file.filename}
-            folderPath={file.folder_path}
-            drive={drive}
-            inlineMode
-            autoFocus={autoFocus}
-            fillHeight={fillHeight}
-            onDocumentCaptureController={setDocumentCaptureController}
-          />
-          <MediaCaptureAction
-            fileId={file.id}
-            drive={drive}
-            filename={file.filename}
-            fileType="document"
-            documentCaptureController={documentCaptureController}
-          />
-          <section className="rounded-xl border border-bg-border bg-bg-card p-4">
-            {createNoteBtn}
-          </section>
-          {dialog}
-        </>
-      );
-    }
-
-    const editHref = `/drive/${encodeURIComponent(drive)}/addons/knowledge?edit=${encodeURIComponent(file.id)}`;
-
+  if (isInlineKnowledgeEditorEnabled()) {
+    const autoFocus = searchParams.get("edit") === "1";
     return (
       <>
-        <section className="rounded-xl border border-bg-border bg-bg-card p-4">
-          <h3 className="mb-2 text-sm font-semibold text-text-primary">
-            {tEdit("title")}
-          </h3>
-          <p className="mb-3 text-xs text-text-muted">{tEdit("description")}</p>
-          <div className="flex flex-wrap gap-2">
-            <Link
-              href={editHref}
-              className="inline-flex items-center gap-2 rounded-lg bg-accent-cta px-3 py-1.5 text-sm font-medium text-white hover:bg-accent"
-            >
-              <Pencil size={14} />
-              {tEdit("openEditor")}
-            </Link>
-            {createNoteBtn}
-          </div>
-        </section>
-        {dialog}
+        <Editor
+          fileId={file.id}
+          filename={file.filename}
+          folderPath={file.folder_path}
+          drive={drive}
+          inlineMode
+          autoFocus={autoFocus}
+          fillHeight={fillHeight}
+          onDocumentCaptureController={setDocumentCaptureController}
+        />
+        {/* The editor's own capture control, holding the editor's
+            controller. Distinct from the `file-detail-actions` entry of
+            the same component, which holds whichever controller the
+            canvas published — and where the inline editor is the canvas,
+            there is none, so the two are never both live. */}
+        <MediaCaptureAction
+          fileId={file.id}
+          drive={drive}
+          filename={file.filename}
+          fileType="document"
+          documentCaptureController={documentCaptureController}
+        />
       </>
     );
   }
 
+  const editHref = `/drive/${encodeURIComponent(drive)}/addons/knowledge?edit=${encodeURIComponent(file.id)}`;
+
   return (
-    <>
-      <section className="rounded-xl border border-bg-border bg-bg-card p-4">
-        <h3 className="mb-2 text-sm font-semibold text-text-primary">
-          {tCreate("button")}
-        </h3>
-        <p className="mb-3 text-xs text-text-muted">{tCreate("description")}</p>
-        {createNoteBtn}
-      </section>
-      {dialog}
-    </>
+    <section className="rounded-xl border border-bg-border bg-bg-card p-4">
+      <h3 className="mb-2 text-sm font-semibold text-text-primary">
+        {tEdit("title")}
+      </h3>
+      <p className="mb-3 text-xs text-text-muted">{tEdit("description")}</p>
+      <Link
+        href={editHref}
+        className="inline-flex items-center gap-2 rounded-lg bg-accent-cta px-3 py-1.5 text-sm font-medium text-white hover:bg-accent"
+      >
+        <Pencil size={14} />
+        {tEdit("openEditor")}
+      </Link>
+    </section>
   );
 }

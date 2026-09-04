@@ -132,23 +132,31 @@ describe("KnowledgeEditSection (flag false, default)", () => {
     expect(screen.queryByTestId("editor-stub")).toBeNull();
   });
 
-  it("also shows Create note button alongside Edit for .md files", async () => {
+  it("offers only the editor, with no second button beside it", async () => {
+    // "Create note" was here too, in the same card. It is a
+    // `file-actions-menu` entry now: a `.md` file's detail page has one
+    // knowledge affordance, and it is the one about *this* note.
     vi.stubEnv("NEXT_PUBLIC_INLINE_KNOWLEDGE_EDITOR", "false");
     stubFileFetch(mdFile);
 
     render(<KnowledgeEditSection fileId="f1" drive="d" />);
     await screen.findByRole("link");
 
-    expect(screen.getByRole("button", { name: /button/i })).toBeTruthy();
+    expect(screen.queryByRole("button")).toBeNull();
   });
 
-  it("renders Create note button for non-editable mimes (no editor, no link)", async () => {
+  it("renders nothing at all for a file it cannot edit", async () => {
+    // This is where 130px of a 190-page comic's detail page used to go:
+    // a card with a heading and a sentence saying a note could be made.
+    // The affordance moved to the `[...]` menu, so this slot has nothing
+    // to say about a video, an archive or an image.
     vi.stubEnv("NEXT_PUBLIC_INLINE_KNOWLEDGE_EDITOR", "false");
     stubFileFetch(videoFile);
 
-    render(<KnowledgeEditSection fileId="f1" drive="d" />);
-    await screen.findByRole("button", { name: /button/i });
+    const { container } = render(<KnowledgeEditSection fileId="f1" drive="d" />);
+    await waitFor(() => expect(globalThis.fetch).toHaveBeenCalled());
 
+    await waitFor(() => expect(container).toBeEmptyDOMElement());
     expect(screen.queryByRole("link")).toBeNull();
     expect(screen.queryByTestId("editor-stub")).toBeNull();
   });
@@ -206,25 +214,27 @@ describe("KnowledgeEditSection (flag true)", () => {
     expect(stub.dataset.autoFocus).toBe("0");
   });
 
-  it("renders Create note button (no editor) for non-editable mimes when the flag is on", async () => {
+  it("renders nothing for a non-editable mime when the flag is on", async () => {
     vi.stubEnv("NEXT_PUBLIC_INLINE_KNOWLEDGE_EDITOR", "true");
     stubFileFetch(imageFile);
 
-    render(<KnowledgeEditSection fileId="f1" drive="d" />);
-    await screen.findByRole("button", { name: /button/i });
+    const { container } = render(<KnowledgeEditSection fileId="f1" drive="d" />);
+    await waitFor(() => expect(globalThis.fetch).toHaveBeenCalled());
 
+    await waitFor(() => expect(container).toBeEmptyDOMElement());
     expect(screen.queryByTestId("editor-stub")).toBeNull();
     expect(screen.queryByRole("link")).toBeNull();
   });
 
   // C2: spec 2026-05-10 §3 — editor は Markdown のみ。text/plain には出ない。
-  it("shows Create note button but no editor for text/plain (C2: editor markdown-only)", async () => {
+  it("renders nothing for text/plain (C2: editor markdown-only)", async () => {
     vi.stubEnv("NEXT_PUBLIC_INLINE_KNOWLEDGE_EDITOR", "true");
     stubFileFetch(textFile);
 
-    render(<KnowledgeEditSection fileId="f1" drive="d" />);
-    await screen.findByRole("button", { name: /button/i });
+    const { container } = render(<KnowledgeEditSection fileId="f1" drive="d" />);
+    await waitFor(() => expect(globalThis.fetch).toHaveBeenCalled());
 
+    await waitFor(() => expect(container).toBeEmptyDOMElement());
     expect(screen.queryByTestId("editor-stub")).toBeNull();
     expect(screen.queryByRole("link")).toBeNull();
   });
@@ -245,28 +255,5 @@ describe("KnowledgeEditSection (flag true)", () => {
     expect(screen.queryByTestId("editor-stub")).toBeNull();
     expect(screen.queryByRole("link")).toBeNull();
     expect(screen.queryByRole("button")).toBeNull();
-  });
-});
-
-describe("KnowledgeEditSection > Create note action", () => {
-  it("opens FileSaveDialog, then calls note-from-file API and navigates to the editor on save", async () => {
-    vi.stubEnv("NEXT_PUBLIC_INLINE_KNOWLEDGE_EDITOR", "false");
-    stubFileFetch(videoFile);
-
-    render(<KnowledgeEditSection fileId="f1" drive="d" />);
-    const btn = await screen.findByRole("button", { name: /button/i });
-
-    // Open the save dialog
-    fireEvent.click(btn);
-
-    // The dialog renders with a save button (translation mock returns the key)
-    const saveBtn = await screen.findByRole("button", { name: /^save$/i });
-    fireEvent.click(saveBtn);
-
-    await waitFor(() => expect(mockRouterPush).toHaveBeenCalled());
-
-    expect(mockRouterPush).toHaveBeenCalledWith(
-      "/drive/d/addons/knowledge?edit=new-note-id",
-    );
   });
 });
