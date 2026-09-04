@@ -1,5 +1,9 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { useEffect, useMemo } from "react";
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+
+import { DocumentCaptureStore, type DocumentCaptureCandidate } from "@/lib/documentCapture";
+import { clearSourceCaptures, getSourceCaptures } from "@/lib/sourceCapture";
 
 vi.mock("next-intl", () => ({
   useTranslations:
@@ -18,6 +22,12 @@ vi.mock("next/navigation", () => ({
 // inline-mode branch only needs proof that the editor mounted with
 // the right props, so stub the component out and assert via a
 // data-testid.
+// `editorSelection`, when set, is what the stub publishes through
+// `onDocumentCaptureController` — the editor's real one reports the
+// reader's selection the same way. Without it the capture control beside
+// the editor renders nothing, which is why the mount went untested.
+let editorSelection: DocumentCaptureCandidate | null = null;
+
 vi.mock("../Editor", () => ({
   default: (props: {
     fileId: string;
@@ -25,16 +35,28 @@ vi.mock("../Editor", () => ({
     drive: string;
     inlineMode?: boolean;
     autoFocus?: boolean;
-  }) => (
-    <div
-      data-testid="editor-stub"
-      data-file-id={props.fileId}
-      data-filename={props.filename ?? ""}
-      data-drive={props.drive}
-      data-inline-mode={props.inlineMode ? "1" : "0"}
-      data-auto-focus={props.autoFocus ? "1" : "0"}
-    />
-  ),
+    onDocumentCaptureController?: (c: DocumentCaptureStore | null) => void;
+  }) => {
+    const store = useMemo(() => {
+      const created = new DocumentCaptureStore();
+      if (editorSelection) created.setCapture(editorSelection);
+      return created;
+    }, []);
+    useEffect(() => {
+      props.onDocumentCaptureController?.(store);
+      return () => props.onDocumentCaptureController?.(null);
+    }, [props, store]);
+    return (
+      <div
+        data-testid="editor-stub"
+        data-file-id={props.fileId}
+        data-filename={props.filename ?? ""}
+        data-drive={props.drive}
+        data-inline-mode={props.inlineMode ? "1" : "0"}
+        data-auto-focus={props.autoFocus ? "1" : "0"}
+      />
+    );
+  },
 }));
 
 declare global {
@@ -103,6 +125,8 @@ function stubFileFetch(
 }
 
 beforeEach(() => {
+  editorSelection = null;
+  clearSourceCaptures("d");
   globalThis.__editParam__ = "";
   vi.unstubAllEnvs();
   mockRouterPush.mockClear();
@@ -132,23 +156,31 @@ describe("KnowledgeEditSection (flag false, default)", () => {
     expect(screen.queryByTestId("editor-stub")).toBeNull();
   });
 
-  it("also shows Create note button alongside Edit for .md files", async () => {
+  it("offers only the editor, with no second button beside it", async () => {
+    // "Create note" was here too, in the same card. It is a
+    // `file-actions-menu` entry now: a `.md` file's detail page has one
+    // knowledge affordance, and it is the one about *this* note.
     vi.stubEnv("NEXT_PUBLIC_INLINE_KNOWLEDGE_EDITOR", "false");
     stubFileFetch(mdFile);
 
     render(<KnowledgeEditSection fileId="f1" drive="d" />);
     await screen.findByRole("link");
 
-    expect(screen.getByRole("button", { name: /button/i })).toBeTruthy();
+    expect(screen.queryByRole("button")).toBeNull();
   });
 
-  it("renders Create note button for non-editable mimes (no editor, no link)", async () => {
+  it("renders nothing at all for a file it cannot edit", async () => {
+    // This is where 130px of a 190-page comic's detail page used to go:
+    // a card with a heading and a sentence saying a note could be made.
+    // The affordance moved to the `[...]` menu, so this slot has nothing
+    // to say about a video, an archive or an image.
     vi.stubEnv("NEXT_PUBLIC_INLINE_KNOWLEDGE_EDITOR", "false");
     stubFileFetch(videoFile);
 
-    render(<KnowledgeEditSection fileId="f1" drive="d" />);
-    await screen.findByRole("button", { name: /button/i });
+    const { container } = render(<KnowledgeEditSection fileId="f1" drive="d" />);
+    await waitFor(() => expect(globalThis.fetch).toHaveBeenCalled());
 
+    await waitFor(() => expect(container).toBeEmptyDOMElement());
     expect(screen.queryByRole("link")).toBeNull();
     expect(screen.queryByTestId("editor-stub")).toBeNull();
   });
@@ -206,25 +238,27 @@ describe("KnowledgeEditSection (flag true)", () => {
     expect(stub.dataset.autoFocus).toBe("0");
   });
 
-  it("renders Create note button (no editor) for non-editable mimes when the flag is on", async () => {
+  it("renders nothing for a non-editable mime when the flag is on", async () => {
     vi.stubEnv("NEXT_PUBLIC_INLINE_KNOWLEDGE_EDITOR", "true");
     stubFileFetch(imageFile);
 
-    render(<KnowledgeEditSection fileId="f1" drive="d" />);
-    await screen.findByRole("button", { name: /button/i });
+    const { container } = render(<KnowledgeEditSection fileId="f1" drive="d" />);
+    await waitFor(() => expect(globalThis.fetch).toHaveBeenCalled());
 
+    await waitFor(() => expect(container).toBeEmptyDOMElement());
     expect(screen.queryByTestId("editor-stub")).toBeNull();
     expect(screen.queryByRole("link")).toBeNull();
   });
 
   // C2: spec 2026-05-10 §3 — editor は Markdown のみ。text/plain には出ない。
-  it("shows Create note button but no editor for text/plain (C2: editor markdown-only)", async () => {
+  it("renders nothing for text/plain (C2: editor markdown-only)", async () => {
     vi.stubEnv("NEXT_PUBLIC_INLINE_KNOWLEDGE_EDITOR", "true");
     stubFileFetch(textFile);
 
-    render(<KnowledgeEditSection fileId="f1" drive="d" />);
-    await screen.findByRole("button", { name: /button/i });
+    const { container } = render(<KnowledgeEditSection fileId="f1" drive="d" />);
+    await waitFor(() => expect(globalThis.fetch).toHaveBeenCalled());
 
+    await waitFor(() => expect(container).toBeEmptyDOMElement());
     expect(screen.queryByTestId("editor-stub")).toBeNull();
     expect(screen.queryByRole("link")).toBeNull();
   });
@@ -248,25 +282,48 @@ describe("KnowledgeEditSection (flag true)", () => {
   });
 });
 
-describe("KnowledgeEditSection > Create note action", () => {
-  it("opens FileSaveDialog, then calls note-from-file API and navigates to the editor on save", async () => {
-    vi.stubEnv("NEXT_PUBLIC_INLINE_KNOWLEDGE_EDITOR", "false");
-    stubFileFetch(videoFile);
+describe("KnowledgeEditSection > the editor's own capture control", () => {
+  it("offers to quote what the reader has selected in the note", async () => {
+    // This mount is half of the reason the `file-detail-actions` entry
+    // is safe: it holds the *editor's* controller, and core's stays null
+    // while the editor is the canvas. Neither half was asserted, so the
+    // control could have vanished with nothing to say so.
+    vi.stubEnv("NEXT_PUBLIC_INLINE_KNOWLEDGE_EDITOR", "true");
+    editorSelection = {
+      kind: "selection",
+      quote: "A selected paragraph",
+      locator: { label: "Introduction" },
+    };
+    stubFileFetch(mdFile);
 
     render(<KnowledgeEditSection fileId="f1" drive="d" />);
-    const btn = await screen.findByRole("button", { name: /button/i });
+    await screen.findByTestId("editor-stub");
 
-    // Open the save dialog
-    fireEvent.click(btn);
+    const button = await screen.findByRole("button");
+    fireEvent.click(button);
 
-    // The dialog renders with a save button (translation mock returns the key)
-    const saveBtn = await screen.findByRole("button", { name: /^save$/i });
-    fireEvent.click(saveBtn);
+    expect(getSourceCaptures("d")).toEqual([
+      expect.objectContaining({
+        sourceFileId: "f1",
+        filename: "note.md",
+        // A note is a document whatever the addon that opened it: a
+        // capture filed as a video would sort and render as one.
+        fileType: "document",
+        kind: "document_selection",
+        quote: "A selected paragraph",
+      }),
+    ]);
+  });
 
-    await waitFor(() => expect(mockRouterPush).toHaveBeenCalled());
+  it("offers nothing while the reader has selected nothing", async () => {
+    vi.stubEnv("NEXT_PUBLIC_INLINE_KNOWLEDGE_EDITOR", "true");
+    editorSelection = null;
+    stubFileFetch(mdFile);
 
-    expect(mockRouterPush).toHaveBeenCalledWith(
-      "/drive/d/addons/knowledge?edit=new-note-id",
-    );
+    render(<KnowledgeEditSection fileId="f1" drive="d" />);
+    await screen.findByTestId("editor-stub");
+
+    expect(screen.queryByRole("button")).toBeNull();
   });
 });
+

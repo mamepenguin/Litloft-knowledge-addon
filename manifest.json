@@ -9,11 +9,14 @@
         "header-actions": [
             {"id": "knowledge-capture-basket", "label": "Capture Basket", "priority": 10}
         ],
-        "file-preview-actions": [
-            {"id": "knowledge-media-capture", "label": "Capture Position", "priority": 10}
-        ],
         "search-result-actions": [
             {"id": "knowledge-search-capture", "label": "Capture Search Evidence", "priority": 10}
+        ],
+        "file-detail-actions": [
+            {"id": "knowledge-media-capture", "label": "Capture Position", "priority": 20}
+        ],
+        "file-actions-menu": [
+            {"id": "knowledge-create-note", "label": "Create note", "priority": 20}
         ],
         "file-detail-sections": [
             {"id": "knowledge-edit", "label": "Edit Note", "priority": 5}

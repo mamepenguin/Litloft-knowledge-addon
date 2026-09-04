@@ -268,10 +268,7 @@
       "emptyState": "一致するノートがありません。"
     },
     "createNote": {
-      "button": "ノートを作成",
-      "creating": "作成中…",
-      "error": "ノートの作成に失敗しました",
-      "description": "このファイルにリンクされたノートを作成します"
+      "button": "ノートを作成"
     },
     "createNoteDialog": {
       "title": "ノートを作成",
