@@ -102,6 +102,45 @@ describe("CreateNoteMenuItem", () => {
     expect(field).toBeInTheDocument();
   });
 
+  it("is there while the policy is still being fetched", async () => {
+    // `usePolicy` is fail-open, and the loading window is the half of
+    // that which the other policy tests cannot see: they wait past it.
+    // Read as "not yet known means no", the entry would be missing the
+    // first time a reader opens the menu on a drive and would pop in —
+    // taking the menu's separator rule with it — when the fetch landed.
+    let releasePolicy!: () => void;
+    const held = new Promise<void>((resolve) => {
+      releasePolicy = resolve;
+    });
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (input: RequestInfo | URL) => {
+        const url = typeof input === "string" ? input : input.toString();
+        if (url.includes("/addon-policies")) {
+          await held;
+          return {
+            ok: true,
+            status: 200,
+            json: async () => ({
+              addons: { knowledge: { default: true, features: { editor: true } } },
+            }),
+          } as Response;
+        }
+        throw new Error(`unexpected url ${url}`);
+      }),
+    );
+
+    render(<CreateNoteMenuItem fileId="f1" drive="d" filename="a.mkv" />);
+
+    // Asserted before the policy answers, which is the state under test.
+    expect(screen.getByRole("menuitem", { name: /button/i })).toBeInTheDocument();
+
+    releasePolicy();
+    await waitFor(() =>
+      expect(screen.getByRole("menuitem", { name: /button/i })).toBeInTheDocument(),
+    );
+  });
+
   it("stays out of the menu on a drive with the editor switched off", async () => {
     // Same reading the section it replaced used: `usePolicy` is
     // fail-open, so this goes only on an explicit no.

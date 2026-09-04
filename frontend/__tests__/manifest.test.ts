@@ -52,6 +52,30 @@ describe("the knowledge manifest", () => {
     expect(orphans).toEqual([]);
   });
 
+  it("points each id at the component that belongs to it", () => {
+    // The two checks either side of this one see only *presence*: an id
+    // with a key, a key with an id. Neither can see a `lazy(() =>
+    // import("./TheWrongOne"))`, which is a copy-paste away and ships a
+    // capture button where "Create note" should be. So the wiring is
+    // read out of the file as text and compared against a table written
+    // here — the one place a reviewer can check it against the manifest
+    // by eye.
+    const source = readFileSync(resolve(ADDON_ROOT, "frontend/slots.ts"), "utf-8");
+    const wiring = Object.fromEntries(
+      [...source.matchAll(/"([a-z-]+)":\s*lazy\(\(\)\s*=>\s*import\("\.\/([A-Za-z]+)"\)\)/g)].map(
+        (m) => [m[1], m[2]],
+      ),
+    );
+    expect(wiring).toEqual({
+      "knowledge-edit": "KnowledgeEditSection",
+      "knowledge-active-summary": "ActiveSummarySection",
+      "knowledge-capture-basket": "CaptureBasket",
+      "knowledge-media-capture": "MediaCaptureAction",
+      "knowledge-create-note": "CreateNoteMenuItem",
+      "knowledge-search-capture": "SearchCaptureActions",
+    });
+  });
+
   it("gives every component an entry that reaches it", () => {
     const declared = new Set(entries.map((entry) => entry.id));
     const unreachable = Object.keys(slotComponents).filter(

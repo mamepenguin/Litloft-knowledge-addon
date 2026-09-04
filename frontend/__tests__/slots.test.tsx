@@ -9,9 +9,7 @@ vi.mock("next-intl", () => ({
       "knowledge.editSection.description": "Open this note in the Markdown editor.",
       "knowledge.editSection.openEditor": "Open editor",
       "knowledge.createNote.button": "Create note",
-      "knowledge.createNote.creating": "Creating…",
       "knowledge.createNote.description": "Create a new note linked to this file.",
-      "knowledge.createNote.error": "Failed to create note",
     };
     void vars;
     return map[`${ns}.${key}`] ?? `${ns}.${key}`;

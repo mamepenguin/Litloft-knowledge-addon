@@ -268,9 +268,7 @@
       "emptyState": "No matching notes."
     },
     "createNote": {
-      "button": "Create note",
-      "creating": "Creating…",
-      "error": "Failed to create note"
+      "button": "Create note"
     },
     "createNoteDialog": {
       "title": "Create note",
