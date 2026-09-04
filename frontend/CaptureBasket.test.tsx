@@ -18,19 +18,27 @@ const SAVE_NEW = /Save \d+ captures|knowledge\.captureBasket\.saveNew/;
 const SAVE_NEW_TITLE = /Save capture note|knowledge\.captureBasket\.saveNewTitle/;
 const QUICK_APPEND = /Append to Inbox\.md|knowledge\.captureBasket\.quickAppend/;
 
-describe("CaptureBasket", () => {
-  beforeEach(() => {
-    clearSourceCaptures("family");
-    addSourceCapture({
-      drive: "family",
-      sourceFileId: "video123",
-      filename: "lecture.mp4",
-      fileType: "video",
-      kind: "media_timestamp",
-      locator: { seconds: 65 },
-    });
+// One capture in the basket, for every test in this file.
+//
+// It used to be seeded inside the first `describe` only, and the second one
+// read it anyway: captures live in localStorage, which nothing clears between
+// tests, so whatever the first block left behind was still there when the
+// second one ran. That held only because the blocks ran in source order —
+// under `--sequence.shuffle` the second block draws an empty basket and its
+// assertions fail. A test may not depend on another test having run.
+beforeEach(() => {
+  clearSourceCaptures("family");
+  addSourceCapture({
+    drive: "family",
+    sourceFileId: "video123",
+    filename: "lecture.mp4",
+    fileType: "video",
+    kind: "media_timestamp",
+    locator: { seconds: 65 },
   });
+});
 
+describe("CaptureBasket", () => {
   it("keeps a capture deselected while its note is edited", () => {
     render(<CaptureBasket drive="family" />);
     fireEvent.click(screen.getByRole("button", { name: TITLE }));
