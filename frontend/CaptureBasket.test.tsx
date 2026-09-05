@@ -1,5 +1,31 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { fireEvent, render, screen, within } from "@testing-library/react";
+import { Quote } from "lucide-react";
+
+import ja from "./messages/ja.json";
+import en from "./messages/en.json";
+
+/**
+ * Core's `EmptyState`, wrapped so the call can be inspected.
+ *
+ * The wrapper delegates, so everything below still renders the real
+ * component — what it adds is a record of the props, which is the only
+ * place "this is core's component and not a copy of it" is visible.
+ */
+const { emptyStateProps } = vi.hoisted(() => ({
+  emptyStateProps: [] as import("@/components/EmptyState").EmptyStateProps[],
+}));
+vi.mock("@/components/EmptyState", async (importOriginal) => {
+  const actual =
+    await importOriginal<typeof import("@/components/EmptyState")>();
+  return {
+    ...actual,
+    EmptyState: (props: import("@/components/EmptyState").EmptyStateProps) => {
+      emptyStateProps.push(props);
+      return actual.EmptyState(props);
+    },
+  };
+});
 
 import { ShortcutsProvider } from "@/components/ShortcutsProvider";
 import { useShortcuts } from "@/hooks/useShortcuts";
@@ -306,45 +332,97 @@ describe("the capture basket's accent budget", () => {
  * The empty basket, which said "No captures yet" and nothing else — neither
  * what belongs in it nor how anything gets there.
  *
- * The heading assertion is what holds the shape: the old copy was a bare
- * `<p>`, so a return to it fails here rather than only losing the second
- * line. Core's `EmptyState` is the thing being asked for (CB-1), and its
- * `<h2>` is the part of it that a hand-rolled replacement would not have.
+ * Three separate claims, and rendering can only carry one of them:
+ *
+ *   - *the panel draws core's `EmptyState`* — a hand-rolled `<div>` holding
+ *     an icon, an `<h2>` and a `<p>` is indistinguishable in the DOM, and a
+ *     reviewer built exactly that and watched every assertion here stay
+ *     green. So this is asserted at the seam, on the props the component is
+ *     called with, not on what comes out of it;
+ *   - *the strings exist* — the next-intl stand-in renders a missing key as
+ *     the key, and `pnpm test` does not run `merge-addon-messages.mjs`, so
+ *     any assertion on rendered text passes with both catalogues emptied.
+ *     The catalogues are read directly instead;
+ *   - *there is one empty message, not two* — a bad merge that keeps the old
+ *     `<p>` beside the new component leaves the panel saying it twice.
  */
 describe("CaptureBasket when it is empty", () => {
   const EMPTY_TITLE = /No captures yet|knowledge\.captureBasket\.empty$/;
-  const EMPTY_DESCRIPTION =
-    /quote button|knowledge\.captureBasket\.emptyDescription/;
 
   beforeEach(() => {
     clearSourceCaptures("family");
-  });
-
-  it("says what belongs in it and how to put it there", () => {
-    render(<CaptureBasket drive="family" />);
-    fireEvent.click(screen.getByRole("button", { name: TITLE }));
-
-    const dialog = screen.getByRole("dialog", { name: TITLE });
-    expect(
-      within(dialog).getByRole("heading", { name: EMPTY_TITLE }),
-    ).toBeInTheDocument();
-    expect(within(dialog).getByText(EMPTY_DESCRIPTION)).toBeInTheDocument();
+    emptyStateProps.length = 0;
   });
 
   /**
-   * `DESIGN.md` §2.2 — one accent fill per screen. The footer's own action
-   * is disabled with nothing to save, and CB-1 deliberately adds no call to
-   * action here (nothing is added to the basket from inside the basket), so
-   * the empty panel spends none.
+   * What `t(key)` can legitimately return here, which is three things and
+   * not one: the locale under test decides between ja and en, and a key the
+   * merged catalogue does not carry yet renders as the key itself —
+   * `pnpm test` does not run `merge-addon-messages.mjs`, so a string added
+   * in this PR resolves to its key until something regenerates the merge.
+   *
+   * So this pins *which key* the panel passes, and the catalogue test below
+   * pins what that key holds. Neither can do both.
    */
-  it("offers no call to action", () => {
+  const resolutionsOf = (key: "empty" | "emptyDescription") => [
+    `knowledge.captureBasket.${key}`,
+    (ja.knowledge.captureBasket as Record<string, string>)[key],
+    (en.knowledge.captureBasket as Record<string, string>)[key],
+  ];
+
+  const openEmptyBasket = () => {
     render(<CaptureBasket drive="family" />);
     fireEvent.click(screen.getByRole("button", { name: TITLE }));
+    return screen.getByRole("dialog", { name: TITLE });
+  };
 
-    const dialog = screen.getByRole("dialog", { name: TITLE });
-    const emptyState = within(dialog)
-      .getByRole("heading", { name: EMPTY_TITLE })
-      .closest("div");
-    expect(emptyState?.querySelector("button")).toBeNull();
+  it("draws it with core's EmptyState, given the quote mark and both strings", () => {
+    openEmptyBasket();
+
+    // The last call, not the only one: opening the panel settles a piece of
+    // state (the destination clock), so the tree renders again behind the
+    // dialog. How many empty messages the panel ends up with is the next
+    // test's business, where the DOM can answer it.
+    const props = emptyStateProps[emptyStateProps.length - 1];
+    // The glyph is the tie between this panel and the buttons the copy sends
+    // the reader to look for; every one of them is a lucide `Quote`.
+    expect(props.icon).toBe(Quote);
+    expect(resolutionsOf("empty")).toContain(props.title);
+    expect(resolutionsOf("emptyDescription")).toContain(props.description);
+  });
+
+  it("says what belongs in it and how to put it there", () => {
+    const dialog = openEmptyBasket();
+
+    expect(
+      within(dialog).getByRole("heading", { name: EMPTY_TITLE }),
+    ).toBeInTheDocument();
+    // Exactly one. Two is what a merge that kept the old paragraph produces.
+    expect(within(dialog).getAllByText(EMPTY_TITLE)).toHaveLength(1);
+  });
+
+  /**
+   * `DESIGN.md` §2.2 — one accent fill per screen. CB-1 deliberately adds no
+   * call to action here: nothing is added to the basket from inside the
+   * basket, so there is no destination to offer.
+   */
+  it("offers no call to action", () => {
+    openEmptyBasket();
+
+    const props = emptyStateProps[emptyStateProps.length - 1];
+    expect(props.primaryAction).toBeUndefined();
+    expect(props.secondaryActions).toBeUndefined();
+  });
+
+  // The rendered text cannot check this: a key missing from both catalogues
+  // renders as the key and satisfies any regex written to accept one.
+  it.each([
+    ["ja", ja],
+    ["en", en],
+  ])("ships both strings in the %s catalogue", (_locale, catalogue) => {
+    const basket = catalogue.knowledge.captureBasket as Record<string, string>;
+    expect(basket.empty?.length).toBeGreaterThan(0);
+    expect(basket.emptyDescription?.length).toBeGreaterThan(0);
+    expect(basket.emptyDescription).not.toBe(basket.empty);
   });
 });
