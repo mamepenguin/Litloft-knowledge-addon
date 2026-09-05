@@ -23,9 +23,12 @@ import { stripComments } from "@/__tests__/helpers/sourceScan";
  * are the three ways in. A module imported by tests alone is exactly the
  * shape that accumulated here.
  *
- * **What this cannot see.** Imports whose path is built at runtime. There
- * are none inside this addon today; one added later reports as unreachable,
- * which is the right way round — it fails rather than passing quietly.
+ * **What this cannot see**, and which way each one fails. A path built at
+ * runtime reads as unreachable, so it fails loudly — the right way round.
+ * So do a `.d.ts` file and an import of a directory with an `index`, both
+ * of which this tree has none of. The forms below are read, including the
+ * two a reviewer found missing: a side-effect `import "./x"` and an
+ * `import()` whose argument is a constant template literal.
  */
 const DIR = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 
@@ -87,7 +90,9 @@ function importsOf(file: string): string[] {
   const out: string[] = [];
   const patterns = [
     /\bfrom\s+["']([^"']+)["']/g,
-    /\bimport\s*\(\s*["']([^"']+)["']\s*\)/g,
+    // `import "./x";` for its side effects, with no binding to name it.
+    /\bimport\s+["']([^"']+)["']/g,
+    /\bimport\s*\(\s*[`"']([^`"']+)[`"']\s*\)/g,
     /\brequire\s*\(\s*["']([^"']+)["']\s*\)/g,
   ];
   for (const pattern of patterns) {
