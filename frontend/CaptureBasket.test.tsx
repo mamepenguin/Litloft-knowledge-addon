@@ -301,3 +301,50 @@ describe("the capture basket's accent budget", () => {
     expect(fills[0].textContent).toMatch(QUICK_APPEND);
   });
 });
+
+/**
+ * The empty basket, which said "No captures yet" and nothing else — neither
+ * what belongs in it nor how anything gets there.
+ *
+ * The heading assertion is what holds the shape: the old copy was a bare
+ * `<p>`, so a return to it fails here rather than only losing the second
+ * line. Core's `EmptyState` is the thing being asked for (CB-1), and its
+ * `<h2>` is the part of it that a hand-rolled replacement would not have.
+ */
+describe("CaptureBasket when it is empty", () => {
+  const EMPTY_TITLE = /No captures yet|knowledge\.captureBasket\.empty$/;
+  const EMPTY_DESCRIPTION =
+    /quote button|knowledge\.captureBasket\.emptyDescription/;
+
+  beforeEach(() => {
+    clearSourceCaptures("family");
+  });
+
+  it("says what belongs in it and how to put it there", () => {
+    render(<CaptureBasket drive="family" />);
+    fireEvent.click(screen.getByRole("button", { name: TITLE }));
+
+    const dialog = screen.getByRole("dialog", { name: TITLE });
+    expect(
+      within(dialog).getByRole("heading", { name: EMPTY_TITLE }),
+    ).toBeInTheDocument();
+    expect(within(dialog).getByText(EMPTY_DESCRIPTION)).toBeInTheDocument();
+  });
+
+  /**
+   * `DESIGN.md` §2.2 — one accent fill per screen. The footer's own action
+   * is disabled with nothing to save, and CB-1 deliberately adds no call to
+   * action here (nothing is added to the basket from inside the basket), so
+   * the empty panel spends none.
+   */
+  it("offers no call to action", () => {
+    render(<CaptureBasket drive="family" />);
+    fireEvent.click(screen.getByRole("button", { name: TITLE }));
+
+    const dialog = screen.getByRole("dialog", { name: TITLE });
+    const emptyState = within(dialog)
+      .getByRole("heading", { name: EMPTY_TITLE })
+      .closest("div");
+    expect(emptyState?.querySelector("button")).toBeNull();
+  });
+});
