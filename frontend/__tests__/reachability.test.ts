@@ -2,17 +2,19 @@ import { describe, expect, it } from "vitest";
 import { readFileSync, readdirSync, statSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname, join, relative, resolve } from "node:path";
+import { stripComments } from "@/__tests__/helpers/sourceScan";
 
 /**
  * Every module in this addon, reached from something that can open it.
  *
- * Nine components and their tests were deleted in the commit that added
- * this: a whole two-pane view — folder pane, sidebar, its context menu and
- * move dialog, the clip modal, the tag panel — that `Page.tsx` stopped
- * rendering and nothing else ever imported. They were invisible as dead
- * code because their own tests kept them green, and they were not free: a
- * design-system migration converted their buttons, reviewers read them, and
- * core's heading ledger carried an entry for one of their files.
+ * Eight components, three hooks and their tests were deleted around this:
+ * a whole two-pane view — folder pane, sidebar, its context menu and move
+ * dialog, the clip modal, the tag panel, the landing panel — that
+ * `Page.tsx` stopped rendering and nothing else ever imported. They were
+ * invisible as dead code because their own tests kept them green, and they
+ * were not free: a design-system migration converted their buttons,
+ * reviewers read them, and core's `page-headings.test.ts` carried an
+ * allowlist entry for `EmptyState.tsx`, one of the eight.
  *
  * Reachable means: from the route (`Page.tsx`), from the slot registry
  * (`slots.ts`), or from `pages/`, which core mounts as `/addons/{name}/
@@ -27,7 +29,15 @@ import { dirname, join, relative, resolve } from "node:path";
  */
 const DIR = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 
-/** Vite's order, so this resolves a bare specifier the way the app does. */
+/**
+ * Exact path first, then `.ts`, then `.tsx`.
+ *
+ * Which of the last two wins is not pinned by anything, because no `x.ts`
+ * and `x.tsx` pair exists in this tree — and the two bundlers that read it
+ * disagree, Vite preferring `.ts` and Next `.tsx`. A pair added later gets
+ * whichever this picks, and the module that loses is reported unreferenced,
+ * which is the loud direction.
+ */
 const EXTENSIONS = ["", ".ts", ".tsx"];
 
 /**
@@ -63,14 +73,17 @@ function sourceFiles(): string[] {
 const moduleFiles = new Set(sourceFiles());
 
 /**
- * Import specifiers, from the forms that actually import.
+ * Import specifiers, from the forms that actually import, in code.
  *
- * Not every `"./x"` in the file: a comment or a string mentioning a path
- * made the module it names look reachable, which is how a deleted panel
- * would keep its replacement alive.
+ * Comments are stripped first, and that is the load-bearing half: a first
+ * version matched every `"./x"` in the file, and a second matched only
+ * `from` / `import()` / `require()` — which a comment reading
+ * `imported from "./X" by the panel that owns it` still satisfies. Either
+ * way a module nothing imports reports as reachable, and that is the miss
+ * this test exists to prevent, since it is the silent one.
  */
 function importsOf(file: string): string[] {
-  const text = readFileSync(resolve(DIR, file), "utf-8");
+  const text = stripComments(readFileSync(resolve(DIR, file), "utf-8"));
   const out: string[] = [];
   const patterns = [
     /\bfrom\s+["']([^"']+)["']/g,
@@ -86,9 +99,10 @@ function importsOf(file: string): string[] {
 /**
  * Where a specifier lands, or null if it leaves the addon.
  *
- * Both the relative form and core's alias for this addon resolve, because
- * both appear in this tree and rewriting one into the other is a refactor,
- * not a deletion.
+ * Both the relative form and core's alias for this addon resolve. The alias
+ * appears only in this addon's colocated tests today, which the walk never
+ * reads — it is here so that rewriting a module's import into the alias
+ * form does not read as a deletion.
  */
 function resolveModule(spec: string, from: string): string | null {
   let base: string;
@@ -138,10 +152,10 @@ describe("the knowledge addon's modules", () => {
     expect(orphans).toEqual([]);
   });
 
-  // Exact, because the census is where this can go quietly wrong: narrow the
-  // walk to `.tsx` and four `.ts` modules leave the population without any
-  // assertion noticing, since an orphan among them is no longer looked for.
-  // Measured 2026-09-06.
+  // Exact, because the census is where this can go quietly wrong: narrow
+  // the walk to `.tsx` and nine `.ts` modules leave the population without
+  // any assertion noticing, since an orphan among them is no longer looked
+  // for. Measured 2026-09-06.
   it("counts every module in the addon", () => {
     expect(moduleFiles.size).toBe(33);
     expect([...moduleFiles].filter((f) => f.endsWith(".ts")).length).toBe(9);

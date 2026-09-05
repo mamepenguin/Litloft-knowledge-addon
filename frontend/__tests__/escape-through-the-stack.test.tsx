@@ -9,8 +9,13 @@
  * because a listener bound at mount is claimed for as long as the
  * component lives.
  *
- * This covered three surfaces until the two-pane view was deleted;
- * the clip modal and the tag panel went with it.
+ * This covered three surfaces until the two-pane view was deleted. The
+ * clip modal and the tag panel went with it — and they were the two that
+ * had fields, which left the file asserting its own premise against a
+ * dialog with nothing focusable in it: `editingOnly: false` could be
+ * deleted from the survivor and every test here stayed green. The
+ * unresolved-link dialog, restored beside them, focuses its own filename
+ * input, so it is the surface that makes the paragraph below true.
  *
  * The flag that matters here is `editingOnly: false`. The provider
  * treats a focused input as "editing", and the default — the flag
@@ -30,6 +35,7 @@ vi.mock("../api", () => ({
 }));
 
 import BookmarkletDialog from "../BookmarkletDialog";
+import UnresolvedLinkDialog from "../UnresolvedLinkDialog";
 
 function withStack(ui: React.ReactElement) {
   return render(<ShortcutsProvider>{ui}</ShortcutsProvider>);
@@ -68,5 +74,25 @@ describe("BookmarkletDialog", () => {
     withStack(<BookmarkletDialog drive="vault" open={false} onClose={onClose} />);
     fireEvent.keyDown(document.body, { key: "Escape" });
     expect(onClose).not.toHaveBeenCalled();
+  });
+});
+
+describe("UnresolvedLinkDialog", () => {
+  it("closes on Escape from its own focused field", () => {
+    const onClose = vi.fn();
+    withStack(
+      <UnresolvedLinkDialog
+        drive="vault"
+        open
+        target="Year-in-review"
+        defaultFolder="notes"
+        onClose={onClose}
+      />,
+    );
+    // The dialog focuses this input on open, and the provider reads
+    // `e.target` — so without `editingOnly: false` on its Escape entry,
+    // the press below is "editing" and nothing answers it.
+    escapeFromAFocusedField();
+    expect(onClose).toHaveBeenCalledTimes(1);
   });
 });

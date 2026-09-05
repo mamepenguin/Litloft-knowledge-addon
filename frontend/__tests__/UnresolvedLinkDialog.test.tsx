@@ -32,6 +32,9 @@ import { ShortcutsProvider } from "@/components/ShortcutsProvider";
  * These tests run RED until ``UnresolvedLinkDialog`` is implemented.
  */
 
+import ja from "../messages/ja.json";
+import en from "../messages/en.json";
+
 vi.mock("next-intl", () => ({
   useTranslations:
     () =>
@@ -96,12 +99,55 @@ function renderDialog(overrides: Partial<DialogProps> = {}) {
   return { ...utils, props };
 }
 
+describe("UnresolvedLinkDialog's strings", () => {
+  /**
+   * The stand-in above renders every key as itself, so each `getByRole`
+   * below matches whether or not a catalogue holds the key — the same hole
+   * the capture basket's tests were rebuilt around. What the keys hold can
+   * only be asked of the catalogues.
+   */
+  it.each([
+    ["ja", ja],
+    ["en", en],
+  ])("ships all seven in the %s catalogue", (_locale, catalogue) => {
+    const strings = catalogue.knowledge.unresolvedLinkDialog as Record<
+      string,
+      string
+    >;
+    expect(Object.keys(strings).sort()).toEqual([
+      "cancel",
+      "conflictError",
+      "create",
+      "filenameLabel",
+      "folderLabel",
+      "invalidPathError",
+      "title",
+    ]);
+    for (const [key, value] of Object.entries(strings)) {
+      expect(value.trim().length, key).toBeGreaterThan(1);
+    }
+  });
+
+  // Across locales: a catalogue that copied the other's words passes every
+  // per-locale check above.
+  it("translates them rather than copying them", () => {
+    const jaStrings = ja.knowledge.unresolvedLinkDialog as Record<string, string>;
+    const enStrings = en.knowledge.unresolvedLinkDialog as Record<string, string>;
+    const shared = Object.keys(jaStrings).filter(
+      (k) => jaStrings[k] === enStrings[k],
+    );
+    expect(shared).toEqual([]);
+  });
+});
+
 describe("UnresolvedLinkDialog", () => {
   it("pre-fills the filename input from the unresolved target text", () => {
     renderDialog({ target: "Year-in-review" });
     const input = screen.getByLabelText(/filename/i) as HTMLInputElement;
     // Expected default: target + .md (so the user can immediately confirm).
-    expect(input.value).toMatch(/^Year-in-review(\.md)?$/);
+    // With the extension: the header calls the pre-fill `<target>.md`, and
+    // an optional suffix in this pattern accepted either answer.
+    expect(input.value).toBe("Year-in-review.md");
   });
 
   it("pre-fills the folder field with the current note's folder", () => {
