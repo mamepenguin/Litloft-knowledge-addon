@@ -10,6 +10,7 @@ import {
   addSourceCapture,
   clearSourceCaptures,
 } from "@/lib/sourceCapture";
+import { accentFills } from "@/__tests__/helpers/accentFills";
 
 const TITLE = /Capture basket|knowledge\.captureBasket\.title/;
 const NOTE_PLACEHOLDER = /Add a note|knowledge\.captureBasket\.notePlaceholder/;
@@ -237,5 +238,58 @@ describe("CaptureBasket Escape handling", () => {
 
     expect(screen.queryByRole("dialog", { name: SAVE_NEW_TITLE })).toBeNull();
     expect(screen.getByRole("dialog", { name: TITLE })).toBeInTheDocument();
+  });
+});
+
+/**
+ * DESIGN.md §2.2: one accent fill per screen, at rest.
+ *
+ * The panel had three, which was the state §2.2 describes as "the screen has
+ * not decided what it is for". Two of them are the arms of a ternary on
+ * `targetMode`, so the worst case on screen at once is two — the footer's
+ * own action plus whichever alternative the disclosure is showing — and that
+ * is still one too many. The footer action keeps the fill; the two behind
+ * `Other save methods` take `secondary`.
+ *
+ * Asserted in the state that can actually hold two, not only at rest: a
+ * budget checked with the disclosure closed cannot see either of them.
+ *
+ * **Filtered to controls.** §2.2's operational form is "at most one
+ * *control* on a screen carries `bg-accent` as a background", and
+ * `accentFills` reports elements by class without asking what they are. The
+ * one it reports here that is not a control is the unread-count badge on the
+ * basket's own trigger — a 16px dot inside the button, not a second thing to
+ * press. Tinting it the way `SelectionBar` tints its count chip is not the
+ * answer either: `bg-accent/15` behind 10px text does not carry at that size.
+ */
+describe("the capture basket's accent budget", () => {
+  const openBasket = () => {
+    render(<CaptureBasket drive="family" />);
+    fireEvent.click(screen.getByRole("button", { name: TITLE }));
+  };
+
+  /** The filled *controls*, which is what §2.2 budgets. */
+  const filledControls = () =>
+    accentFills(document.body).filter((el) =>
+      el.matches("button, a[href], [role=button]"),
+    );
+
+  it("spends its one fill on the footer's own action", () => {
+    openBasket();
+    const fills = filledControls();
+    expect(fills).toHaveLength(1);
+    expect(fills[0].textContent).toMatch(QUICK_APPEND);
+  });
+
+  it.each([
+    ["saving to a new note", /New note|knowledge\.captureBasket\.newNote/],
+    ["appending to an existing one", /Existing note|knowledge\.captureBasket\.existingNote/],
+  ])("still spends only one while %s", (_case, tab) => {
+    openBasket();
+    fireEvent.click(screen.getByRole("button", { name: OTHER_METHODS }));
+    fireEvent.click(screen.getByRole("button", { name: tab }));
+    const fills = filledControls();
+    expect(fills).toHaveLength(1);
+    expect(fills[0].textContent).toMatch(QUICK_APPEND);
   });
 });

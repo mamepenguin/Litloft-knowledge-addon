@@ -5,6 +5,7 @@ import { useState } from "react";
 import { Loader2 } from "lucide-react";
 import type { ClipJob } from "./api";
 import { createClip } from "./api";
+import { Button } from "@/components/Button";
 
 interface Props {
   drive: string;
@@ -83,17 +84,17 @@ export default function ClipDuplicateDialog({
           >
             {t("openExisting")}
           </button>
-          <button
-            type="button"
+          <Button
+            variant="primary"
             onClick={handleCreateNew}
             disabled={submitting}
-            className="inline-flex w-full items-center justify-center gap-1.5 rounded-2xl bg-accent px-4 py-2 text-sm font-medium text-white hover:bg-accent-hover disabled:bg-sand disabled:text-warm-silver disabled:cursor-not-allowed"
+            className="w-full"
           >
             {submitting ? (
               <Loader2 size={14} className="animate-spin" strokeWidth={1.6} />
             ) : null}
             <span>{t("createNew")}</span>
-          </button>
+          </Button>
           <button
             type="button"
             onClick={onClose}

@@ -17,6 +17,7 @@ import {
   type CoreFolderItem,
 } from "./api";
 import { sortFiles, useSortMode, type SortMode } from "./hooks/useSortMode";
+import { Button } from "@/components/Button";
 
 function untitledFilename(): string {
   const d = new Date();
@@ -139,9 +140,13 @@ export default function FolderView({
           <ArrowLeft size={16} />
         </button>
         <Folder size={16} className="flex-shrink-0 text-accent" />
-        <h1 className="min-w-0 flex-1 truncate text-sm font-semibold text-text-primary">
+        {/* An `<h2>`: this heads a pane, not the page. The knowledge view is
+            two panes and the page's own subject is named by the landing
+            panel beside it, so an `<h1>` here made a screen with two of
+            them. */}
+        <h2 className="min-w-0 flex-1 truncate text-sm font-semibold text-text-primary">
           {name || path || "/"}
-        </h1>
+        </h2>
         <button
           type="button"
           onClick={cycleSortMode}
@@ -152,15 +157,23 @@ export default function FolderView({
           <ArrowUpDown size={12} />
           <span className="hidden sm:inline">{sortLabel(sortMode)}</span>
         </button>
-        <button
-          type="button"
+        {/* `secondary`, not `primary`. The original was an accent *tint*
+            (`bg-accent/15`), which `Button` has no variant for and should
+            not grow one — DESIGN.md §6 names five. Filling it instead would
+            put a second accent on this screen, which also carries the
+            editor's save button, and would make a `text-xs` control in a
+            dense pane header the loudest thing on the page. `secondary`
+            keeps it legible as a pressable chip at rest, which is what the
+            tint was doing. */}
+        <Button
+          variant="secondary"
+          size="sm"
           onClick={handleCreateNote}
           disabled={creating}
-          className="flex items-center gap-1.5 rounded-lg bg-accent/15 px-2.5 py-1.5 text-xs font-medium text-accent hover:bg-accent/25 disabled:bg-sand disabled:text-warm-silver disabled:cursor-not-allowed"
         >
           <Plus size={12} />
           {t("newNote")}
-        </button>
+        </Button>
       </div>
 
       {/* Content */}

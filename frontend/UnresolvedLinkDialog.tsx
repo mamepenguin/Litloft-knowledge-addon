@@ -5,6 +5,7 @@ import { useTranslations } from "next-intl";
 import { createTextFile, type CoreFileItem } from "./api";
 import { useShortcuts } from "@/hooks/useShortcuts";
 import { OVERLAY_PRIORITY } from "@/lib/shortcuts";
+import { Button } from "@/components/Button";
 
 interface Props {
   drive: string;
@@ -184,14 +185,14 @@ export default function UnresolvedLinkDialog({
           >
             {t("cancel")}
           </button>
-          <button
-            type="button"
+          <Button
+            variant="primary"
+            size="sm"
             onClick={handleCreate}
             disabled={disabled}
-            className="rounded-lg bg-accent-cta px-3 py-1.5 text-sm font-medium text-white hover:bg-accent disabled:cursor-not-allowed disabled:bg-sand disabled:text-warm-silver"
           >
             {t("create")}
-          </button>
+          </Button>
         </div>
       </div>
     </div>

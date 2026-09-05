@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Folder, X } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { listKnowledgeFolders } from "./api";
+import { Button } from "@/components/Button";
 
 interface FlatFolder {
   path: string;
@@ -143,14 +144,14 @@ export default function MoveDialog({
           >
             {t("cancel")}
           </button>
-          <button
-            type="button"
+          <Button
+            variant="primary"
+            size="sm"
             onClick={() => onConfirm(selected)}
             disabled={selected === currentPath}
-            className="rounded-lg bg-accent px-3 py-1.5 text-sm font-medium text-white transition-colors hover:bg-accent-hover disabled:bg-sand disabled:text-warm-silver disabled:cursor-not-allowed"
           >
             {t("confirm")}
-          </button>
+          </Button>
         </div>
       </div>
     </div>

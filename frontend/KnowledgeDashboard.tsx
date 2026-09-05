@@ -16,6 +16,7 @@ import {
   Check,
   ClipboardPaste,
   ExternalLink,
+  Library,
   Loader2,
 } from "lucide-react";
 import { useCurrentDrive } from "@/components/CurrentDriveProvider";
@@ -30,6 +31,8 @@ import ClipPasteForm from "./ClipPasteForm";
 import BookmarkletDialog from "./BookmarkletDialog";
 import ClipDuplicateDialog from "./ClipDuplicateDialog";
 import ConnectionsGraph from "./ConnectionsGraph";
+import { Button } from "@/components/Button";
+import { PageHeader } from "@/components/PageHeader";
 
 // ---- RecentJob -------------------------------------------------------
 
@@ -206,16 +209,16 @@ function ClipForm({
           aria-label={tDash("clipUrlLabel")}
           className="flex-1 rounded-2xl border border-bg-border bg-bg-card px-4 py-2 text-sm text-text-primary placeholder:text-text-muted focus:border-focus-ring focus:outline-none focus:ring-1 focus:ring-focus-ring disabled:opacity-50"
         />
-        <button
+        <Button
           type="submit"
+          variant="primary"
           disabled={submitting || !url.trim()}
-          className="inline-flex items-center justify-center gap-1.5 rounded-2xl bg-accent px-4 py-2 text-sm font-medium text-white hover:bg-accent-hover disabled:cursor-not-allowed disabled:bg-sand disabled:text-warm-silver"
         >
           {submitting ? (
             <Loader2 size={14} className="animate-spin" strokeWidth={1.6} />
           ) : null}
           {tClip("submit")}
-        </button>
+        </Button>
       </div>
 
       {/* Folder picker */}
@@ -420,6 +423,7 @@ function StatusDot({ status }: { status: RecentJob["status"] }) {
 
 export default function KnowledgeDashboard() {
   const drive = useCurrentDrive() ?? "";
+  const tDash = useTranslations("knowledge.dashboard");
   const searchParams = useSearchParams();
   const prefillUrl = searchParams.get("prefill") ?? "";
   const prefillTitle = searchParams.get("title") ?? "";
@@ -459,10 +463,21 @@ export default function KnowledgeDashboard() {
   }, []);
 
   return (
-    <div className="mx-auto flex w-full max-w-6xl flex-col gap-10 px-4 py-10 md:px-6">
+    <div className="mx-auto flex w-full max-w-6xl flex-col gap-10 py-10">
+      {/* The page had no header at all: it began with the clip form, so
+          nothing on screen said which page this was. `PageHeader` is the one
+          header (案 3 / A-1), and it emits the page's `<h1>` — which is why
+          this file holds none of its own. */}
+      <PageHeader
+        titleIcon={Library}
+        title={tDash("heading")}
+        scope={tDash("description")}
+      />
+      {/* `px-4 md:px-6`, matching PageHeader's own padding — the header
+          carries its own, so the sections below carry theirs. */}
       {/* Capture + clip history read better at a comfortable measure;
           the connections graph gets the full width below (asymmetric). */}
-      <div className="mx-auto flex w-full max-w-2xl flex-col gap-10">
+      <div className="mx-auto flex w-full max-w-2xl flex-col gap-10 px-4 md:px-6">
         <CaptureZone
           drive={drive}
           initialUrl={prefillUrl}
@@ -475,7 +490,9 @@ export default function KnowledgeDashboard() {
         />
         <ClipQueueZone drive={drive} jobs={jobs} />
       </div>
-      <ConnectionsGraph drive={drive} />
+      <div className="px-4 md:px-6">
+        <ConnectionsGraph drive={drive} />
+      </div>
 
       {duplicate && (
         <ClipDuplicateDialog
