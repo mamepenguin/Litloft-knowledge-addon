@@ -6,6 +6,30 @@ import ja from "./messages/ja.json";
 import en from "./messages/en.json";
 
 /**
+ * `t()` renders the key here, not English.
+ *
+ * The global stand-in resolves against the merged catalogue, which makes a
+ * hardcoded English literal indistinguishable from a translated one: a
+ * reviewer replaced `title={t("empty")}` with the literal `"No captures
+ * yet"` and every assertion stayed green. With the key as the rendered
+ * text, the assertions below can name the key exactly, and what the key
+ * holds is checked against the addon's own catalogues at the end of this
+ * file. Every matcher in this file already accepts the key form, so nothing
+ * else here changes meaning.
+ */
+vi.mock("next-intl", () => ({
+  useTranslations: (namespace: string) => {
+    const t = (key: string) => `${namespace}.${key}`;
+    t.rich = t;
+    t.raw = t;
+    return t;
+  },
+  useLocale: () => "en",
+  NextIntlClientProvider: ({ children }: { children: React.ReactNode }) =>
+    children,
+}));
+
+/**
  * Core's `EmptyState`, wrapped so the call can be inspected.
  *
  * The wrapper delegates, so everything below still renders the real
@@ -22,7 +46,11 @@ vi.mock("@/components/EmptyState", async (importOriginal) => {
     ...actual,
     EmptyState: (props: import("@/components/EmptyState").EmptyStateProps) => {
       emptyStateProps.push(props);
-      return actual.EmptyState(props);
+      // An element, not a call: calling it would put its hooks on this
+      // wrapper's fiber, which works today only because the component has
+      // none, and would break the day core wraps it in `memo` or
+      // `forwardRef`.
+      return <actual.EmptyState {...props} />;
     },
   };
 });
@@ -354,22 +382,6 @@ describe("CaptureBasket when it is empty", () => {
     emptyStateProps.length = 0;
   });
 
-  /**
-   * What `t(key)` can legitimately return here, which is three things and
-   * not one: the locale under test decides between ja and en, and a key the
-   * merged catalogue does not carry yet renders as the key itself —
-   * `pnpm test` does not run `merge-addon-messages.mjs`, so a string added
-   * in this PR resolves to its key until something regenerates the merge.
-   *
-   * So this pins *which key* the panel passes, and the catalogue test below
-   * pins what that key holds. Neither can do both.
-   */
-  const resolutionsOf = (key: "empty" | "emptyDescription") => [
-    `knowledge.captureBasket.${key}`,
-    (ja.knowledge.captureBasket as Record<string, string>)[key],
-    (en.knowledge.captureBasket as Record<string, string>)[key],
-  ];
-
   const openEmptyBasket = () => {
     render(<CaptureBasket drive="family" />);
     fireEvent.click(screen.getByRole("button", { name: TITLE }));
@@ -379,16 +391,24 @@ describe("CaptureBasket when it is empty", () => {
   it("draws it with core's EmptyState, given the quote mark and both strings", () => {
     openEmptyBasket();
 
-    // The last call, not the only one: opening the panel settles a piece of
-    // state (the destination clock), so the tree renders again behind the
-    // dialog. How many empty messages the panel ends up with is the next
-    // test's business, where the DOM can answer it.
-    const props = emptyStateProps[emptyStateProps.length - 1];
-    // The glyph is the tie between this panel and the buttons the copy sends
-    // the reader to look for; every one of them is a lucide `Quote`.
-    expect(props.icon).toBe(Quote);
-    expect(resolutionsOf("empty")).toContain(props.title);
-    expect(resolutionsOf("emptyDescription")).toContain(props.description);
+    // Every recorded call, not the last one. Opening the panel renders the
+    // subtree more than once (twice, as measured — an effect settles the
+    // destination clock), and reading only the final call would let a panel
+    // that drew two different empty states pass, and would crash rather
+    // than fail when it drew none. What matters is that all of them are the
+    // same one, so that is what is asserted: a set of size one, whose
+    // member is named.
+    expect(new Set(emptyStateProps.map((p) => p.icon))).toEqual(
+      // The glyph is the tie between this panel and the buttons the copy
+      // sends the reader to look for; every one of them is a lucide `Quote`.
+      new Set([Quote]),
+    );
+    expect(new Set(emptyStateProps.map((p) => p.title))).toEqual(
+      new Set(["knowledge.captureBasket.empty"]),
+    );
+    expect(new Set(emptyStateProps.map((p) => p.description))).toEqual(
+      new Set(["knowledge.captureBasket.emptyDescription"]),
+    );
   });
 
   it("says what belongs in it and how to put it there", () => {
@@ -409,20 +429,41 @@ describe("CaptureBasket when it is empty", () => {
   it("offers no call to action", () => {
     openEmptyBasket();
 
-    const props = emptyStateProps[emptyStateProps.length - 1];
-    expect(props.primaryAction).toBeUndefined();
-    expect(props.secondaryActions).toBeUndefined();
+    expect(new Set(emptyStateProps.map((p) => p.primaryAction))).toEqual(
+      new Set([undefined]),
+    );
+    expect(new Set(emptyStateProps.map((p) => p.secondaryActions))).toEqual(
+      new Set([undefined]),
+    );
   });
 
-  // The rendered text cannot check this: a key missing from both catalogues
-  // renders as the key and satisfies any regex written to accept one.
+  /**
+   * What the keys hold, which no rendered assertion in this file can see.
+   *
+   * The length floor is a junk filter, and it is the weakest thing here on
+   * purpose: it separates a sentence from `""`, `"   "` and `"TODO"` — all
+   * three of which the first version of this test accepted — and it cannot
+   * tell a sentence from forty characters of nonsense. Nothing automatic
+   * can. The reviewer of the copy is the check on the copy.
+   */
   it.each([
     ["ja", ja],
     ["en", en],
   ])("ships both strings in the %s catalogue", (_locale, catalogue) => {
     const basket = catalogue.knowledge.captureBasket as Record<string, string>;
-    expect(basket.empty?.length).toBeGreaterThan(0);
-    expect(basket.emptyDescription?.length).toBeGreaterThan(0);
+    expect(basket.empty.trim().length).toBeGreaterThan(4);
+    expect(basket.emptyDescription.trim().length).toBeGreaterThan(40);
     expect(basket.emptyDescription).not.toBe(basket.empty);
+  });
+
+  // Across locales, not within one: an untranslated catalogue that copied
+  // the other's sentence passes every per-locale check above.
+  it("translates the description rather than copying it", () => {
+    expect(ja.knowledge.captureBasket.emptyDescription).not.toBe(
+      en.knowledge.captureBasket.emptyDescription,
+    );
+    expect(ja.knowledge.captureBasket.empty).not.toBe(
+      en.knowledge.captureBasket.empty,
+    );
   });
 });
