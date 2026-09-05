@@ -41,6 +41,7 @@ import {
   type CaptureDestinationMode,
   type CaptureDestinationSettings,
 } from "./captureDestination";
+import { Button } from "@/components/Button";
 
 function pad(value: number, width = 2): string {
   return String(value).padStart(width, "0");
@@ -419,15 +420,22 @@ export default function CaptureBasket({ drive }: { drive: string }) {
                       </button>
                     </div>
                   )}
-                  <button
-                    type="button"
+                  {/* The panel's one fill. `Other save methods` below opens
+                      two alternatives to this action, and DESIGN.md §2.2
+                      gives the screen one — so this keeps it and they take
+                      `secondary`. The two of them are the arms of a ternary
+                      on `targetMode`, so at most two of the three are ever
+                      on screen together, and only while the disclosure is
+                      open — which is still one too many. */}
+                  <Button
+                    variant="primary"
                     onClick={() => void commitQuick()}
                     disabled={chosen.length === 0 || submitting}
-                    className="inline-flex w-full items-center justify-center gap-2 rounded-lg bg-accent px-4 py-2.5 text-sm font-medium text-white hover:bg-accent-hover disabled:bg-sand disabled:text-warm-silver disabled:cursor-not-allowed"
+                    className="w-full"
                   >
                     <Quote size={16} />
                     {t("quickAppend", { filename: previewDestination.filename })}
-                  </button>
+                  </Button>
                 </div>
 
                 <button
@@ -447,7 +455,7 @@ export default function CaptureBasket({ drive }: { drive: string }) {
                   ))}
                 </div>
                 {targetMode === "new" ? (
-                  <button type="button" onClick={openSaveDialog} disabled={chosen.length === 0} className="inline-flex w-full items-center justify-center gap-2 rounded-lg bg-accent px-4 py-2.5 text-sm font-medium text-white hover:bg-accent-hover disabled:bg-sand disabled:text-warm-silver disabled:cursor-not-allowed"><FilePlus2 size={16} />{t("saveNew", { count: chosen.length })}</button>
+                  <Button variant="secondary" onClick={openSaveDialog} disabled={chosen.length === 0} className="w-full"><FilePlus2 size={16} />{t("saveNew", { count: chosen.length })}</Button>
                 ) : (
                   <div className="space-y-2">
                     <div className="relative">
@@ -459,7 +467,7 @@ export default function CaptureBasket({ drive }: { drive: string }) {
                         {searching ? <p className="p-3 text-xs text-text-muted">{t("searching")}</p> : hits.map((hit) => <button key={hit.file_id} type="button" onClick={() => void chooseExisting(hit)} className="block w-full truncate px-3 py-2 text-left text-sm text-text-primary hover:bg-bg-elevated">{hit.title || hit.filename}</button>)}
                       </div>
                     )}
-                    <button type="button" onClick={() => void commitExisting()} disabled={!target || chosen.length === 0 || submitting} className="w-full rounded-lg bg-accent px-4 py-2.5 text-sm font-medium text-white hover:bg-accent-hover disabled:bg-sand disabled:text-warm-silver disabled:cursor-not-allowed">{target ? t("appendTo", { filename: target.filename }) : t("chooseNote")}</button>
+                    <Button variant="secondary" onClick={() => void commitExisting()} disabled={!target || chosen.length === 0 || submitting} className="w-full">{target ? t("appendTo", { filename: target.filename }) : t("chooseNote")}</Button>
                   </div>
                 )}
                 </div>}

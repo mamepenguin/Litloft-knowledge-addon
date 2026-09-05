@@ -56,7 +56,9 @@
         "minutes": "{count}分前",
         "hours": "{count}時間前",
         "days": "{count}日前"
-      }
+      },
+      "heading": "ナレッジ",
+      "description": "Web ページを取り込み、ノートのつながりを見ます。"
     },
     "sidebar": {
       "activePrefix": "アクティブ: {label}",

@@ -1558,7 +1558,7 @@ function ConflictModal({
           <button
             type="button"
             onClick={onReload}
-            className="rounded-lg bg-accent-cta px-4 py-2 text-sm font-medium text-white hover:bg-accent"
+            className="rounded-lg bg-accent-cta px-4 py-2 text-sm font-medium text-white hover:bg-accent-hover"
           >
             {t("reload")}
           </button>

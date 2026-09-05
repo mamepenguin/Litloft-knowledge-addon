@@ -116,7 +116,7 @@ export default function KnowledgeEditSection({
       <p className="mb-3 text-xs text-text-muted">{tEdit("description")}</p>
       <Link
         href={editHref}
-        className="inline-flex items-center gap-2 rounded-lg bg-accent-cta px-3 py-1.5 text-sm font-medium text-white hover:bg-accent"
+        className="inline-flex items-center gap-2 rounded-lg bg-accent-cta px-3 py-1.5 text-sm font-medium text-white hover:bg-accent-hover"
       >
         <Pencil size={14} />
         {tEdit("openEditor")}

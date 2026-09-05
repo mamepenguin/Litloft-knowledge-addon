@@ -17,6 +17,7 @@ import {
   type CoreFolderItem,
 } from "./api";
 import { sortFiles, useSortMode, type SortMode } from "./hooks/useSortMode";
+import { Button } from "@/components/Button";
 
 function untitledFilename(): string {
   const d = new Date();
@@ -52,6 +53,16 @@ interface Props {
   onReload: () => void;
 }
 
+/**
+ * The folder pane of the two-pane knowledge view.
+ *
+ * **Unreferenced.** `Page.tsx` renders `KnowledgeDashboard` alone, and
+ * nothing imports this file, `Sidebar`, `ClipModal`, `EmptyState` or
+ * `UnresolvedLinkDialog` — the two-pane view they belong to has no route.
+ * They are kept converted rather than left holding hand-written copies of
+ * core's recipes, so reviving the view does not revive the drift; deleting
+ * the cluster is its own change, not this one.
+ */
 export default function FolderView({
   drive,
   path,
@@ -139,9 +150,10 @@ export default function FolderView({
           <ArrowLeft size={16} />
         </button>
         <Folder size={16} className="flex-shrink-0 text-accent" />
-        <h1 className="min-w-0 flex-1 truncate text-sm font-semibold text-text-primary">
+        {/* An `<h2>`: this heads a pane, not a page. */}
+        <h2 className="min-w-0 flex-1 truncate text-sm font-semibold text-text-primary">
           {name || path || "/"}
-        </h1>
+        </h2>
         <button
           type="button"
           onClick={cycleSortMode}
@@ -152,15 +164,24 @@ export default function FolderView({
           <ArrowUpDown size={12} />
           <span className="hidden sm:inline">{sortLabel(sortMode)}</span>
         </button>
-        <button
-          type="button"
+        {/* `secondary`, not `primary`. An accent *tint* is what this wants
+            and `Button` has no variant for one, nor should it grow a sixth
+            — DESIGN.md §6 names five. `secondary` is the
+            nearest treatment that stays legible as a pressable chip at
+            rest, which is what the tint was doing; `primary` would make a
+            `text-xs` control in a dense pane header the loudest thing in
+            it. **Nothing routes to this component today** (see the file
+            header), so this is a judgment about the chip rather than about
+            a screen's accent budget. */}
+        <Button
+          variant="secondary"
+          size="sm"
           onClick={handleCreateNote}
           disabled={creating}
-          className="flex items-center gap-1.5 rounded-lg bg-accent/15 px-2.5 py-1.5 text-xs font-medium text-accent hover:bg-accent/25 disabled:bg-sand disabled:text-warm-silver disabled:cursor-not-allowed"
         >
           <Plus size={12} />
           {t("newNote")}
-        </button>
+        </Button>
       </div>
 
       {/* Content */}

@@ -10,6 +10,7 @@ import {
   type ClipJob,
   type CoreFolderItem,
 } from "./api";
+import { Button } from "@/components/Button";
 
 function subfolderKey(drive: string): string {
   return `knowledge:lastSubfolder:${drive}`;
@@ -157,16 +158,16 @@ export default function ClipInput({
             </option>
           ))}
         </select>
-        <button
+        <Button
           type="submit"
+          variant="primary"
           disabled={submitting || !url.trim()}
-          className="inline-flex items-center justify-center gap-1.5 rounded-2xl bg-accent px-4 py-2 text-sm font-medium text-white hover:bg-accent-hover disabled:cursor-not-allowed disabled:bg-sand disabled:text-warm-silver"
         >
           {submitting ? (
             <Loader2 size={14} className="animate-spin" strokeWidth={1.6} />
           ) : null}
           <span>{t("submit")}</span>
-        </button>
+        </Button>
       </div>
       {error && (
         <p className="text-xs text-danger" role="alert">

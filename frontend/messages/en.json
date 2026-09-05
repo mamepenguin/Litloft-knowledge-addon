@@ -56,7 +56,9 @@
         "minutes": "{count}m ago",
         "hours": "{count}h ago",
         "days": "{count}d ago"
-      }
+      },
+      "heading": "Knowledge",
+      "description": "Clip pages from the web, and see how your notes connect."
     },
     "sidebar": {
       "activePrefix": "Active: {label}",
