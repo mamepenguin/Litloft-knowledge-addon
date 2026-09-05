@@ -76,7 +76,7 @@ afterEach(() => {
 });
 
 describe("Editor inlineMode", () => {
-  it("hides chrome (back, sidebar toggle, rename title, delete) when inlineMode is true", async () => {
+  it("hides chrome (back, rename title, delete) when inlineMode is true", async () => {
     stubFetch({
       "/api/files/f1/stream": [
         { ok: true, text: "hello", headers: { etag: '"abc"' } },
@@ -90,8 +90,6 @@ describe("Editor inlineMode", () => {
         drive="d"
         onBack={() => undefined}
         onDelete={() => undefined}
-        onToggleSidebar={() => undefined}
-        sidebarHidden={false}
         inlineMode
       />,
     );
@@ -103,8 +101,6 @@ describe("Editor inlineMode", () => {
     // Chrome elements that the host (FileDetailContent) already
     // provides — must NOT appear in inline mode.
     expect(screen.queryByLabelText("back")).toBeNull();
-    expect(screen.queryByLabelText("hide")).toBeNull();
-    expect(screen.queryByLabelText("show")).toBeNull();
     expect(screen.queryByLabelText("delete")).toBeNull();
   });
 
@@ -122,8 +118,6 @@ describe("Editor inlineMode", () => {
         drive="d"
         onBack={() => undefined}
         onDelete={() => undefined}
-        onToggleSidebar={() => undefined}
-        sidebarHidden={false}
       />,
     );
 
@@ -133,7 +127,6 @@ describe("Editor inlineMode", () => {
 
     expect(screen.getByLabelText("back")).toBeInTheDocument();
     expect(screen.getByLabelText("delete")).toBeInTheDocument();
-    expect(screen.getByLabelText("hide")).toBeInTheDocument();
   });
 
   it("publishes dirty=true on edit and clears it on unmount", async () => {

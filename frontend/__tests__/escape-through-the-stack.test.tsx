@@ -18,7 +18,7 @@
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { cleanup, fireEvent, render } from "@testing-library/react";
 
 import { ShortcutsProvider } from "@/components/ShortcutsProvider";
 
@@ -30,8 +30,6 @@ vi.mock("../api", () => ({
 }));
 
 import BookmarkletDialog from "../BookmarkletDialog";
-import ClipModal from "../ClipModal";
-import TagPanel from "../TagPanel";
 
 function withStack(ui: React.ReactElement) {
   return render(<ShortcutsProvider>{ui}</ShortcutsProvider>);
@@ -70,56 +68,5 @@ describe("BookmarkletDialog", () => {
     withStack(<BookmarkletDialog drive="vault" open={false} onClose={onClose} />);
     fireEvent.keyDown(document.body, { key: "Escape" });
     expect(onClose).not.toHaveBeenCalled();
-  });
-});
-
-describe("ClipModal", () => {
-  it("closes on Escape with the URL field focused", () => {
-    const onClose = vi.fn();
-    withStack(
-      <ClipModal
-        open
-        drive="vault"
-        onClose={onClose}
-        recentJobs={new Map()}
-        onSubmitted={vi.fn()}
-        onDuplicate={vi.fn()}
-        onRetryPaste={vi.fn()}
-      />,
-    );
-    // The modal's whole point is a field you type a URL into, so this
-    // is the only press that matters.
-    expect(document.querySelector("input,textarea")).not.toBeNull();
-    escapeFromAFocusedField();
-    expect(onClose).toHaveBeenCalledTimes(1);
-  });
-
-  it("does not answer Escape while closed", () => {
-    const onClose = vi.fn();
-    withStack(
-      <ClipModal
-        open={false}
-        drive="vault"
-        onClose={onClose}
-        recentJobs={new Map()}
-        onSubmitted={vi.fn()}
-        onDuplicate={vi.fn()}
-        onRetryPaste={vi.fn()}
-      />,
-    );
-    fireEvent.keyDown(document.body, { key: "Escape" });
-    expect(onClose).not.toHaveBeenCalled();
-  });
-});
-
-describe("TagPanel", () => {
-  it("closes on Escape with the tag field focused", async () => {
-    const onClose = vi.fn();
-    withStack(
-      <TagPanel fileId="f1" drive="vault" x={10} y={10} onClose={onClose} />,
-    );
-    await screen.findByRole("dialog").catch(() => null);
-    escapeFromAFocusedField();
-    expect(onClose).toHaveBeenCalledTimes(1);
   });
 });

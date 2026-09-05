@@ -1,17 +1,5 @@
 {
   "knowledge": {
-    "title": "Knowledge",
-    "loading": "読み込み中...",
-    "empty": {
-      "eyebrow": "Knowledge",
-      "title": "ノートを選んで読み始める",
-      "description": "左のサイドバーからノートを選ぶか、新しいノートを作成して書き始めましょう。",
-      "recentHeading": "最近のノート",
-      "recentEmpty": "まだノートがありません。",
-      "statsNotes": "{count} 件のノート",
-      "statsEmpty": "ノートなし",
-      "shortcutSearch": "検索"
-    },
     "shortcuts": {
       "knowledge": "Knowledge",
       "knowledgeEditor": "Knowledgeエディタ",
@@ -24,25 +12,6 @@
       "inlineCode": "インラインコード",
       "codeBlock": "コードブロック",
       "cycleViewMode": "表示モード切替"
-    },
-    "fileList": {
-      "loading": "ファイルを読み込み中...",
-      "empty": "このフォルダには何もありません。",
-      "newFile": "新規ノート",
-      "newFilePlaceholder": "ノートのタイトル...",
-      "newFolder": "新規フォルダ",
-      "newFolderPlaceholder": "フォルダ名...",
-      "folderUp": "上の階層へ",
-      "newFileHere": "ここに新規ノート",
-      "newFolderHere": "ここに新規フォルダ",
-      "moreOptions": "オプション"
-    },
-    "search": {
-      "placeholder": "検索...",
-      "clear": "クリア",
-      "searching": "検索中...",
-      "noResults": "該当するノートがありません。",
-      "truncated": "結果が多すぎます — 検索語を絞ってください。"
     },
     "dashboard": {
       "capture": "Webクリップ",
@@ -59,22 +28,6 @@
       },
       "heading": "ナレッジ",
       "description": "Web ページを取り込み、ノートのつながりを見ます。"
-    },
-    "sidebar": {
-      "activePrefix": "アクティブ: {label}",
-      "clipAction": "Webクリップ",
-      "clipBadge": "{count} 件取得中",
-      "helpAction": "クリップのヘルプ",
-      "hide": "サイドバーを隠す",
-      "show": "サイドバーを表示",
-      "expand": "展開する",
-      "collapse": "折りたたむ",
-      "sortUpdated": "更新日",
-      "sortCreated": "作成日",
-      "sortName": "名前",
-      "sortUpdatedTitle": "更新日順",
-      "sortCreatedTitle": "作成日順",
-      "sortNameTitle": "名前順"
     },
     "editSection": {
       "title": "Knowledge",
@@ -131,60 +84,6 @@
       "recentHeading": "最近のクリップ",
       "helpModalTitle": "クリップについて",
       "helpDescription": "サイドバーのクリップボタンからURLを送信するか、下のブックマークレットを使うと閲覧中のページをKnowledgeに保存できます。"
-    },
-    "toast": {
-      "deleted": "「{name}」をゴミ箱に移動しました",
-      "undo": "元に戻す",
-      "dismiss": "閉じる",
-      "error": "削除に失敗しました: {error}"
-    },
-    "contextMenu": {
-      "open": "開く",
-      "openNewTab": "新しいタブで開く",
-      "rename": "名前を変更",
-      "move": "移動先を選択...",
-      "pin": "ピン留め",
-      "unpin": "ピン留めを解除",
-      "tags": "タグを管理...",
-      "trash": "ゴミ箱に移動",
-      "newNoteHere": "ここに新規ノート",
-      "newFolderHere": "ここに新規フォルダ",
-      "deleteFolder": "フォルダを削除",
-      "deleteFolderNotEmpty": "フォルダに中身があります"
-    },
-    "pins": {
-      "section": "ピン留め",
-      "empty": "ピン留めしたノートがここに表示されます"
-    },
-    "folderView": {
-      "back": "戻る",
-      "newNote": "新規ノート",
-      "emptyFolder": "このフォルダには何もありません",
-      "subfolders": "サブフォルダ",
-      "notes": "ノート",
-      "sortUpdated": "更新日順",
-      "sortCreated": "作成日順",
-      "sortName": "名前順",
-      "loading": "読み込み中..."
-    },
-    "tags": {
-      "manage": "タグを管理",
-      "addPlaceholder": "タグを追加...",
-      "add": "追加",
-      "loading": "読み込み中...",
-      "empty": "タグなし"
-    },
-    "move": {
-      "title": "移動先を選択",
-      "confirm": "移動",
-      "cancel": "キャンセル",
-      "currentLocation": "（現在の場所）",
-      "loading": "読み込み中..."
-    },
-    "rename": {
-      "placeholder": "新しい名前...",
-      "confirm": "確定",
-      "cancel": "キャンセル"
     },
     "editor": {
       "loading": "読み込み中...",
@@ -255,15 +154,6 @@
       "searching": "検索中...",
       "noResults": "一致するファイルがありません",
       "typeToSearch": "ファイル名を入力して検索"
-    },
-    "unresolvedLinkDialog": {
-      "title": "ノートを作成",
-      "filenameLabel": "ファイル名",
-      "folderLabel": "フォルダ",
-      "create": "作成",
-      "cancel": "キャンセル",
-      "conflictError": "同じ名前のノートが既に存在します。",
-      "invalidPathError": "無効なパスです。"
     },
     "wikiAutocomplete": {
       "placeholder": "ノートを検索...",
