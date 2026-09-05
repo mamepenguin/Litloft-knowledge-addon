@@ -1,13 +1,16 @@
 /**
- * Escape reaches these surfaces through the shortcut stack.
+ * Escape reaches this dialog through the shortcut stack.
  *
- * Each of them used to bind its own `window` / `document` keydown
- * listener and test `e.key === "Escape"` there. Two things follow from
- * that, both invisible until you hit them: a listener does not know
- * what is stacked above it, so two layers answer one press; and it
- * fires on a graph or a panel that is not the thing in front of the
- * user, because a listener bound at mount is claimed for as long as
- * the component lives.
+ * It used to bind its own `window` / `document` keydown listener and
+ * test `e.key === "Escape"` there. Two things follow from that, both
+ * invisible until you hit them: a listener does not know what is
+ * stacked above it, so two layers answer one press; and it fires on a
+ * graph or a panel that is not the thing in front of the user,
+ * because a listener bound at mount is claimed for as long as the
+ * component lives.
+ *
+ * This covered three surfaces until the two-pane view was deleted;
+ * the clip modal and the tag panel went with it.
  *
  * The flag that matters here is `editingOnly: false`. The provider
  * treats a focused input as "editing", and the default — the flag
@@ -23,9 +26,6 @@ import { cleanup, fireEvent, render } from "@testing-library/react";
 import { ShortcutsProvider } from "@/components/ShortcutsProvider";
 
 vi.mock("../api", () => ({
-  getFileTags: vi.fn(async () => []),
-  listDriveTags: vi.fn(async () => []),
-  updateFileTags: vi.fn(async () => undefined),
   createTextFile: vi.fn(async () => ({ id: "x" })),
 }));
 

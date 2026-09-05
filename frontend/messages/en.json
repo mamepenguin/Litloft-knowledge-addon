@@ -248,6 +248,15 @@
         "out": "Zoom out",
         "reset": "Reset zoom"
       }
+    },
+    "unresolvedLinkDialog": {
+      "title": "Create note",
+      "filenameLabel": "Filename",
+      "folderLabel": "Folder",
+      "create": "Create",
+      "cancel": "Cancel",
+      "conflictError": "A note with that name already exists.",
+      "invalidPathError": "Invalid path."
     }
   }
 }
