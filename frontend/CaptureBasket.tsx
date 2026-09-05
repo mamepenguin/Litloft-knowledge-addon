@@ -15,6 +15,7 @@ import {
 } from "lucide-react";
 import { useTranslations } from "next-intl";
 
+import { EmptyState } from "@/components/EmptyState";
 import { FileSaveDialog } from "@/components/FileSaveDialog";
 import { useShortcuts } from "@/hooks/useShortcuts";
 import { OVERLAY_PRIORITY } from "@/lib/shortcuts";
@@ -329,7 +330,11 @@ export default function CaptureBasket({ drive }: { drive: string }) {
 
             <div className="min-h-0 flex-1 overflow-y-auto p-3">
               {captures.length === 0 ? (
-                <p className="py-12 text-center text-sm text-text-muted">{t("empty")}</p>
+                <EmptyState
+                  icon={Quote}
+                  title={t("empty")}
+                  description={t("emptyDescription")}
+                />
               ) : (
                 <ul className="space-y-2">
                   {captures.map((capture, index) => (

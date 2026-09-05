@@ -281,6 +281,7 @@
       "title": "Capture basket",
       "close": "Close capture basket",
       "empty": "No captures yet",
+      "emptyDescription": "The quote button — on transcript lines, playback positions, search matches, PDF pages, text selections, Ask citations and elsewhere — adds them here. What you collect can be saved into a single note.",
       "added": "Added to capture basket",
       "duplicate": "This position is already in the basket",
       "addFailed": "Could not add the capture",

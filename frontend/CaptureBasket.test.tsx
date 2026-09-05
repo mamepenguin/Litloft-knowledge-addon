@@ -12,19 +12,33 @@ import {
 } from "@/lib/sourceCapture";
 import { accentFills } from "@/__tests__/helpers/accentFills";
 
-const TITLE = /Capture basket|knowledge\.captureBasket\.title/;
-const NOTE_PLACEHOLDER = /Add a note|knowledge\.captureBasket\.notePlaceholder/;
-const OTHER_METHODS = /Other save methods|knowledge\.captureBasket\.otherSaveMethods/;
-const SAVE_NEW = /Save \d+ captures|knowledge\.captureBasket\.saveNew/;
-const SAVE_NEW_TITLE = /Save capture note|knowledge\.captureBasket\.saveNewTitle/;
-const QUICK_APPEND = /Append to Inbox\.md|knowledge\.captureBasket\.quickAppend/;
+// The key alternatives are anchored, the English ones are not.
+//
+// A key reaches the DOM only when the merged catalogue is missing it, which
+// is what a key renamed in the component does. Unanchored, the old name's
+// alternative matches the new name by prefix: `…saveNew` matches
+// `…saveNewV2`, and the rename goes unnoticed. Measured — that rename fails
+// three tests anchored and none unanchored. English strings are whole
+// sentences and do not nest that way, so they are left alone.
+//
+// The merged catalogue is generated and gitignored, so which branch of each
+// matcher is live depends on when `merge-addon-messages.mjs` last ran. On a
+// freshly merged tree the English branch matches every time and the anchors
+// are dormant; they are what stands between a rename and silence when it
+// does not.
+const TITLE = /Capture basket|knowledge\.captureBasket\.title$/;
+const NOTE_PLACEHOLDER = /Add a note|knowledge\.captureBasket\.notePlaceholder$/;
+const OTHER_METHODS = /Other save methods|knowledge\.captureBasket\.otherSaveMethods$/;
+const SAVE_NEW = /Save \d+ captures|knowledge\.captureBasket\.saveNew$/;
+const SAVE_NEW_TITLE = /Save capture note|knowledge\.captureBasket\.saveNewTitle$/;
+const QUICK_APPEND = /Append to Inbox\.md|knowledge\.captureBasket\.quickAppend$/;
 
 // One capture in the basket, for every test in this file.
 //
 // It used to be seeded inside the first `describe` only, and the second one
-// read it anyway: captures live in localStorage, which nothing clears between
-// tests, so whatever the first block left behind was still there when the
-// second one ran. That held only because the blocks ran in source order —
+// read it anyway: captures live in sessionStorage, which nothing clears
+// between tests in a file, so whatever the first block left behind was still
+// there when the second one ran. That held only because the blocks ran in source order —
 // under `--sequence.shuffle` the second block draws an empty basket and its
 // assertions fail. A test may not depend on another test having run.
 beforeEach(() => {
