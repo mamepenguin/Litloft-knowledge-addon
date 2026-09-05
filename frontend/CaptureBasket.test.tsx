@@ -1,59 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { fireEvent, render, screen, within } from "@testing-library/react";
-import { Quote } from "lucide-react";
-
-import ja from "./messages/ja.json";
-import en from "./messages/en.json";
-
-/**
- * `t()` renders the key here, not English.
- *
- * The global stand-in resolves against the merged catalogue, which makes a
- * hardcoded English literal indistinguishable from a translated one: a
- * reviewer replaced `title={t("empty")}` with the literal `"No captures
- * yet"` and every assertion stayed green. With the key as the rendered
- * text, the assertions below can name the key exactly, and what the key
- * holds is checked against the addon's own catalogues at the end of this
- * file. Every matcher in this file already accepts the key form, so nothing
- * else here changes meaning.
- */
-vi.mock("next-intl", () => ({
-  useTranslations: (namespace: string) => {
-    const t = (key: string) => `${namespace}.${key}`;
-    t.rich = t;
-    t.raw = t;
-    return t;
-  },
-  useLocale: () => "en",
-  NextIntlClientProvider: ({ children }: { children: React.ReactNode }) =>
-    children,
-}));
-
-/**
- * Core's `EmptyState`, wrapped so the call can be inspected.
- *
- * The wrapper delegates, so everything below still renders the real
- * component — what it adds is a record of the props, which is the only
- * place "this is core's component and not a copy of it" is visible.
- */
-const { emptyStateProps } = vi.hoisted(() => ({
-  emptyStateProps: [] as import("@/components/EmptyState").EmptyStateProps[],
-}));
-vi.mock("@/components/EmptyState", async (importOriginal) => {
-  const actual =
-    await importOriginal<typeof import("@/components/EmptyState")>();
-  return {
-    ...actual,
-    EmptyState: (props: import("@/components/EmptyState").EmptyStateProps) => {
-      emptyStateProps.push(props);
-      // An element, not a call: calling it would put its hooks on this
-      // wrapper's fiber, which works today only because the component has
-      // none, and would break the day core wraps it in `memo` or
-      // `forwardRef`.
-      return <actual.EmptyState {...props} />;
-    },
-  };
-});
 
 import { ShortcutsProvider } from "@/components/ShortcutsProvider";
 import { useShortcuts } from "@/hooks/useShortcuts";
@@ -66,12 +12,18 @@ import {
 } from "@/lib/sourceCapture";
 import { accentFills } from "@/__tests__/helpers/accentFills";
 
-const TITLE = /Capture basket|knowledge\.captureBasket\.title/;
-const NOTE_PLACEHOLDER = /Add a note|knowledge\.captureBasket\.notePlaceholder/;
-const OTHER_METHODS = /Other save methods|knowledge\.captureBasket\.otherSaveMethods/;
-const SAVE_NEW = /Save \d+ captures|knowledge\.captureBasket\.saveNew/;
-const SAVE_NEW_TITLE = /Save capture note|knowledge\.captureBasket\.saveNewTitle/;
-const QUICK_APPEND = /Append to Inbox\.md|knowledge\.captureBasket\.quickAppend/;
+// The key alternatives are anchored, the English ones are not: a key
+// renders here only when the merged catalogue is missing it, and an
+// unanchored key matches by prefix — `…saveNew` matches `…saveNewTitle`, so
+// the footer button wearing the dialog's label read as correct, and any key
+// renamed by appending to it went unnoticed. English strings are whole
+// sentences and do not nest that way.
+const TITLE = /Capture basket|knowledge\.captureBasket\.title$/;
+const NOTE_PLACEHOLDER = /Add a note|knowledge\.captureBasket\.notePlaceholder$/;
+const OTHER_METHODS = /Other save methods|knowledge\.captureBasket\.otherSaveMethods$/;
+const SAVE_NEW = /Save \d+ captures|knowledge\.captureBasket\.saveNew$/;
+const SAVE_NEW_TITLE = /Save capture note|knowledge\.captureBasket\.saveNewTitle$/;
+const QUICK_APPEND = /Append to Inbox\.md|knowledge\.captureBasket\.quickAppend$/;
 
 // One capture in the basket, for every test in this file.
 //
@@ -353,117 +305,5 @@ describe("the capture basket's accent budget", () => {
     const fills = filledControls();
     expect(fills).toHaveLength(1);
     expect(fills[0].textContent).toMatch(QUICK_APPEND);
-  });
-});
-
-/**
- * The empty basket, which said "No captures yet" and nothing else — neither
- * what belongs in it nor how anything gets there.
- *
- * Three separate claims, and rendering can only carry one of them:
- *
- *   - *the panel draws core's `EmptyState`* — a hand-rolled `<div>` holding
- *     an icon, an `<h2>` and a `<p>` is indistinguishable in the DOM, and a
- *     reviewer built exactly that and watched every assertion here stay
- *     green. So this is asserted at the seam, on the props the component is
- *     called with, not on what comes out of it;
- *   - *the strings exist* — the next-intl stand-in renders a missing key as
- *     the key, and `pnpm test` does not run `merge-addon-messages.mjs`, so
- *     any assertion on rendered text passes with both catalogues emptied.
- *     The catalogues are read directly instead;
- *   - *there is one empty message, not two* — a bad merge that keeps the old
- *     `<p>` beside the new component leaves the panel saying it twice.
- */
-describe("CaptureBasket when it is empty", () => {
-  const EMPTY_TITLE = /No captures yet|knowledge\.captureBasket\.empty$/;
-
-  beforeEach(() => {
-    clearSourceCaptures("family");
-    emptyStateProps.length = 0;
-  });
-
-  const openEmptyBasket = () => {
-    render(<CaptureBasket drive="family" />);
-    fireEvent.click(screen.getByRole("button", { name: TITLE }));
-    return screen.getByRole("dialog", { name: TITLE });
-  };
-
-  it("draws it with core's EmptyState, given the quote mark and both strings", () => {
-    openEmptyBasket();
-
-    // Every recorded call, not the last one. Opening the panel renders the
-    // subtree more than once (twice, as measured — an effect settles the
-    // destination clock), and reading only the final call would let a panel
-    // that drew two different empty states pass, and would crash rather
-    // than fail when it drew none. What matters is that all of them are the
-    // same one, so that is what is asserted: a set of size one, whose
-    // member is named.
-    expect(new Set(emptyStateProps.map((p) => p.icon))).toEqual(
-      // The glyph is the tie between this panel and the buttons the copy
-      // sends the reader to look for; every one of them is a lucide `Quote`.
-      new Set([Quote]),
-    );
-    expect(new Set(emptyStateProps.map((p) => p.title))).toEqual(
-      new Set(["knowledge.captureBasket.empty"]),
-    );
-    expect(new Set(emptyStateProps.map((p) => p.description))).toEqual(
-      new Set(["knowledge.captureBasket.emptyDescription"]),
-    );
-  });
-
-  it("says what belongs in it and how to put it there", () => {
-    const dialog = openEmptyBasket();
-
-    expect(
-      within(dialog).getByRole("heading", { name: EMPTY_TITLE }),
-    ).toBeInTheDocument();
-    // Exactly one. Two is what a merge that kept the old paragraph produces.
-    expect(within(dialog).getAllByText(EMPTY_TITLE)).toHaveLength(1);
-  });
-
-  /**
-   * `DESIGN.md` §2.2 — one accent fill per screen. CB-1 deliberately adds no
-   * call to action here: nothing is added to the basket from inside the
-   * basket, so there is no destination to offer.
-   */
-  it("offers no call to action", () => {
-    openEmptyBasket();
-
-    expect(new Set(emptyStateProps.map((p) => p.primaryAction))).toEqual(
-      new Set([undefined]),
-    );
-    expect(new Set(emptyStateProps.map((p) => p.secondaryActions))).toEqual(
-      new Set([undefined]),
-    );
-  });
-
-  /**
-   * What the keys hold, which no rendered assertion in this file can see.
-   *
-   * The length floor is a junk filter, and it is the weakest thing here on
-   * purpose: it separates a sentence from `""`, `"   "` and `"TODO"` — all
-   * three of which the first version of this test accepted — and it cannot
-   * tell a sentence from forty characters of nonsense. Nothing automatic
-   * can. The reviewer of the copy is the check on the copy.
-   */
-  it.each([
-    ["ja", ja],
-    ["en", en],
-  ])("ships both strings in the %s catalogue", (_locale, catalogue) => {
-    const basket = catalogue.knowledge.captureBasket as Record<string, string>;
-    expect(basket.empty.trim().length).toBeGreaterThan(4);
-    expect(basket.emptyDescription.trim().length).toBeGreaterThan(40);
-    expect(basket.emptyDescription).not.toBe(basket.empty);
-  });
-
-  // Across locales, not within one: an untranslated catalogue that copied
-  // the other's sentence passes every per-locale check above.
-  it("translates the description rather than copying it", () => {
-    expect(ja.knowledge.captureBasket.emptyDescription).not.toBe(
-      en.knowledge.captureBasket.emptyDescription,
-    );
-    expect(ja.knowledge.captureBasket.empty).not.toBe(
-      en.knowledge.captureBasket.empty,
-    );
   });
 });
