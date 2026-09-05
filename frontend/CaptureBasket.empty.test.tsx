@@ -20,7 +20,7 @@ import { fireEvent, render, screen, within } from "@testing-library/react";
 import { Quote } from "lucide-react";
 
 import CaptureBasket from "@/addons/knowledge/CaptureBasket";
-import { clearSourceCaptures } from "@/lib/sourceCapture";
+import { addSourceCapture, clearSourceCaptures } from "@/lib/sourceCapture";
 
 import ja from "./messages/ja.json";
 import en from "./messages/en.json";
@@ -34,12 +34,14 @@ import en from "./messages/en.json";
  * yet"` and every assertion stayed green.
  *
  * It exports what the components rendered here actually call and nothing
- * else. A missing export fails loudly — verified, by adding a
- * `useFormatter()` call to the component and watching every test in this
- * file fail on it — whereas a stub of the wrong shape (a `t.rich` returning
- * a string where a node belongs) would pass while rendering the wrong
- * thing. Nothing in core or any addon calls `t.rich` / `t.raw` today, so
- * there is nothing here to get wrong.
+ * else. A missing export fails loudly — verified by adding a
+ * `useFormatter()` call to the component, which fails the three tests here
+ * that render, by name ("No `useFormatter` export is defined on the
+ * `next-intl` mock"); the three catalogue tests render nothing and are
+ * untouched. A stub of the wrong shape would not be loud at all — a
+ * `t.rich` returning a string where a node belongs renders the wrong thing
+ * quietly — so there are no stubs here for APIs nothing calls. Nothing in
+ * core or any addon calls `t.rich` / `t.raw` today.
  */
 vi.mock("next-intl", () => ({
   useTranslations: (namespace: string) => (key: string) =>
@@ -76,9 +78,24 @@ const EMPTY_TITLE = /^knowledge\.captureBasket\.empty$/;
 
 describe("CaptureBasket when it is empty", () => {
   beforeEach(() => {
-    // Captures live in a store this file never seeds. Clearing is still not
-    // optional: the store is module state in core, shared with any other
-    // file that ran before this one in the same worker.
+    // Filled, then emptied — not merely never filled.
+    //
+    // Nothing arrives from another file: vitest gives each test file its own
+    // module graph and its own `sessionStorage` stand-in, so the seed here is
+    // the only capture this file can see. That is exactly why it has to be
+    // written down: with no seed, `clearSourceCaptures` asserts nothing, and
+    // a clear that silently stopped working would leave every test below
+    // green. It is also the state a reader reaches the empty basket from —
+    // they emptied it.
+    clearSourceCaptures("family");
+    addSourceCapture({
+      drive: "family",
+      sourceFileId: "video123",
+      filename: "lecture.mp4",
+      fileType: "video",
+      kind: "media_timestamp",
+      locator: { seconds: 65 },
+    });
     clearSourceCaptures("family");
     emptyStateProps.length = 0;
   });
@@ -143,15 +160,19 @@ describe("CaptureBasket when it is empty", () => {
    *
    * The floors are per locale because one number cannot span both scripts:
    * the same sentence is 199 characters in en and 91 in ja, so a floor set
-   * where en is comfortable rejects good ja copy. Measured today —
-   * empty 15/10, emptyDescription 199/91 — each floor sits between a junk
-   * value and the shortest sentence its language can honestly write.
+   * where en is comfortable rejects good ja copy. Measured today: empty
+   * 15/10, emptyDescription 199/91.
    *
-   * This is the weakest assertion here on purpose: it separates a sentence
-   * from `""`, `"   "` and `"TODO"`, all three of which an earlier version
-   * accepted, and it cannot tell a sentence from thirty characters of
-   * nonsense. Nothing automatic can. The reviewer of the copy is the check
-   * on the copy.
+   * What each floor actually rejects, which is less than it looks:
+   * everything rejects `""` and `"   "`; the two description floors and the
+   * en title floor reject `"TODO"`; the ja title floor does not, because
+   * four characters is a whole title in that script — 「引用なし」 would be
+   * a fair one. No number separates junk from copy there, so this does not
+   * pretend to.
+   *
+   * The weakest assertion here on purpose. It cannot tell a sentence from
+   * thirty characters of nonsense; nothing automatic can. The reviewer of
+   * the copy is the check on the copy.
    */
   it.each([
     ["ja", ja, 3, 25],
