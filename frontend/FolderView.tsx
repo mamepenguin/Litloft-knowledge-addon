@@ -53,6 +53,16 @@ interface Props {
   onReload: () => void;
 }
 
+/**
+ * The folder pane of the two-pane knowledge view.
+ *
+ * **Unreferenced.** `Page.tsx` renders `KnowledgeDashboard` alone, and
+ * nothing imports this file, `Sidebar`, `ClipModal`, `EmptyState` or
+ * `UnresolvedLinkDialog` — the two-pane view they belong to has no route.
+ * They are kept converted rather than left holding hand-written copies of
+ * core's recipes, so reviving the view does not revive the drift; deleting
+ * the cluster is its own change, not this one.
+ */
 export default function FolderView({
   drive,
   path,
@@ -140,10 +150,7 @@ export default function FolderView({
           <ArrowLeft size={16} />
         </button>
         <Folder size={16} className="flex-shrink-0 text-accent" />
-        {/* An `<h2>`: this heads a pane, not the page. The knowledge view is
-            two panes and the page's own subject is named by the landing
-            panel beside it, so an `<h1>` here made a screen with two of
-            them. */}
+        {/* An `<h2>`: this heads a pane, not a page. */}
         <h2 className="min-w-0 flex-1 truncate text-sm font-semibold text-text-primary">
           {name || path || "/"}
         </h2>
@@ -159,12 +166,13 @@ export default function FolderView({
         </button>
         {/* `secondary`, not `primary`. The original was an accent *tint*
             (`bg-accent/15`), which `Button` has no variant for and should
-            not grow one — DESIGN.md §6 names five. Filling it instead would
-            put a second accent on this screen, which also carries the
-            editor's save button, and would make a `text-xs` control in a
-            dense pane header the loudest thing on the page. `secondary`
-            keeps it legible as a pressable chip at rest, which is what the
-            tint was doing. */}
+            not grow one — DESIGN.md §6 names five. `secondary` is the
+            nearest treatment that stays legible as a pressable chip at
+            rest, which is what the tint was doing; `primary` would make a
+            `text-xs` control in a dense pane header the loudest thing in
+            it. **Nothing routes to this component today** (see the file
+            header), so this is a judgment about the chip rather than about
+            a screen's accent budget. */}
         <Button
           variant="secondary"
           size="sm"

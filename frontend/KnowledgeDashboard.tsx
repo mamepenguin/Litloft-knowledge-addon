@@ -473,24 +473,29 @@ export default function KnowledgeDashboard() {
         title={tDash("heading")}
         scope={tDash("description")}
       />
-      {/* `px-4 md:px-6`, matching PageHeader's own padding — the header
-          carries its own, so the sections below carry theirs. */}
+      {/* `px-4`, matching `PageHeader`'s own padding, which is `px-4` at
+          every width — `TrashView` and the settings page do the same. And
+          *outside* `max-w-2xl`, not inside it: inside, the box stays 672
+          and the padding comes out of the measure the comment below is
+          about. */}
       {/* Capture + clip history read better at a comfortable measure;
           the connections graph gets the full width below (asymmetric). */}
-      <div className="mx-auto flex w-full max-w-2xl flex-col gap-10 px-4 md:px-6">
-        <CaptureZone
-          drive={drive}
-          initialUrl={prefillUrl}
-          initialTitle={prefillTitle}
-          autoSubmit={autoSubmit}
-          onJobAdded={handleJobAdded}
-          onDuplicate={(url, subfolder, existing) =>
-            setDuplicate({ url, subfolder, existing })
-          }
-        />
-        <ClipQueueZone drive={drive} jobs={jobs} />
+      <div className="px-4">
+        <div className="mx-auto flex w-full max-w-2xl flex-col gap-10">
+          <CaptureZone
+            drive={drive}
+            initialUrl={prefillUrl}
+            initialTitle={prefillTitle}
+            autoSubmit={autoSubmit}
+            onJobAdded={handleJobAdded}
+            onDuplicate={(url, subfolder, existing) =>
+              setDuplicate({ url, subfolder, existing })
+            }
+          />
+          <ClipQueueZone drive={drive} jobs={jobs} />
+        </div>
       </div>
-      <div className="px-4 md:px-6">
+      <div className="px-4">
         <ConnectionsGraph drive={drive} />
       </div>
 

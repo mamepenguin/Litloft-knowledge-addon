@@ -57,9 +57,13 @@ describe("the knowledge folder pane's heading", () => {
   afterEach(cleanup);
 
   it("heads a region, not the page", () => {
-    // Two panes, one page. The landing panel beside this one names the
-    // page's subject, so an `<h1>` here made a screen with two of them —
-    // and core's heading ledger listed this file as the exception.
+    // A pane heading, so an `<h2>`. Core's heading ledger has listed this
+    // file as the exception since D1 and declares the window that closes
+    // it.
+    //
+    // The component has no route today — `Page.tsx` renders the dashboard
+    // alone — so this pins the shape for whenever the two-pane view comes
+    // back rather than describing something a reader can open.
     const { container } = render(
       <FolderView
         drive="test-drive"
