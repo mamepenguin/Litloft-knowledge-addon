@@ -423,10 +423,10 @@ export default function CaptureBasket({ drive }: { drive: string }) {
                   {/* The panel's one fill. `Other save methods` below opens
                       two alternatives to this action, and DESIGN.md §2.2
                       gives the screen one — so this keeps it and they take
-                      `secondary`. Measured: 450 and 462 are the two arms of
-                      a ternary on `targetMode`, so at most two of the three
-                      are ever on screen together, and only while the
-                      disclosure is open. */}
+                      `secondary`. The two of them are the arms of a ternary
+                      on `targetMode`, so at most two of the three are ever
+                      on screen together, and only while the disclosure is
+                      open — which is still one too many. */}
                   <Button
                     variant="primary"
                     onClick={() => void commitQuick()}

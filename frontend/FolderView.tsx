@@ -164,9 +164,9 @@ export default function FolderView({
           <ArrowUpDown size={12} />
           <span className="hidden sm:inline">{sortLabel(sortMode)}</span>
         </button>
-        {/* `secondary`, not `primary`. The original was an accent *tint*
-            (`bg-accent/15`), which `Button` has no variant for and should
-            not grow one — DESIGN.md §6 names five. `secondary` is the
+        {/* `secondary`, not `primary`. An accent *tint* is what this wants
+            and `Button` has no variant for one, nor should it grow a sixth
+            — DESIGN.md §6 names five. `secondary` is the
             nearest treatment that stays legible as a pressable chip at
             rest, which is what the tint was doing; `primary` would make a
             `text-xs` control in a dense pane header the loudest thing in

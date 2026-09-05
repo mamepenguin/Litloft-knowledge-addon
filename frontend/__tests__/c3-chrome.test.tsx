@@ -36,15 +36,24 @@ describe("the knowledge dashboard's page header", () => {
   afterEach(cleanup);
 
   it("gets its heading from PageHeader, not from a hand-written <h1>", () => {
-    // The handle is the icon's position: `PageHeader` puts `titleIcon`
-    // *beside* the `<h1>`, never inside it, and that is the one structural
-    // difference the component commits to. A hand-rolled header that
-    // wrapped its own icon would fail here while still emitting an <h1>.
+    // One `<h1>`, its icon outside it, and the words the page asked for.
+    //
+    // **This does not prove the header is `PageHeader`.** A hand-rolled
+    // `<header>` with the icon beside the heading passes every line here —
+    // tried, and it does. What forbids one is core's
+    // `page-headings.test.ts`, which greps this tree for `<h1` and holds
+    // the count against a ledger; this file checks that what the component
+    // renders is what the page needs.
     const { container } = render(<KnowledgeDashboard />);
     const h1s = [...container.querySelectorAll("h1")];
     expect(h1s).toHaveLength(1);
-    expect(h1s[0].querySelector("svg")).toBeNull();
     expect(h1s[0].textContent).toBe("knowledge.dashboard.heading");
+    // An icon, and outside the heading. Both halves: without the first,
+    // dropping `titleIcon` changes nothing here; without the second, an
+    // icon wrapped inside the `<h1>` would read as part of the title.
+    const header = h1s[0].closest("header")!;
+    expect(header.querySelector("svg")).not.toBeNull();
+    expect(h1s[0].querySelector("svg")).toBeNull();
   });
 
   it("says what the page is for under the title", () => {

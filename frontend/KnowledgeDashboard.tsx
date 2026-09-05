@@ -464,10 +464,8 @@ export default function KnowledgeDashboard() {
 
   return (
     <div className="mx-auto flex w-full max-w-6xl flex-col gap-10 py-10">
-      {/* The page had no header at all: it began with the clip form, so
-          nothing on screen said which page this was. `PageHeader` is the one
-          header (案 3 / A-1), and it emits the page's `<h1>` — which is why
-          this file holds none of its own. */}
+      {/* `PageHeader` is the one header (案 3 / A-1), and it emits the
+          page's `<h1>` — which is why this file holds none of its own. */}
       <PageHeader
         titleIcon={Library}
         title={tDash("heading")}

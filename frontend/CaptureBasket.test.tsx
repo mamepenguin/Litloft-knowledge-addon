@@ -268,10 +268,18 @@ describe("the capture basket's accent budget", () => {
     fireEvent.click(screen.getByRole("button", { name: TITLE }));
   };
 
-  /** The filled *controls*, which is what §2.2 budgets. */
+  /**
+   * The filled *controls*, which is what §2.2 budgets.
+   *
+   * Stated as the reason actually given — "not inside another control" —
+   * rather than as a list of tags. An allowlist of `button, a[href],
+   * [role=button]` reads the same and is not: it drops
+   * `input[type=submit]`, and a filled one added beside the footer action
+   * survived the mutation.
+   */
   const filledControls = () =>
-    accentFills(document.body).filter((el) =>
-      el.matches("button, a[href], [role=button]"),
+    accentFills(document.body).filter(
+      (el) => !el.parentElement?.closest("button, a[href], [role=button]"),
     );
 
   it("spends its one fill on the footer's own action", () => {
