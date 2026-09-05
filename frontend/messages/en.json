@@ -1,17 +1,5 @@
 {
   "knowledge": {
-    "title": "Knowledge",
-    "loading": "Loading...",
-    "empty": {
-      "eyebrow": "Knowledge",
-      "title": "Pick a note to start reading",
-      "description": "Pick a note from the sidebar, or create a new one to start writing.",
-      "recentHeading": "Recently edited",
-      "recentEmpty": "No notes yet.",
-      "statsNotes": "{count} notes",
-      "statsEmpty": "No notes yet",
-      "shortcutSearch": "Search"
-    },
     "shortcuts": {
       "knowledge": "Knowledge",
       "knowledgeEditor": "Knowledge Editor",
@@ -24,25 +12,6 @@
       "inlineCode": "Inline code",
       "codeBlock": "Code block",
       "cycleViewMode": "Cycle view mode"
-    },
-    "fileList": {
-      "loading": "Loading files...",
-      "empty": "Nothing in this folder yet.",
-      "newFile": "New note",
-      "newFilePlaceholder": "Note title…",
-      "newFolder": "New folder",
-      "newFolderPlaceholder": "Folder name…",
-      "folderUp": "Up one level",
-      "newFileHere": "New note here",
-      "newFolderHere": "New folder here",
-      "moreOptions": "More options"
-    },
-    "search": {
-      "placeholder": "Search…",
-      "clear": "Clear",
-      "searching": "Searching…",
-      "noResults": "No notes match.",
-      "truncated": "Too many results — try a more specific query."
     },
     "dashboard": {
       "capture": "Web clip",
@@ -59,22 +28,6 @@
       },
       "heading": "Knowledge",
       "description": "Clip pages from the web, and see how your notes connect."
-    },
-    "sidebar": {
-      "activePrefix": "Active: {label}",
-      "clipAction": "Web clip",
-      "clipBadge": "{count} fetching",
-      "helpAction": "Clip help",
-      "hide": "Hide sidebar",
-      "show": "Show sidebar",
-      "expand": "Expand",
-      "collapse": "Collapse",
-      "sortUpdated": "Updated",
-      "sortCreated": "Created",
-      "sortName": "Name",
-      "sortUpdatedTitle": "Sort by updated",
-      "sortCreatedTitle": "Sort by created",
-      "sortNameTitle": "Sort by name"
     },
     "editSection": {
       "title": "Knowledge",
@@ -131,60 +84,6 @@
       "recentHeading": "Recent clips",
       "helpModalTitle": "About clipping",
       "helpDescription": "Use the Clip button in the sidebar to send a URL, or drag the bookmarklet below to clip the page you're currently viewing."
-    },
-    "toast": {
-      "deleted": "Moved \"{name}\" to trash",
-      "undo": "Undo",
-      "dismiss": "Dismiss",
-      "error": "Delete failed: {error}"
-    },
-    "contextMenu": {
-      "open": "Open",
-      "openNewTab": "Open in new tab",
-      "rename": "Rename",
-      "move": "Move to...",
-      "pin": "Pin",
-      "unpin": "Unpin",
-      "tags": "Manage tags...",
-      "trash": "Move to trash",
-      "newNoteHere": "New note here",
-      "newFolderHere": "New folder here",
-      "deleteFolder": "Delete folder",
-      "deleteFolderNotEmpty": "Folder is not empty"
-    },
-    "pins": {
-      "section": "Pinned",
-      "empty": "Pinned notes will appear here"
-    },
-    "folderView": {
-      "back": "Back",
-      "newNote": "New note",
-      "emptyFolder": "Nothing in this folder yet",
-      "subfolders": "Subfolders",
-      "notes": "Notes",
-      "sortUpdated": "Updated",
-      "sortCreated": "Created",
-      "sortName": "Name",
-      "loading": "Loading..."
-    },
-    "tags": {
-      "manage": "Manage tags",
-      "addPlaceholder": "Add a tag...",
-      "add": "Add",
-      "loading": "Loading...",
-      "empty": "No tags"
-    },
-    "move": {
-      "title": "Move to",
-      "confirm": "Move",
-      "cancel": "Cancel",
-      "currentLocation": "(current location)",
-      "loading": "Loading..."
-    },
-    "rename": {
-      "placeholder": "New name...",
-      "confirm": "Confirm",
-      "cancel": "Cancel"
     },
     "editor": {
       "loading": "Loading...",
@@ -255,15 +154,6 @@
       "searching": "Searching...",
       "noResults": "No files found",
       "typeToSearch": "Type to search for a file"
-    },
-    "unresolvedLinkDialog": {
-      "title": "Create note",
-      "filenameLabel": "Filename",
-      "folderLabel": "Folder",
-      "create": "Create",
-      "cancel": "Cancel",
-      "conflictError": "A note with that name already exists.",
-      "invalidPathError": "Invalid path."
     },
     "wikiAutocomplete": {
       "placeholder": "Search notes...",
@@ -358,6 +248,15 @@
         "out": "Zoom out",
         "reset": "Reset zoom"
       }
+    },
+    "unresolvedLinkDialog": {
+      "title": "Create note",
+      "filenameLabel": "Filename",
+      "folderLabel": "Folder",
+      "create": "Create",
+      "cancel": "Cancel",
+      "conflictError": "A note with that name already exists.",
+      "invalidPathError": "Invalid path."
     }
   }
 }

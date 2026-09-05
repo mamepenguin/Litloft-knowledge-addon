@@ -1,13 +1,21 @@
 /**
- * Escape reaches these surfaces through the shortcut stack.
+ * Escape reaches this dialog through the shortcut stack.
  *
- * Each of them used to bind its own `window` / `document` keydown
- * listener and test `e.key === "Escape"` there. Two things follow from
- * that, both invisible until you hit them: a listener does not know
- * what is stacked above it, so two layers answer one press; and it
- * fires on a graph or a panel that is not the thing in front of the
- * user, because a listener bound at mount is claimed for as long as
- * the component lives.
+ * It used to bind its own `window` / `document` keydown listener and
+ * test `e.key === "Escape"` there. Two things follow from that, both
+ * invisible until you hit them: a listener does not know what is
+ * stacked above it, so two layers answer one press; and it fires on a
+ * graph or a panel that is not the thing in front of the user,
+ * because a listener bound at mount is claimed for as long as the
+ * component lives.
+ *
+ * This covered three surfaces until the two-pane view was deleted. The
+ * clip modal and the tag panel went with it — and they were the two that
+ * had fields, which left the file asserting its own premise against a
+ * dialog with nothing focusable in it: `editingOnly: false` could be
+ * deleted from the survivor and every test here stayed green. The
+ * unresolved-link dialog, restored beside them, focuses its own filename
+ * input, so it is the surface that makes the paragraph below true.
  *
  * The flag that matters here is `editingOnly: false`. The provider
  * treats a focused input as "editing", and the default — the flag
@@ -18,20 +26,16 @@
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { cleanup, fireEvent, render } from "@testing-library/react";
 
 import { ShortcutsProvider } from "@/components/ShortcutsProvider";
 
 vi.mock("../api", () => ({
-  getFileTags: vi.fn(async () => []),
-  listDriveTags: vi.fn(async () => []),
-  updateFileTags: vi.fn(async () => undefined),
   createTextFile: vi.fn(async () => ({ id: "x" })),
 }));
 
 import BookmarkletDialog from "../BookmarkletDialog";
-import ClipModal from "../ClipModal";
-import TagPanel from "../TagPanel";
+import UnresolvedLinkDialog from "../UnresolvedLinkDialog";
 
 function withStack(ui: React.ReactElement) {
   return render(<ShortcutsProvider>{ui}</ShortcutsProvider>);
@@ -73,52 +77,21 @@ describe("BookmarkletDialog", () => {
   });
 });
 
-describe("ClipModal", () => {
-  it("closes on Escape with the URL field focused", () => {
+describe("UnresolvedLinkDialog", () => {
+  it("closes on Escape from its own focused field", () => {
     const onClose = vi.fn();
     withStack(
-      <ClipModal
+      <UnresolvedLinkDialog
+        drive="vault"
         open
-        drive="vault"
+        target="Year-in-review"
+        defaultFolder="notes"
         onClose={onClose}
-        recentJobs={new Map()}
-        onSubmitted={vi.fn()}
-        onDuplicate={vi.fn()}
-        onRetryPaste={vi.fn()}
       />,
     );
-    // The modal's whole point is a field you type a URL into, so this
-    // is the only press that matters.
-    expect(document.querySelector("input,textarea")).not.toBeNull();
-    escapeFromAFocusedField();
-    expect(onClose).toHaveBeenCalledTimes(1);
-  });
-
-  it("does not answer Escape while closed", () => {
-    const onClose = vi.fn();
-    withStack(
-      <ClipModal
-        open={false}
-        drive="vault"
-        onClose={onClose}
-        recentJobs={new Map()}
-        onSubmitted={vi.fn()}
-        onDuplicate={vi.fn()}
-        onRetryPaste={vi.fn()}
-      />,
-    );
-    fireEvent.keyDown(document.body, { key: "Escape" });
-    expect(onClose).not.toHaveBeenCalled();
-  });
-});
-
-describe("TagPanel", () => {
-  it("closes on Escape with the tag field focused", async () => {
-    const onClose = vi.fn();
-    withStack(
-      <TagPanel fileId="f1" drive="vault" x={10} y={10} onClose={onClose} />,
-    );
-    await screen.findByRole("dialog").catch(() => null);
+    // The dialog focuses this input on open, and the provider reads
+    // `e.target` — so without `editingOnly: false` on its Escape entry,
+    // the press below is "editing" and nothing answers it.
     escapeFromAFocusedField();
     expect(onClose).toHaveBeenCalledTimes(1);
   });

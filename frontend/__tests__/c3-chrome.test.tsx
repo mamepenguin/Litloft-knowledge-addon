@@ -2,7 +2,6 @@ import { describe, expect, it, vi, afterEach } from "vitest";
 import { cleanup, render, screen } from "@testing-library/react";
 
 import KnowledgeDashboard from "../KnowledgeDashboard";
-import FolderView from "../FolderView";
 
 vi.mock("next-intl", () => ({
   useTranslations: (ns?: string) => (key: string) => `${ns ?? ""}.${key}`,
@@ -59,34 +58,5 @@ describe("the knowledge dashboard's page header", () => {
   it("says what the page is for under the title", () => {
     render(<KnowledgeDashboard />);
     expect(screen.getByText("knowledge.dashboard.description")).toBeInTheDocument();
-  });
-});
-
-describe("the knowledge folder pane's heading", () => {
-  afterEach(cleanup);
-
-  it("heads a region, not the page", () => {
-    // A pane heading, so an `<h2>`. Core's heading ledger has listed this
-    // file as the exception since D1 and declares the window that closes
-    // it.
-    //
-    // The component has no route today — `Page.tsx` renders the dashboard
-    // alone — so this pins the shape for whenever the two-pane view comes
-    // back rather than describing something a reader can open.
-    const { container } = render(
-      <FolderView
-        drive="test-drive"
-        path="notes"
-        name="Notes"
-        sidebarHidden={false}
-        onToggleSidebar={vi.fn()}
-        onBack={vi.fn()}
-        onSelectFile={vi.fn()}
-        onSelectFolder={vi.fn()}
-        onReload={vi.fn()}
-      />,
-    );
-    expect(container.querySelectorAll("h1")).toHaveLength(0);
-    expect(container.querySelector("h2")?.textContent).toBe("Notes");
   });
 });

@@ -14,8 +14,6 @@ import {
   ArrowLeft,
   CheckCircle2,
   Loader2,
-  PanelLeft,
-  PanelLeftClose,
   Trash2,
 } from "lucide-react";
 import { useTranslations } from "next-intl";
@@ -84,8 +82,6 @@ interface Props {
   onBack?: () => void;
   onRenamed?: (newFilename: string) => void;
   onDelete?: () => void;
-  sidebarHidden?: boolean;
-  onToggleSidebar?: () => void;
   /**
    * Phase 2 of the right-pane equivalence spec
    * (docs/superpowers/specs/2026-05-09-right-pane-full-detail.md
@@ -167,8 +163,6 @@ export default function Editor({
   onBack,
   onRenamed,
   onDelete,
-  sidebarHidden,
-  onToggleSidebar,
   inlineMode,
   fillHeight,
   autoFocus,
@@ -176,7 +170,6 @@ export default function Editor({
   onDocumentCaptureController,
 }: Props) {
   const t = useTranslations("knowledge.editor");
-  const tSide = useTranslations("knowledge.sidebar");
   const tShortcuts = useTranslations("knowledge.shortcuts");
   const toast = useToast();
   // When mounted under MarkdownDocumentLayout the host owns the
@@ -1220,18 +1213,6 @@ export default function Editor({
           >
             <ArrowLeft size={16} />
           </button>
-          {onToggleSidebar && (
-            <button
-              type="button"
-              onClick={onToggleSidebar}
-              className="hidden h-8 w-8 items-center justify-center rounded-lg text-text-muted hover:bg-bg-elevated hover:text-text-primary md:inline-flex"
-              aria-label={sidebarHidden ? tSide("show") : tSide("hide")}
-              aria-pressed={sidebarHidden}
-              title={sidebarHidden ? tSide("show") : tSide("hide")}
-            >
-              {sidebarHidden ? <PanelLeft size={16} /> : <PanelLeftClose size={16} />}
-            </button>
-          )}
           <div className="min-w-0 flex-1">
             <TitleField
               fileId={fileId}
