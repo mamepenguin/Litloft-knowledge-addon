@@ -112,7 +112,8 @@
         "link": "リンク",
         "code": "コードブロック",
         "fileLink": "ファイルリンクを挿入",
-        "keepVersion": "この版を残す"
+        "keepVersion": "この版を残す",
+        "versionHistory": "版の履歴"
       },
       "status": {
         "saving": "保存中...",
@@ -144,7 +145,12 @@
         "loadingVersion": "版を読み込み中...",
         "previousPage": "前のページ",
         "nextPage": "次のページ",
-        "page": "{current} / {total}"
+        "page": "{current} / {total}",
+        "auto": "自動保存",
+        "diffLoading": "変更を読み込み中...",
+        "diffUnchanged": "この版に変更はありません。",
+        "diffFailed": "変更を取得できませんでした。",
+        "diffRetry": "再試行"
       }
     },
     "fileLinkModal": {

@@ -4,6 +4,7 @@ import {
   Bold,
   BookmarkPlus,
   Code,
+  History,
   Heading1,
   Heading2,
   Heading3,
@@ -25,6 +26,8 @@ interface Props {
   onFileLinkRequest?: () => void;
   /** Records the current body as an explicit, non-collapsible version. */
   onKeepVersion: () => void;
+  /** Reveals the version history, which sits at the foot of the note. */
+  onOpenVersionHistory?: () => void;
   disabled?: boolean;
 }
 
@@ -32,6 +35,7 @@ export default function EditorToolbar({
   onAction,
   onFileLinkRequest,
   onKeepVersion,
+  onOpenVersionHistory,
   disabled = false,
 }: Props) {
   const t = useTranslations("knowledge.editor.toolbar");
@@ -145,6 +149,30 @@ export default function EditorToolbar({
           {t("keepVersion")}
         </span>
       </button>
+      {/* Beside "keep this version": where a version is made is where
+          someone looks for the ones already made. The panel itself stays
+          at the foot of the note, so this reveals it rather than
+          replacing it. */}
+      {onOpenVersionHistory && (
+        <button
+          type="button"
+          // 32px, like the nine buttons beside it. The 44px coarse-pointer
+          // floor is real and this row misses it, but it misses it for every
+          // button: at `gap-0.5` there is 2px between items, so a 44px target
+          // on one of them either widens the row — which the same rule
+          // forbids, and this row already wraps at 375px without this button
+          // — or overlaps its neighbour and steals the tap. The rule's own
+          // remedy is to carry fewer controls here, which is a change to the
+          // whole toolbar and belongs with the mobile work.
+          className={btnClass}
+          aria-label={t("versionHistory")}
+          title={t("versionHistory")}
+          onClick={onOpenVersionHistory}
+          disabled={disabled}
+        >
+          <History size={15} />
+        </button>
+      )}
     </div>
   );
 }

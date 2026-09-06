@@ -7,5 +7,6 @@ export const slotComponents: Record<string, React.LazyExoticComponent<React.Comp
   "knowledge-capture-basket": lazy(() => import("./CaptureBasket")),
   "knowledge-media-capture": lazy(() => import("./MediaCaptureAction")),
   "knowledge-create-note": lazy(() => import("./CreateNoteMenuItem")),
+  "knowledge-version-history": lazy(() => import("./VersionHistoryMenuItem")),
   "knowledge-search-capture": lazy(() => import("./SearchCaptureActions")),
 };

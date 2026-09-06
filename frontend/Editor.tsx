@@ -57,6 +57,7 @@ import {
   type WikiLinkSelection,
 } from "./WikiLinkAutocomplete";
 import VersionHistoryPanel from "./VersionHistoryPanel";
+import { requestVersionHistory } from "./versionHistoryChannel";
 
 interface Props {
   fileId: string;
@@ -1253,6 +1254,7 @@ export default function Editor({
             onAction={handleToolbar}
             onFileLinkRequest={handleFileLinkRequest}
             onKeepVersion={keepCurrentVersion}
+            onOpenVersionHistory={() => requestVersionHistory(fileId)}
             disabled={restoreBusy}
           />
         </div>

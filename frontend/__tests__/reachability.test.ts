@@ -160,10 +160,10 @@ describe("the knowledge addon's modules", () => {
   // Exact, because the census is where this can go quietly wrong: narrow
   // the walk to `.tsx` and nine `.ts` modules leave the population without
   // any assertion noticing, since an orphan among them is no longer looked
-  // for. Measured 2026-09-06.
+  // for. Measured 2026-09-07.
   it("counts every module in the addon", () => {
-    expect(moduleFiles.size).toBe(33);
-    expect([...moduleFiles].filter((f) => f.endsWith(".ts")).length).toBe(9);
+    expect(moduleFiles.size).toBe(36);
+    expect([...moduleFiles].filter((f) => f.endsWith(".ts")).length).toBe(11);
   });
 
   /**

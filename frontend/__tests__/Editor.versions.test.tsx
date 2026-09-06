@@ -229,6 +229,59 @@ describe("Editor explicit versions", () => {
     });
   });
 
+  it("opens the version history from the toolbar, not only from the panel's own heading", async () => {
+    // The panel sits below an 18KB body with no internal scroll, so the
+    // toolbar is the entry beside where a version is made. A prop that is
+    // declared, passed and destructured but never called type-checks and
+    // renders — only a test that presses the button sees the gap.
+    const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input);
+      if (url.endsWith("/api/files/f1/stream")) {
+        return response({ text: "current", headers: { etag: '"held"' } });
+      }
+      if (url.includes("/api/files/f1/versions?") && !init?.method) {
+        return response({
+          body: {
+            versions: [
+              {
+                id: 2,
+                created_at: "2026-08-20T12:00:00Z",
+                nickname: "Aki",
+                kind: "explicit",
+                size_bytes: 3,
+                lines_added: 1,
+                lines_removed: 1,
+              },
+            ],
+            total: 1,
+            limit: 50,
+            offset: 0,
+          },
+        });
+      }
+      if (url.endsWith("/api/files/f1/versions/2/diff")) {
+        return response({ body: { id: 2, lines: [], lines_added: 0, lines_removed: 0 } });
+      }
+      if (url.endsWith("/api/files/f1/versions/2")) {
+        return response({ body: { id: 2, content: "old", etag: "version-etag" } });
+      }
+      return response({ ok: false, status: 404, body: { detail: "not found" } });
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    renderEditor();
+    await screen.findByLabelText("knowledge.editor.editArea");
+    expect(screen.queryByTestId("version-row-2")).toBeNull();
+
+    fireEvent.click(
+      screen.getByRole("button", {
+        name: "knowledge.editor.toolbar.versionHistory",
+      }),
+    );
+
+    expect(await screen.findByTestId("version-row-2")).toBeInTheDocument();
+  });
+
   it("restores with the editor-held ETag and surfaces a 412 in the existing conflict UI", async () => {
     const fetchMock = vi.fn(
       async (input: RequestInfo | URL, init?: RequestInit) => {
@@ -287,7 +340,7 @@ describe("Editor explicit versions", () => {
         name: "knowledge.editor.versions.toggleOpen",
       }),
     );
-    await screen.findByText("Aki");
+    await screen.findByText(/Aki/);
     fireEvent.click(
       screen.getByRole("button", {
         name: "knowledge.editor.versions.restore",

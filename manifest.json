@@ -16,7 +16,8 @@
             {"id": "knowledge-media-capture", "label": "Capture Position", "priority": 20}
         ],
         "file-actions-menu": [
-            {"id": "knowledge-create-note", "label": "Create note", "priority": 20}
+            {"id": "knowledge-create-note", "label": "Create note", "priority": 20},
+            {"id": "knowledge-version-history", "label": "Version history", "priority": 30}
         ],
         "file-detail-sections": [
             {"id": "knowledge-edit", "label": "Edit Note", "priority": 5}
