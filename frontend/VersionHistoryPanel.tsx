@@ -82,18 +82,29 @@ export default function VersionHistoryPanel({
   const [diffLoading, setDiffLoading] = useState(false);
   const [diffError, setDiffError] = useState<string | null>(null);
   const [diffAttempt, setDiffAttempt] = useState(0);
+  const [previewOpen, setPreviewOpen] = useState(false);
   const [restoring, setRestoring] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   // Published for the `[...]` menu and the editor toolbar. Both are
   // outside this subtree, so the panel hands them the way in rather than
   // lifting `open` into a component neither of them shares with it.
+  const pendingReveal = useRef(false);
   const reveal = useCallback(() => {
     setOpen(true);
-    sectionRef.current?.scrollIntoView?.({ behavior: "smooth", block: "start" });
+    pendingReveal.current = true;
   }, []);
 
   useEffect(() => registerVersionHistory(fileId, reveal), [fileId, reveal]);
+
+  // After the commit, not inside `reveal`: scrolling in the same tick aims at
+  // the panel while it is still collapsed, and the expansion then leaves it
+  // at the bottom edge of the viewport instead of the top.
+  useEffect(() => {
+    if (!open || !pendingReveal.current) return;
+    pendingReveal.current = false;
+    sectionRef.current?.scrollIntoView?.({ block: "start" });
+  }, [open]);
 
   useEffect(() => {
     setOffset(0);
@@ -372,7 +383,7 @@ export default function VersionHistoryPanel({
                       <button
                         type="button"
                         onClick={() => setDiffAttempt((value) => value + 1)}
-                        className="inline-flex items-center gap-1.5 rounded-lg border border-danger/30 px-2 py-1 font-medium transition-colors hover:bg-danger/10"
+                        className="inline-flex items-center gap-1.5 rounded-lg border border-danger/30 px-2 py-1 font-medium transition-colors hover:bg-danger/10 pointer-coarse:min-h-11 pointer-coarse:px-3"
                       >
                         <RotateCcw size={13} />
                         {t("diffRetry")}
@@ -419,16 +430,24 @@ export default function VersionHistoryPanel({
                 {/* Closed by default: the panel is here to answer "what
                     changed", and the whole body pushed the diff off the
                     screen on anything longer than a screenful. */}
-                <details data-testid="version-preview-disclosure" className="group">
-                  <summary className="cursor-pointer list-none text-xs font-semibold text-text-muted transition-colors hover:text-text-primary [&::-webkit-details-marker]:hidden">
-                    <span className="inline-flex items-center gap-1">
-                      <ChevronRight
-                        size={13}
-                        aria-hidden="true"
-                        className="shrink-0 transition-transform group-open:rotate-90"
-                      />
-                      {t("preview")}
-                    </span>
+                <details
+                  data-testid="version-preview-disclosure"
+                  onToggle={(event) =>
+                    setPreviewOpen((event.currentTarget as HTMLDetailsElement).open)
+                  }
+                >
+                  {/* The glyph is swapped rather than turned. A `rotate`
+                      utility has no effect on these icons — measured in the
+                      browser, where the same class on a sibling `<div>` did
+                      turn — and the panel's own header already switches
+                      between two chevrons. */}
+                  <summary className="flex cursor-pointer list-none items-center gap-1 text-xs font-semibold text-text-muted transition-colors hover:text-text-primary pointer-coarse:min-h-11 [&::-webkit-details-marker]:hidden">
+                    {previewOpen ? (
+                      <ChevronDown size={13} aria-hidden="true" className="shrink-0" />
+                    ) : (
+                      <ChevronRight size={13} aria-hidden="true" className="shrink-0" />
+                    )}
+                    {t("preview")}
                   </summary>
                   {bodyLoading ? (
                     <p className="mt-2 text-xs text-text-muted">

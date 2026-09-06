@@ -156,7 +156,12 @@ export default function EditorToolbar({
       {onOpenVersionHistory && (
         <button
           type="button"
-          className={btnClass}
+          // 32px drawn, 44px of target where the pointer is coarse, per the
+          // mobile rule in `2026-09-03-ui-redesign-00-basis.md`. The row it
+          // sits in already wraps at 375px without this button; that is the
+          // toolbar's own defect, not this entry's, and reducing the number
+          // of controls there belongs with the mobile work.
+          className={`${btnClass} pointer-coarse:h-11 pointer-coarse:w-11`}
           aria-label={t("versionHistory")}
           title={t("versionHistory")}
           onClick={onOpenVersionHistory}

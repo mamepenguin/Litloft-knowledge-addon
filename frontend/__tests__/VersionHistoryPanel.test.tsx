@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 
 const apiMocks = vi.hoisted(() => ({
   listFileVersions: vi.fn(),
@@ -263,6 +263,27 @@ describe("VersionHistoryPanel body preview", () => {
     expect(screen.getByTestId("version-preview-disclosure")).not.toHaveAttribute(
       "open",
     );
+  });
+
+  it("swaps the disclosure glyph instead of turning it", async () => {
+    // A `rotate` utility has no effect on these icons — measured in the
+    // browser, where the same class on a sibling `<div>` did turn — so the
+    // open state has to reach the glyph itself.
+    await openPanel();
+    const details = await screen.findByTestId("version-preview-disclosure");
+    const glyph = () => details.querySelector("summary svg")?.getAttribute("class");
+
+    expect(glyph()).toContain("lucide-chevron-right");
+
+    // jsdom does not implement a `<summary>` click opening its `<details>`,
+    // so the platform's half is driven by hand and measured in the browser
+    // instead. What is asserted here is this component's half: that the
+    // reported open state reaches the glyph.
+    (details as HTMLDetailsElement).open = true;
+    fireEvent(details, new Event("toggle"));
+    await act(async () => {});
+
+    expect(glyph()).toContain("lucide-chevron-down");
   });
 
   it("decodes percent-encoded link targets and leaves a malformed one alone", async () => {
