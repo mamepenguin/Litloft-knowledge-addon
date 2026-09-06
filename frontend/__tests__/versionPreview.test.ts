@@ -80,6 +80,43 @@ describe("decodeLinkTargets", () => {
     );
   });
 
+  it("ends the label at every closing bracket", () => {
+    // `[closed]` finishes its label, so the later `](` is not a link.
+    const source = "[closed] text ](#%66oo)";
+    expect(decodeLinkTargets(source)).toBe(source);
+  });
+
+  it("leaves a four-space indented code block alone", () => {
+    const source = "para\n\n    [example](#%66oo)\n";
+    expect(decodeLinkTargets(source)).toBe(source);
+  });
+
+  it("does not close a four-backtick fence with three", () => {
+    const source = "````\n```\n[a](#%E4%B8%80)\n````\n";
+    expect(decodeLinkTargets(source)).toBe(source);
+  });
+
+  it("keeps decoding after an unmatched backtick", () => {
+    // Markdown treats a lone backtick as literal text, so the link is real.
+    expect(decodeLinkTargets("` unmatched [x](#%E4%B8%80)")).toBe(
+      "` unmatched [x](#一)",
+    );
+  });
+
+  it("does not count parentheses inside a title as destination nesting", () => {
+    expect(decodeLinkTargets('[a](#%E4%B8%80 "see (draft")')).toBe(
+      '[a](#一 "see (draft")',
+    );
+  });
+
+  it("keeps an angle-bracketed destination readable", () => {
+    // Angle brackets are what let a destination hold a space, and a space is
+    // where the ordinary reading stops — so this is the case that needs them.
+    expect(decodeLinkTargets("[a](<#%E4%B8%80 %E4%BA%8C>)")).toBe(
+      "[a](<#一 二>)",
+    );
+  });
+
   it("does not decode a plus sign into a space", () => {
     // `+` is a form-encoding convention, not a URI one, and an anchor
     // written `#a+b` means `a+b`.

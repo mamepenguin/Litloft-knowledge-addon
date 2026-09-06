@@ -9,50 +9,90 @@
  * of it is unreadable.
  *
  * Because the promise is fidelity, that exception is kept as narrow as it
- * can be. Only a real inline link destination is decoded: not `](…)` in a
- * fenced block or a code span, not one with no `[label]` in front of it,
- * and not a link's title. Everything else is returned byte for byte.
+ * can be: only the URL of a real inline link is decoded. Code — fenced,
+ * indented, or inline — is copied through untouched, a `](` with no
+ * `[label]` in front of it is not a link, and a link's title keeps its own
+ * escapes. Everything the scanner is unsure of is left exactly as written,
+ * which is the safe direction for a view whose job is fidelity.
  */
 
-/** Reads a destination from `start`, balancing parentheses. */
-function readDestination(
-  source: string,
-  start: number,
-): { text: string; end: number } | null {
-  let depth = 1;
-  for (let i = start; i < source.length; i++) {
-    const ch = source[i];
-    if (ch === "\\") {
-      i++;
-      continue;
-    }
-    // A destination does not span a blank line, and treating one as if it
-    // did would swallow the rest of the note on an unbalanced `](`.
-    if (ch === "\n") return null;
-    if (ch === "(") depth++;
-    else if (ch === ")") {
-      depth--;
-      if (depth === 0) return { text: source.slice(start, i), end: i };
-    }
-  }
-  return null;
+interface Destination {
+  /** Where the URL starts, after any leading whitespace. */
+  urlStart: number;
+  /** Where the URL ends, before any title. */
+  urlEnd: number;
+  /** The index of the closing `)`. */
+  end: number;
 }
 
 /**
- * Decodes the URL part of a destination, leaving any title untouched.
+ * Reads an inline link destination starting just after `](`.
  *
- * A destination that is not valid percent-encoding is returned as written:
- * `decodeURIComponent` throws on a lone `%`, and a version's body is
- * arbitrary text that is allowed to contain one.
+ * Returns `null` for anything it cannot read confidently — an unbalanced
+ * parenthesis, a run past the end of the line, an unterminated title —
+ * which leaves the source untouched.
  */
-function decodeDestination(destination: string): string {
-  const match = /^(\s*)(\S*)([\s\S]*)$/.exec(destination);
-  if (!match) return destination;
-  const [, lead, url, rest] = match;
+function readDestination(source: string, start: number): Destination | null {
+  const spaces = /[ \t]/;
+  let i = start;
+  while (i < source.length && spaces.test(source[i])) i += 1;
+
+  const urlStart = i;
+  if (source[i] === "<") {
+    const close = source.indexOf(">", i + 1);
+    const newline = source.indexOf("\n", i + 1);
+    if (close === -1 || (newline !== -1 && newline < close)) return null;
+    i = close + 1;
+  } else {
+    let depth = 0;
+    while (i < source.length) {
+      const ch = source[i];
+      if (ch === "\\") {
+        i += 2;
+        continue;
+      }
+      if (ch === "\n") return null;
+      if (spaces.test(ch)) break;
+      if (ch === "(") depth += 1;
+      else if (ch === ")") {
+        if (depth === 0) break;
+        depth -= 1;
+      }
+      i += 1;
+    }
+    if (depth !== 0) return null;
+  }
+  const urlEnd = i;
+
+  // A title is read but never decoded, and its parentheses are the title's,
+  // not the destination's — counting them never lets the link close.
+  while (i < source.length && spaces.test(source[i])) i += 1;
+  const quote = source[i];
+  if (quote === '"' || quote === "'") {
+    i += 1;
+    while (i < source.length && source[i] !== quote) {
+      if (source[i] === "\\") i += 1;
+      else if (source[i] === "\n") return null;
+      i += 1;
+    }
+    if (i >= source.length) return null;
+    i += 1;
+    while (i < source.length && spaces.test(source[i])) i += 1;
+  }
+
+  if (source[i] !== ")") return null;
+  return { urlStart, urlEnd, end: i };
+}
+
+/**
+ * A version's body is arbitrary text and may hold a lone `%`, on which
+ * `decodeURIComponent` throws. Then the URL is returned as written.
+ */
+function decodeUrl(url: string): string {
   try {
-    return `${lead}${decodeURIComponent(url)}${rest}`;
+    return decodeURIComponent(url);
   } catch {
-    return destination;
+    return url;
   }
 }
 
@@ -60,22 +100,47 @@ export function decodeLinkTargets(source: string): string {
   const out: string[] = [];
   let i = 0;
   let atLineStart = true;
+  /** The run that opened the current fence, or null outside one. */
   let fence: string | null = null;
+  /** Whether the previous line was blank, for indented code blocks. */
+  let afterBlankLine = true;
   let labelOpen = false;
+
+  const copyLine = () => {
+    const newline = source.indexOf("\n", i);
+    const stop = newline === -1 ? source.length : newline;
+    out.push(source.slice(i, stop));
+    i = stop;
+    atLineStart = false;
+  };
 
   while (i < source.length) {
     if (atLineStart) {
-      const fenceMatch = /^[ \t]{0,3}(`{3,}|~{3,})/.exec(source.slice(i));
+      const line = source.slice(i, (source.indexOf("\n", i) + 1 || source.length + 1) - 1);
+
+      const fenceMatch = /^[ \t]{0,3}(`{3,}|~{3,})/.exec(line);
       if (fenceMatch) {
-        const marker = fenceMatch[1][0];
-        if (fence === null) fence = marker;
-        else if (marker === fence) fence = null;
-        const newline = source.indexOf("\n", i);
-        const stop = newline === -1 ? source.length : newline;
-        out.push(source.slice(i, stop));
-        i = stop;
-        atLineStart = false;
+        const run = fenceMatch[1];
+        if (fence === null) {
+          fence = run;
+        } else if (run[0] === fence[0] && run.length >= fence.length) {
+          // A fence opened with four backticks is not closed by three.
+          fence = null;
+        }
+        afterBlankLine = false;
+        copyLine();
         continue;
+      }
+
+      if (fence === null) {
+        // An indented code block: four spaces, where a paragraph is not
+        // already running. Its contents are code and stay as written.
+        if (afterBlankLine && /^(?: {4}|\t)/.test(line)) {
+          afterBlankLine = false;
+          copyLine();
+          continue;
+        }
+        afterBlankLine = line.trim() === "";
       }
     }
 
@@ -85,7 +150,6 @@ export function decodeLinkTargets(source: string): string {
       out.push(ch);
       i += 1;
       atLineStart = true;
-      // A link label does not carry across a line break here.
       labelOpen = false;
       continue;
     }
@@ -100,9 +164,15 @@ export function decodeLinkTargets(source: string): string {
     if (ch === "`") {
       const run = /^`+/.exec(source.slice(i))![0];
       const close = source.indexOf(run, i + run.length);
-      const stop = close === -1 ? source.length : close + run.length;
-      out.push(source.slice(i, stop));
-      i = stop;
+      if (close === -1) {
+        // An unmatched backtick is literal text, and the links after it are
+        // still links — skipping to the end of the file would lose them all.
+        out.push(run);
+        i += run.length;
+        continue;
+      }
+      out.push(source.slice(i, close + run.length));
+      i = close + run.length;
       continue;
     }
 
@@ -119,14 +189,27 @@ export function decodeLinkTargets(source: string): string {
       continue;
     }
 
-    if (ch === "]" && labelOpen && source[i + 1] === "(") {
-      const destination = readDestination(source, i + 2);
+    if (ch === "]") {
+      // Every closing bracket ends its label, whether or not a `(` follows.
+      // Otherwise `[closed] text ](#x)` would read the second `](` as a link.
+      const wasOpen = labelOpen;
       labelOpen = false;
-      if (destination) {
-        out.push(`](${decodeDestination(destination.text)})`);
-        i = destination.end + 1;
-        continue;
+      if (wasOpen && source[i + 1] === "(") {
+        const destination = readDestination(source, i + 2);
+        if (destination) {
+          const { urlStart, urlEnd, end } = destination;
+          out.push(
+            `](${source.slice(i + 2, urlStart)}${decodeUrl(
+              source.slice(urlStart, urlEnd),
+            )}${source.slice(urlEnd, end)})`,
+          );
+          i = end + 1;
+          continue;
+        }
       }
+      out.push(ch);
+      i += 1;
+      continue;
     }
 
     out.push(ch);
