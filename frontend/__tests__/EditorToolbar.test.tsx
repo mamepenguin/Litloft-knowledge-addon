@@ -234,6 +234,21 @@ describe("EditorToolbar", () => {
    * measured 29.5px instead of 32px, so "it did not wrap" was true only
    * because they had been squeezed. The count gives, not the size.
    */
+  /**
+   * `Button` overhangs an icon-only control by 6px a side on a coarse
+   * pointer. At this row's 34px pitch two of those overlap by 10px and the
+   * later button wins the hit test, so every control silently keeps less
+   * than it appears to — the defect `Button.tsx` names and leaves to the
+   * caller. Until the row carries a 44px pitch, it does not take the half
+   * it cannot support.
+   */
+  it("takes no hit area it cannot fit between its controls", () => {
+    const src = readFileSync(SRC, "utf-8");
+    const buttons = (src.match(/iconOnly/g) ?? []).length;
+    expect(buttons).toBeGreaterThan(0);
+    expect((src.match(/pointer-coarse:before:hidden/g) ?? []).length).toBe(buttons);
+  });
+
   it("lets no control be squeezed instead of dropped", () => {
     const src = readFileSync(SRC, "utf-8");
     expect(src).not.toContain("min-w-0");

@@ -211,7 +211,19 @@ export default function EditorToolbar({
         key={id}
         variant="ghost"
         iconOnly
-        className="shrink-0"
+        // `Button` grows an icon-only control's hit area by 6px a side on a
+        // coarse pointer. That is half of the DESIGN.md §Row Actions recipe
+        // and, as `Button.tsx` says, the caller owns the other half: the row
+        // must carry a pitch the overhang fits in. This row does not — the
+        // controls sit 34px apart, so the 44px targets would overlap by 10px
+        // and the later button would take the tap.
+        //
+        // Before this bar was rebuilt it used a local class with no coarse
+        // rule at all, so every target was an honest 32px. Suppressing the
+        // overhang keeps that, rather than shipping targets that quietly
+        // steal from each other. Giving the row a real 44px pitch means
+        // showing fewer controls on touch, which is its own change.
+        className="shrink-0 pointer-coarse:before:hidden"
         aria-label={t(id)}
         title={t(id)}
         onClick={() => onAction(spec.action)}
@@ -257,7 +269,7 @@ export default function EditorToolbar({
             <Button
               variant="ghost"
               iconOnly
-              className="shrink-0"
+              className="shrink-0 pointer-coarse:before:hidden"
               aria-label={t("fileLink")}
               title={t("fileLink")}
               onClick={onFileLinkRequest}
