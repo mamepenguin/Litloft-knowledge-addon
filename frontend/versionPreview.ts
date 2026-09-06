@@ -52,6 +52,8 @@ export function decodeLinkTargets(source: string): string {
   let afterBlankLine = true;
   /** Open `[` on this line. Labels may nest: `[outer [inner]](#x)`. */
   let labelDepth = 0;
+  /** Whether the open label already holds a link, which voids the outer one. */
+  let labelHasLink = false;
 
   while (i < source.length) {
     if (atLineStart) {
@@ -98,6 +100,7 @@ export function decodeLinkTargets(source: string): string {
       i += 1;
       atLineStart = true;
       labelDepth = 0;
+      labelHasLink = false;
       continue;
     }
     atLineStart = false;
@@ -140,16 +143,23 @@ export function decodeLinkTargets(source: string): string {
       // A label has to have been open: a bare `]` with no `[` before it is
       // ordinary text, and `plain ](#x)` is not a link.
       const closesLabel = labelDepth === 1;
+      // Markdown forbids a link inside a link, so an inner one voids the
+      // outer opener and `[outer [inner](url)](#x)` ends as literal text.
+      if (!closesLabel && labelDepth > 1 && source[i + 1] === "(") {
+        labelHasLink = true;
+      }
       if (labelDepth > 0) labelDepth -= 1;
-      if (closesLabel && source[i + 1] === "(") {
+      if (closesLabel && !labelHasLink && source[i + 1] === "(") {
         const match = HEADING_ANCHOR.exec(source.slice(i + 2));
         if (match) {
           const anchor = match[0].slice(0, -1);
           out.push(`](${decodeAnchor(anchor)})`);
           i += 2 + match[0].length;
+          labelHasLink = false;
           continue;
         }
       }
+      if (closesLabel) labelHasLink = false;
       out.push(ch);
       i += 1;
       continue;

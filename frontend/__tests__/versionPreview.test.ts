@@ -133,6 +133,13 @@ describe("decodeLinkTargets", () => {
     );
   });
 
+  it("leaves a label that already holds a link", () => {
+    // Markdown forbids a link inside a link, so the outer opener is void and
+    // the trailing `](#…)` is literal text.
+    const source = "[outer [inner](https://x)](#%E4%B8%80)";
+    expect(decodeLinkTargets(source)).toBe(source);
+  });
+
   it("leaves an unclosed label alone", () => {
     const source = "[outer [inner](#%E4%B8%80)";
     expect(decodeLinkTargets(source)).toBe(source);
