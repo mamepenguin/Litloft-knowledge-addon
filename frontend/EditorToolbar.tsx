@@ -57,19 +57,21 @@ export type FormatActionId = (typeof FORMAT_ACTIONS)[number];
 
 type FormatGroup = "heading" | "emphasis" | "block" | "insert";
 
+type FormatTier = "narrow" | "mid" | "full";
+
 interface FormatSpec {
   icon: ComponentType<{ size?: number }>;
   group: FormatGroup;
   action: EditorAction;
   /**
-   * Whether it keeps its place on the bar at every width.
+   * The narrowest bar this control stays on.
    *
    * A row of controls does not wrap: what will not fit drops into the `…`,
    * and it is the *number* of controls that gives, not their size
-   * (`00-basis.md`). Six of the twelve stay, which is what fits beside the
-   * file-link button and the `…` at 320px — measured, see `NARROW_FLOOR`.
+   * (`00-basis.md`). Six of the twelve stay at every width; the rest come
+   * back in two steps as the bar grows — see `MID_FLOOR` / `FULL_FLOOR`.
    */
-  always: boolean;
+  tier: FormatTier;
 }
 
 export const FORMAT_SPECS: Record<FormatActionId, FormatSpec> = {
@@ -77,98 +79,109 @@ export const FORMAT_SPECS: Record<FormatActionId, FormatSpec> = {
     icon: Heading1,
     group: "heading",
     action: { kind: "prefix", text: "# " },
-    always: true,
+    tier: "narrow",
   },
   h2: {
     icon: Heading2,
     group: "heading",
     action: { kind: "prefix", text: "## " },
-    always: true,
+    tier: "narrow",
   },
   h3: {
     icon: Heading3,
     group: "heading",
     action: { kind: "prefix", text: "### " },
-    always: false,
+    tier: "mid",
   },
   bold: {
     icon: Bold,
     group: "emphasis",
     action: { kind: "wrap", before: "**", after: "**" },
-    always: true,
+    tier: "narrow",
   },
   italic: {
     icon: Italic,
     group: "emphasis",
     action: { kind: "wrap", before: "*", after: "*" },
-    always: false,
+    tier: "mid",
   },
   strike: {
     icon: Strikethrough,
     group: "emphasis",
     action: { kind: "wrap", before: "~~", after: "~~" },
-    always: false,
+    tier: "mid",
   },
   list: {
     icon: List,
     group: "block",
     action: { kind: "prefix", text: "- " },
-    always: true,
+    tier: "narrow",
   },
   orderedList: {
     icon: ListOrdered,
     group: "block",
     action: { kind: "prefix", text: "1. " },
-    always: false,
+    tier: "full",
   },
   taskList: {
     icon: ListChecks,
     group: "block",
     action: { kind: "prefix", text: "- [ ] " },
-    always: false,
+    tier: "full",
   },
   link: {
     icon: Link,
     group: "insert",
     action: { kind: "link" },
-    always: true,
+    tier: "narrow",
   },
   code: {
     icon: Code,
     group: "insert",
     action: { kind: "codeblock" },
-    always: true,
+    tier: "narrow",
   },
   quote: {
     icon: Quote,
     group: "insert",
     action: { kind: "prefix", text: "> " },
-    always: false,
+    tier: "full",
   },
 };
 
 const GROUP_ORDER: FormatGroup[] = ["heading", "emphasis", "block", "insert"];
 
 /**
- * The width at which the other six formatting controls come back out of the
- * `…`, written here rather than left implicit in a `sm:` scattered through
- * the markup.
+ * What fits is a question about the bar, not about the window.
  *
- * It is Tailwind's `sm` (640px) because that is the widest breakpoint the
- * full bar still clears: twelve formatting buttons, the file-link button and
- * the `…` are 14 × 32px, with four 13px separators, thirteen 2px gaps and
- * 24px of horizontal padding — 558px. The narrow set is eight buttons and no
- * separators, 294px, which clears 320px. Between those two counts there is no
- * arrangement that fits 320 and shows more, so there is one threshold and not
- * a scale of them. Measured in Chromium at 320/375/400/430/639/640/768/1512;
- * the editor column is the viewport width below 1120, so a viewport query and
- * a container query answer the same question here.
+ * A viewport breakpoint is wrong here, and measurably so: the editor column
+ * is the viewport below 1120, but at 768 the folder tree opens beside it and
+ * the bar *narrows* — 625px of bar at a 640px viewport, 473px at 768. A
+ * `sm:` rule would put more controls on a shorter bar. So the bar is its own
+ * container and the thresholds are container widths.
+ *
+ * Measured widths, all border-box bar widths:
+ *
+ * - narrow — six formats, the file-link button and the `…`, no separators: 294px
+ * - mid    — plus h3, italic, strikethrough, with separators: 456px
+ * - full   — all twelve: 558px
+ *
+ * The thresholds below are those minus the bar's own `px-3` (24px), because
+ * a container query measures the content box.
+ *
+ * Written as literals. Assembling them (`` `@min-[${N}px]:contents` ``) puts
+ * the class name beyond Tailwind's scanner, which emits nothing and leaves
+ * every tier permanently hidden — measured, and the reason this comment
+ * exists.
  */
-const NARROW_FLOOR = "sm";
+const MID_ONLY = "hidden @min-[432px]:contents";
+const FULL_ONLY = "hidden @min-[534px]:contents";
+const MID_ONLY_IN_MENU = "@min-[432px]:hidden";
+const FULL_ONLY_IN_MENU = "@min-[534px]:hidden";
 
-/** Wide-only: `display:contents` keeps the button a direct flex child. */
-const WIDE_ONLY = `hidden ${NARROW_FLOOR}:contents`;
-const SEPARATOR = `mx-1.5 hidden h-4 w-px bg-bg-border ${NARROW_FLOOR}:block`;
+/** Groups only read as groups once the mid tier is out. */
+const SEPARATOR =
+  "mx-1.5 hidden h-4 w-px shrink-0 bg-bg-border @min-[432px]:block";
 
 interface Props {
   onAction: (action: EditorAction) => void;
@@ -198,6 +211,7 @@ export default function EditorToolbar({
         key={id}
         variant="ghost"
         iconOnly
+        className="shrink-0"
         aria-label={t(id)}
         title={t(id)}
         onClick={() => onAction(spec.action)}
@@ -206,17 +220,16 @@ export default function EditorToolbar({
         <Icon size={15} />
       </Button>
     );
-    return spec.always ? (
-      button
-    ) : (
-      <span key={id} className={WIDE_ONLY}>
+    if (spec.tier === "narrow") return button;
+    return (
+      <span key={id} className={spec.tier === "mid" ? MID_ONLY : FULL_ONLY}>
         {button}
       </span>
     );
   };
 
   return (
-    <div className="flex items-center gap-0.5 border-b border-bg-border bg-bg-card px-3 py-1.5">
+    <div className="@container flex items-center gap-0.5 border-b border-bg-border bg-bg-card px-3 py-1.5">
       {/* The formatting controls, and only those. The `…` beside them holds
           what the document as a whole does — keeping a version, opening the
           history — which is not formatting and does not belong in a group
@@ -224,7 +237,7 @@ export default function EditorToolbar({
       <div
         role="toolbar"
         aria-label={t("label")}
-        className="flex min-w-0 items-center gap-0.5"
+        className="flex items-center gap-0.5"
       >
         {GROUP_ORDER.map((group, i) => (
           <span key={group} className="contents">
@@ -244,6 +257,7 @@ export default function EditorToolbar({
             <Button
               variant="ghost"
               iconOnly
+              className="shrink-0"
               aria-label={t("fileLink")}
               title={t("fileLink")}
               onClick={onFileLinkRequest}
@@ -255,29 +269,34 @@ export default function EditorToolbar({
         )}
       </div>
 
-      <div className="ml-auto">
+      <div className="ml-auto shrink-0">
         <OverflowMenu label={t("more")}>
           {(close) => (
             <>
               {/* Below `sm` these six are not on the bar, so this is where
                   they are. Above it they are on the bar and this block is
                   `display:none` — one control, one place, at any one width. */}
-              <div className={`${NARROW_FLOOR}:hidden`}>
-                {FORMAT_ACTIONS.filter((id) => !FORMAT_SPECS[id].always).map(
-                  (id) => (
-                    <ActionMenuItem
-                      key={id}
-                      icon={FORMAT_SPECS[id].icon}
-                      label={t(id)}
-                      disabled={disabled}
-                      onClick={() => {
-                        close();
-                        onAction(FORMAT_SPECS[id].action);
-                      }}
-                    />
-                  ),
-                )}
-              </div>
+              {(["mid", "full"] as const).map((tier) => (
+                <div
+                  key={tier}
+                  className={tier === "mid" ? MID_ONLY_IN_MENU : FULL_ONLY_IN_MENU}
+                >
+                  {FORMAT_ACTIONS.filter((id) => FORMAT_SPECS[id].tier === tier).map(
+                    (id) => (
+                      <ActionMenuItem
+                        key={id}
+                        icon={FORMAT_SPECS[id].icon}
+                        label={t(id)}
+                        disabled={disabled}
+                        onClick={() => {
+                          close();
+                          onAction(FORMAT_SPECS[id].action);
+                        }}
+                      />
+                    ),
+                  )}
+                </div>
+              ))}
               <ActionMenuItem
                 icon={BookmarkPlus}
                 label={t("keepVersion")}

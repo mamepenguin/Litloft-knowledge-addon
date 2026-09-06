@@ -116,10 +116,14 @@ describe("EditorToolbar", () => {
    */
   it("routes every formatting control to onAction", () => {
     const { onAction } = renderToolbar();
-    const onBar = FORMAT_ACTIONS.filter((id) => FORMAT_SPECS[id].always);
-    const inMenu = FORMAT_ACTIONS.filter((id) => !FORMAT_SPECS[id].always);
+    const onBar = FORMAT_ACTIONS.filter((id) => FORMAT_SPECS[id].tier === "narrow");
+    const inMenu = FORMAT_ACTIONS.filter((id) => FORMAT_SPECS[id].tier !== "narrow");
     expect(onBar).toHaveLength(6);
+    // Three come back at the mid bar and three more at the full one; both
+    // are in the menu at the narrow width this renders at.
     expect(inMenu).toHaveLength(6);
+    expect(FORMAT_ACTIONS.filter((id) => FORMAT_SPECS[id].tier === "mid")).toHaveLength(3);
+    expect(FORMAT_ACTIONS.filter((id) => FORMAT_SPECS[id].tier === "full")).toHaveLength(3);
 
     for (const id of onBar) {
       fireEvent.click(
@@ -178,6 +182,63 @@ describe("EditorToolbar", () => {
    */
   it("never wraps its controls onto a second line", () => {
     expect(readFileSync(SRC, "utf-8")).not.toContain("flex-wrap");
+  });
+
+  /**
+   * Tailwind finds class names by scanning source text, so a name that is
+   * assembled at runtime produces no CSS at all — and a tier whose CSS does
+   * not exist is a tier that never appears. That is not hypothetical: the
+   * first draft of this bar wrote `` `hidden ${NARROW_FLOOR}:contents` ``
+   * and the wide half was measured missing at every width.
+   *
+   * The names must therefore be present verbatim, and no template literal in
+   * the file may be building one.
+   */
+  it("writes its responsive class names where Tailwind can read them", () => {
+    const src = readFileSync(SRC, "utf-8");
+    for (const cls of [
+      "hidden @min-[432px]:contents",
+      "hidden @min-[534px]:contents",
+      "@min-[432px]:hidden",
+      "@min-[534px]:hidden",
+      "@min-[432px]:block",
+    ]) {
+      expect(src).toContain(cls);
+    }
+    // Comments stripped first: the rule is about what Tailwind scans as
+    // code, and the note above the thresholds quotes the broken form on
+    // purpose so the next reader knows which shape to avoid.
+    const code = src
+      .replace(/\/\*[\s\S]*?\*\//g, "")
+      .replace(/^[ \t]*\/\/.*$/gm, "");
+    const assembled = [...code.matchAll(/`[^`]*`/g)]
+      .map((m) => m[0])
+      .filter((lit) => lit.includes("${") && /@min-\[|:contents|:hidden|:block/.test(lit));
+    expect(assembled).toEqual([]);
+  });
+
+  /**
+   * The bar asks about its own width, not the window's. At a 768px viewport
+   * the folder tree opens beside the editor and the bar *narrows* to 473px
+   * from 625px at 640px — so a viewport breakpoint would put more controls
+   * on a shorter bar. Measured; see the comment on the thresholds.
+   */
+  it("sizes itself against its container, not the viewport", () => {
+    const src = readFileSync(SRC, "utf-8");
+    expect(src).toContain("@container");
+    expect(src).not.toMatch(/\bsm:(contents|hidden|block)/);
+  });
+
+  /**
+   * `min-w-0` let the flex children absorb the shortfall: every button
+   * measured 29.5px instead of 32px, so "it did not wrap" was true only
+   * because they had been squeezed. The count gives, not the size.
+   */
+  it("lets no control be squeezed instead of dropped", () => {
+    const src = readFileSync(SRC, "utf-8");
+    expect(src).not.toContain("min-w-0");
+    // Every drawn control, and the separators, hold their size.
+    expect((src.match(/shrink-0/g) ?? []).length).toBeGreaterThanOrEqual(4);
   });
 });
 
