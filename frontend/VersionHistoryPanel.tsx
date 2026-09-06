@@ -89,21 +89,32 @@ export default function VersionHistoryPanel({
   // Published for the `[...]` menu and the editor toolbar. Both are
   // outside this subtree, so the panel hands them the way in rather than
   // lifting `open` into a component neither of them shares with it.
-  const pendingReveal = useRef(false);
+  const [revealSeq, setRevealSeq] = useState(0);
   const reveal = useCallback(() => {
     setOpen(true);
-    pendingReveal.current = true;
+    setRevealSeq((value) => value + 1);
   }, []);
 
   useEffect(() => registerVersionHistory(fileId, reveal), [fileId, reveal]);
 
+  // Keyed on a counter, not on `open`: asking for the history while it is
+  // already open is the common case — the reader opened it, scrolled back up
+  // to the note, and pressed the entry again — and `setOpen(true)` is a
+  // no-op there, so an effect watching `open` would never run.
+  //
   // After the commit, not inside `reveal`: scrolling in the same tick aims at
   // the panel while it is still collapsed, and the expansion then leaves it
   // at the bottom edge of the viewport instead of the top.
   useEffect(() => {
-    if (!open || !pendingReveal.current) return;
-    pendingReveal.current = false;
+    if (revealSeq === 0) return;
     sectionRef.current?.scrollIntoView?.({ block: "start" });
+  }, [revealSeq]);
+
+  // The disclosure unmounts with the panel and comes back closed, so a
+  // `previewOpen` left over from last time would draw the open glyph over a
+  // shut disclosure.
+  useEffect(() => {
+    if (!open) setPreviewOpen(false);
   }, [open]);
 
   useEffect(() => {

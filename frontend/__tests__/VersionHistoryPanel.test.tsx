@@ -286,6 +286,33 @@ describe("VersionHistoryPanel body preview", () => {
     expect(glyph()).toContain("lucide-chevron-down");
   });
 
+  it("does not keep the open glyph over a disclosure that came back closed", async () => {
+    await openPanel();
+    const details = await screen.findByTestId("version-preview-disclosure");
+    (details as HTMLDetailsElement).open = true;
+    fireEvent(details, new Event("toggle"));
+    await act(async () => {});
+    expect(details.querySelector("summary svg")?.getAttribute("class")).toContain(
+      "lucide-chevron-down",
+    );
+
+    // Closing the panel unmounts the disclosure; it comes back shut.
+    const toggle = screen.getByRole("button", {
+      name: "knowledge.editor.versions.toggleClose",
+    });
+    fireEvent.click(toggle);
+    await act(async () => {});
+    fireEvent.click(
+      screen.getByRole("button", { name: "knowledge.editor.versions.toggleOpen" }),
+    );
+
+    const reopened = await screen.findByTestId("version-preview-disclosure");
+    expect(reopened).not.toHaveAttribute("open");
+    expect(reopened.querySelector("summary svg")?.getAttribute("class")).toContain(
+      "lucide-chevron-right",
+    );
+  });
+
   it("decodes percent-encoded link targets and leaves a malformed one alone", async () => {
     apiMocks.getFileVersion.mockResolvedValue({
       id: 2,

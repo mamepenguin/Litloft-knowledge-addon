@@ -106,6 +106,32 @@ describe("the version history entry in the [...] menu", () => {
     expect(onRequestClose).toHaveBeenCalledTimes(1);
   });
 
+  it("scrolls again when the history is asked for while already open", async () => {
+    // The reader opens the history, scrolls back up to the note, and presses
+    // the entry again. `setOpen(true)` is a no-op by then, so a reveal keyed
+    // on the open state would do nothing at all.
+    const scrollIntoView = vi.fn();
+    Element.prototype.scrollIntoView = scrollIntoView;
+
+    render(
+      <>
+        <VersionHistoryPanel
+          fileId="f1"
+          refreshKey={0}
+          onRestore={vi.fn(async () => true)}
+        />
+        <VersionHistoryMenuItem fileId="f1" />
+      </>,
+    );
+    const entry = await screen.findByRole("menuitem", { name: MENU_LABEL });
+
+    fireEvent.click(entry);
+    await waitFor(() => expect(scrollIntoView).toHaveBeenCalledTimes(1));
+
+    fireEvent.click(entry);
+    await waitFor(() => expect(scrollIntoView).toHaveBeenCalledTimes(2));
+  });
+
   it("stops offering the entry once the panel unmounts", async () => {
     const { rerender } = render(
       <>
