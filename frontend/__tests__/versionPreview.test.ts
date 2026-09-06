@@ -33,6 +33,53 @@ describe("decodeLinkTargets", () => {
     expect(decodeLinkTargets(source)).toBe(source);
   });
 
+  it("leaves a fenced code block byte for byte", () => {
+    // A real link inside the fence: with no fence handling this decodes,
+    // which is the whole point of the case.
+    const source = "```md\n[a](#%E4%B8%80)\n```\n";
+    expect(decodeLinkTargets(source)).toBe(source);
+  });
+
+  it("leaves a `](...)` inside a fence that has no label either", () => {
+    const source = '```js\nconst x = "](#%66oo)";\n```\n';
+    expect(decodeLinkTargets(source)).toBe(source);
+  });
+
+  it("leaves an inline code span byte for byte", () => {
+    const source = 'write `[a](#%66oo)` to link';
+    expect(decodeLinkTargets(source)).toBe(source);
+  });
+
+  it("leaves a `](...)` that has no label in front of it", () => {
+    const source = "plain ](#%E3%81%AF) is not a link";
+    expect(decodeLinkTargets(source)).toBe(source);
+  });
+
+  it("reads a destination whose parentheses balance", () => {
+    expect(
+      decodeLinkTargets("[wiki](https://en.wikipedia.org/wiki/Foo_(bar)%20baz)"),
+    ).toBe("[wiki](https://en.wikipedia.org/wiki/Foo_(bar) baz)");
+  });
+
+  it("leaves a link title alone", () => {
+    expect(decodeLinkTargets('[a](#%E4%B8%80 "a %20 title")')).toBe(
+      '[a](#一 "a %20 title")',
+    );
+  });
+
+  it("does not let a destination run past the end of its line", () => {
+    // Without the newline stop, the `)` on the second line closes this and
+    // the whole span is rewritten as a destination.
+    const source = "[a](#%E4%B8%80\nstill going )\n";
+    expect(decodeLinkTargets(source)).toBe(source);
+  });
+
+  it("still decodes a later link after an unclosed one", () => {
+    expect(decodeLinkTargets("[a](#%E4%B8%80\n[b](#%E4%BA%8C)\n")).toBe(
+      "[a](#%E4%B8%80\n[b](#二)\n",
+    );
+  });
+
   it("does not decode a plus sign into a space", () => {
     // `+` is a form-encoding convention, not a URI one, and an anchor
     // written `#a+b` means `a+b`.
