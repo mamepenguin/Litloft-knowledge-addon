@@ -4,6 +4,7 @@ import {
   Bold,
   BookmarkPlus,
   Code,
+  History,
   Heading1,
   Heading2,
   Heading3,
@@ -25,6 +26,8 @@ interface Props {
   onFileLinkRequest?: () => void;
   /** Records the current body as an explicit, non-collapsible version. */
   onKeepVersion: () => void;
+  /** Reveals the version history, which sits at the foot of the note. */
+  onOpenVersionHistory?: () => void;
   disabled?: boolean;
 }
 
@@ -32,6 +35,7 @@ export default function EditorToolbar({
   onAction,
   onFileLinkRequest,
   onKeepVersion,
+  onOpenVersionHistory,
   disabled = false,
 }: Props) {
   const t = useTranslations("knowledge.editor.toolbar");
@@ -145,6 +149,22 @@ export default function EditorToolbar({
           {t("keepVersion")}
         </span>
       </button>
+      {/* Beside "keep this version": where a version is made is where
+          someone looks for the ones already made. The panel itself stays
+          at the foot of the note, so this reveals it rather than
+          replacing it. */}
+      {onOpenVersionHistory && (
+        <button
+          type="button"
+          className={btnClass}
+          aria-label={t("versionHistory")}
+          title={t("versionHistory")}
+          onClick={onOpenVersionHistory}
+          disabled={disabled}
+        >
+          <History size={15} />
+        </button>
+      )}
     </div>
   );
 }

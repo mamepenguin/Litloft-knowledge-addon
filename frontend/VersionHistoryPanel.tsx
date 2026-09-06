@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   AlertCircle,
   BookmarkCheck,
@@ -22,6 +22,8 @@ import {
   type FileVersionDiff,
   type FileVersionListResponse,
 } from "./api";
+import { decodeLinkTargets } from "./versionPreview";
+import { registerVersionHistory } from "./versionHistoryChannel";
 
 const PAGE_SIZE = 50;
 
@@ -68,6 +70,7 @@ export default function VersionHistoryPanel({
   onRestore,
 }: Props) {
   const t = useTranslations("knowledge.editor.versions");
+  const sectionRef = useRef<HTMLElement | null>(null);
   const [open, setOpen] = useState(false);
   const [offset, setOffset] = useState(0);
   const [page, setPage] = useState<FileVersionListResponse | null>(null);
@@ -75,9 +78,22 @@ export default function VersionHistoryPanel({
   const [body, setBody] = useState<FileVersionBody | null>(null);
   const [diff, setDiff] = useState<FileVersionDiff | null>(null);
   const [loading, setLoading] = useState(false);
-  const [detailLoading, setDetailLoading] = useState(false);
+  const [bodyLoading, setBodyLoading] = useState(false);
+  const [diffLoading, setDiffLoading] = useState(false);
+  const [diffError, setDiffError] = useState<string | null>(null);
+  const [diffAttempt, setDiffAttempt] = useState(0);
   const [restoring, setRestoring] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // Published for the `[...]` menu and the editor toolbar. Both are
+  // outside this subtree, so the panel hands them the way in rather than
+  // lifting `open` into a component neither of them shares with it.
+  const reveal = useCallback(() => {
+    setOpen(true);
+    sectionRef.current?.scrollIntoView?.({ behavior: "smooth", block: "start" });
+  }, []);
+
+  useEffect(() => registerVersionHistory(fileId, reveal), [fileId, reveal]);
 
   useEffect(() => {
     setOffset(0);
@@ -85,6 +101,7 @@ export default function VersionHistoryPanel({
     setSelectedId(null);
     setBody(null);
     setDiff(null);
+    setDiffError(null);
     setError(null);
   }, [fileId]);
 
@@ -114,34 +131,60 @@ export default function VersionHistoryPanel({
     };
   }, [fileId, offset, open, refreshKey]);
 
+  // The body and the diff are fetched apart so that one failing does not
+  // take the other's result off the screen: they used to share a
+  // `Promise.all` and a single error band, so a diff that 500s left the
+  // reader with no body either, and no way to ask for just the diff again.
   useEffect(() => {
     if (!open || selectedId === null) {
       setBody(null);
-      setDiff(null);
       return;
     }
     let cancelled = false;
-    setDetailLoading(true);
+    setBodyLoading(true);
     setError(null);
-    Promise.all([
-      getFileVersion(fileId, selectedId),
-      getFileVersionDiff(fileId, selectedId),
-    ])
-      .then(([nextBody, nextDiff]) => {
-        if (cancelled) return;
-        setBody(nextBody);
-        setDiff(nextDiff);
+    getFileVersion(fileId, selectedId)
+      .then((next) => {
+        if (!cancelled) setBody(next);
       })
       .catch((err: Error) => {
         if (!cancelled) setError(err.message);
       })
       .finally(() => {
-        if (!cancelled) setDetailLoading(false);
+        if (!cancelled) setBodyLoading(false);
       });
     return () => {
       cancelled = true;
     };
   }, [fileId, open, selectedId]);
+
+  // `diffAttempt` is the retry, and it is deliberately absent from the
+  // effect above: retrying the diff must not re-fetch the body.
+  useEffect(() => {
+    if (!open || selectedId === null) {
+      setDiff(null);
+      setDiffError(null);
+      return;
+    }
+    let cancelled = false;
+    setDiffLoading(true);
+    setDiffError(null);
+    getFileVersionDiff(fileId, selectedId)
+      .then((next) => {
+        if (!cancelled) setDiff(next);
+      })
+      .catch((err: Error) => {
+        if (cancelled) return;
+        setDiff(null);
+        setDiffError(err.message);
+      })
+      .finally(() => {
+        if (!cancelled) setDiffLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [fileId, open, selectedId, diffAttempt]);
 
   async function handleRestore() {
     if (selectedId === null || restoring) return;
@@ -160,7 +203,7 @@ export default function VersionHistoryPanel({
   const hasNext = page !== null && offset + page.limit < page.total;
 
   return (
-    <section className="border-t border-bg-border bg-bg-card">
+    <section ref={sectionRef} className="border-t border-bg-border bg-bg-card">
       <button
         type="button"
         onClick={() => setOpen((value) => !value)}
@@ -211,29 +254,34 @@ export default function VersionHistoryPanel({
                     >
                       <span className="min-w-0 flex-1">
                         <span className="flex items-center gap-1.5">
+                          {/* Absolute first: two versions saved the same
+                              afternoon are both "12 days ago", and the
+                              relative form alone cannot tell them apart. */}
                           <time
                             dateTime={version.created_at}
-                            title={absoluteTime(version.created_at)}
                             className="min-w-0 text-text-primary"
                           >
-                            <span className="block font-medium">
-                              {relativeTime(version.created_at)}
-                            </span>
-                            <span className="mt-0.5 block text-[11px] tabular-nums text-text-muted">
+                            <span className="block font-medium tabular-nums">
                               {absoluteTime(version.created_at)}
                             </span>
+                            <span className="mt-0.5 block text-[11px] text-text-muted">
+                              {relativeTime(version.created_at)}
+                            </span>
                           </time>
+                        </span>
+                        <span className="mt-0.5 flex items-center gap-1 text-[11px] text-text-muted">
                           {version.kind === "explicit" && (
                             <BookmarkCheck
-                              size={13}
-                              aria-label={t("explicit")}
+                              size={12}
+                              aria-hidden="true"
                               className="shrink-0 text-accent"
                             />
                           )}
+                          <span className="truncate">
+                            {t(version.kind === "explicit" ? "explicit" : "auto")}
+                            {version.nickname ? ` · ${version.nickname}` : ""}
+                          </span>
                         </span>
-                        {version.nickname && (
-                          <span className="mt-0.5 block truncate">{version.nickname}</span>
-                        )}
                       </span>
                       <span className="shrink-0 tabular-nums text-accent-teal">
                         +{version.lines_added}
@@ -282,7 +330,7 @@ export default function VersionHistoryPanel({
                   </h3>
                   <button
                     type="button"
-                    disabled={selectedId === null || restoring || detailLoading}
+                    disabled={selectedId === null || restoring || bodyLoading}
                     onClick={handleRestore}
                     className="inline-flex items-center gap-2 rounded-lg bg-sand px-3 py-1.5 text-sm font-medium text-text-primary transition-colors hover:bg-sand-hover disabled:cursor-not-allowed disabled:opacity-50"
                   >
@@ -295,58 +343,106 @@ export default function VersionHistoryPanel({
                   </button>
                 </div>
 
-                {detailLoading ? (
-                  <div className="flex items-center justify-center gap-2 py-10 text-sm text-text-muted">
-                    <Loader2 size={15} className="animate-spin" />
-                    {t("loadingVersion")}
-                  </div>
-                ) : (
-                  <>
-                    <div>
-                      <h4 className="mb-2 text-xs font-semibold text-text-muted">
-                        {t("diff")}
-                      </h4>
-                      <pre
-                        data-testid="version-diff"
-                        className="max-h-64 select-text overflow-auto rounded-xl bg-bg-elevated p-3 font-mono text-xs leading-relaxed text-text-primary"
+                <div>
+                  <h4 className="mb-2 text-xs font-semibold text-text-muted">
+                    {t("diff")}
+                  </h4>
+                  {/* Waiting, unchanged and failed are three different
+                      answers. They used to share one blank `<pre>`, which
+                      said "nothing changed" for all three. */}
+                  {diffLoading ? (
+                    <div
+                      role="status"
+                      aria-label={t("diffLoading")}
+                      data-testid="version-diff-skeleton"
+                      className="space-y-2 rounded-xl bg-bg-elevated p-3"
+                    >
+                      <div className="h-3 w-5/6 animate-pulse rounded bg-bg-border" />
+                      <div className="h-3 w-2/3 animate-pulse rounded bg-bg-border" />
+                      <div className="h-3 w-3/4 animate-pulse rounded bg-bg-border" />
+                    </div>
+                  ) : diffError ? (
+                    <div
+                      role="status"
+                      data-testid="version-diff-error"
+                      className="flex flex-wrap items-center gap-2 rounded-xl border border-danger/30 bg-danger/10 px-3 py-2 text-xs text-danger"
+                    >
+                      <AlertCircle size={14} className="shrink-0" />
+                      <span className="flex-1 break-anywhere">{t("diffFailed")}</span>
+                      <button
+                        type="button"
+                        onClick={() => setDiffAttempt((value) => value + 1)}
+                        className="inline-flex items-center gap-1.5 rounded-lg border border-danger/30 px-2 py-1 font-medium transition-colors hover:bg-danger/10"
                       >
-                        {diff?.lines.map((line, index) => {
-                          const prefix =
-                            line.kind === "add"
-                              ? "+"
-                              : line.kind === "del"
-                                ? "−"
-                                : " ";
-                          const color =
-                            line.kind === "add"
-                              ? "text-accent-teal"
-                              : line.kind === "del"
-                                ? "text-danger"
-                                : "text-text-primary";
-                          return (
-                            <span key={index} className={color}>
-                              <span aria-hidden="true" className="select-none">
-                                {prefix}
-                              </span>
-                              {line.text}
+                        <RotateCcw size={13} />
+                        {t("diffRetry")}
+                      </button>
+                    </div>
+                  ) : diff && diff.lines.length === 0 ? (
+                    <p
+                      data-testid="version-diff-unchanged"
+                      className="rounded-xl bg-bg-elevated px-3 py-2 text-xs text-text-muted"
+                    >
+                      {t("diffUnchanged")}
+                    </p>
+                  ) : (
+                    <pre
+                      data-testid="version-diff"
+                      className="max-h-64 select-text overflow-auto rounded-xl bg-bg-elevated p-3 font-mono text-xs leading-relaxed text-text-primary"
+                    >
+                      {diff?.lines.map((line, index) => {
+                        const prefix =
+                          line.kind === "add"
+                            ? "+"
+                            : line.kind === "del"
+                              ? "−"
+                              : " ";
+                        const color =
+                          line.kind === "add"
+                            ? "text-accent-teal"
+                            : line.kind === "del"
+                              ? "text-danger"
+                              : "text-text-primary";
+                        return (
+                          <span key={index} className={color}>
+                            <span aria-hidden="true" className="select-none">
+                              {prefix}
                             </span>
-                          );
-                        })}
-                      </pre>
-                    </div>
-                    <div>
-                      <h4 className="mb-2 text-xs font-semibold text-text-muted">
-                        {t("preview")}
-                      </h4>
-                      <pre
-                        data-testid="version-preview"
-                        className="max-h-80 select-text overflow-auto whitespace-pre-wrap rounded-xl border border-bg-border bg-bg-primary p-3 font-mono text-xs leading-relaxed text-text-primary"
-                      >
-                        {body?.content ?? ""}
-                      </pre>
-                    </div>
-                  </>
-                )}
+                            {line.text}
+                          </span>
+                        );
+                      })}
+                    </pre>
+                  )}
+                </div>
+
+                {/* Closed by default: the panel is here to answer "what
+                    changed", and the whole body pushed the diff off the
+                    screen on anything longer than a screenful. */}
+                <details data-testid="version-preview-disclosure" className="group">
+                  <summary className="cursor-pointer list-none text-xs font-semibold text-text-muted transition-colors hover:text-text-primary [&::-webkit-details-marker]:hidden">
+                    <span className="inline-flex items-center gap-1">
+                      <ChevronRight
+                        size={13}
+                        aria-hidden="true"
+                        className="shrink-0 transition-transform group-open:rotate-90"
+                      />
+                      {t("preview")}
+                    </span>
+                  </summary>
+                  {bodyLoading ? (
+                    <p className="mt-2 text-xs text-text-muted">
+                      {t("loadingVersion")}
+                    </p>
+                  ) : (
+                    <pre
+                      data-testid="version-preview"
+                      className="mt-2 max-h-80 select-text overflow-auto whitespace-pre-wrap rounded-xl border border-bg-border bg-bg-primary p-3 font-mono text-xs leading-relaxed text-text-primary"
+                    >
+                      {body ? decodeLinkTargets(body.content) : ""}
+                    </pre>
+                  )}
+                </details>
               </div>
             </div>
           )}

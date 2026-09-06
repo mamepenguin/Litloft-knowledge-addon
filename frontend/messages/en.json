@@ -112,7 +112,8 @@
         "link": "Link",
         "code": "Code block",
         "fileLink": "Insert file link",
-        "keepVersion": "Keep this version"
+        "keepVersion": "Keep this version",
+        "versionHistory": "Version history"
       },
       "status": {
         "saving": "Saving...",
@@ -144,7 +145,12 @@
         "loadingVersion": "Loading version...",
         "previousPage": "Previous versions page",
         "nextPage": "Next versions page",
-        "page": "{current} / {total}"
+        "page": "{current} / {total}",
+        "auto": "Autosaved",
+        "diffLoading": "Loading changes...",
+        "diffUnchanged": "Nothing changed in this version.",
+        "diffFailed": "Could not load the changes.",
+        "diffRetry": "Retry"
       }
     },
     "fileLinkModal": {
