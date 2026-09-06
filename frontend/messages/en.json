@@ -225,6 +225,16 @@
         "folder": "Folder",
         "flat": "Flat"
       },
+      "legend": {
+        "kind": {
+          "md": "Markdown",
+          "video": "Video",
+          "image": "Image",
+          "pdf": "PDF",
+          "other": "Other"
+        },
+        "root": "(root)"
+      },
       "stats": {
         "nodes": "{count} nodes",
         "edges": "{count} edges",

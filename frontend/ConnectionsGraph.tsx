@@ -422,7 +422,7 @@ export default function ConnectionsGraph({ drive }: Props) {
                 >
                   {legendItems.map((item) => (
                     <li
-                      key={item.label}
+                      key={item.labelKey ?? item.label}
                       className="flex items-center gap-1.5 text-[11px] text-text-muted"
                     >
                       <span
@@ -433,7 +433,7 @@ export default function ConnectionsGraph({ drive }: Props) {
                         }}
                       />
                       <span className="max-w-[140px] truncate">
-                        {item.label}
+                        {item.labelKey ? t(item.labelKey) : item.label}
                       </span>
                     </li>
                   ))}

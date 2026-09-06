@@ -225,6 +225,16 @@
         "folder": "フォルダ",
         "flat": "単色"
       },
+      "legend": {
+        "kind": {
+          "md": "Markdown",
+          "video": "動画",
+          "image": "画像",
+          "pdf": "PDF",
+          "other": "その他"
+        },
+        "root": "（ルート）"
+      },
       "stats": {
         "nodes": "{count} ノード",
         "edges": "{count} エッジ",
