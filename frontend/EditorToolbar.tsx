@@ -1,24 +1,174 @@
 "use client";
 
+import type { ComponentType } from "react";
 import {
   Bold,
   BookmarkPlus,
   Code,
-  History,
+  FileSymlink,
   Heading1,
   Heading2,
   Heading3,
+  History,
+  Italic,
   Link,
-  Link2,
   List,
+  ListChecks,
+  ListOrdered,
+  Quote,
+  Strikethrough,
 } from "lucide-react";
 import { useTranslations } from "next-intl";
+
+import { ActionMenuItem } from "@/components/ActionMenuItem";
+import { Button } from "@/components/Button";
+import { OverflowMenu } from "@/components/OverflowMenu";
 
 export type EditorAction =
   | { kind: "prefix"; text: string }
   | { kind: "wrap"; before: string; after: string }
   | { kind: "link" }
   | { kind: "codeblock" };
+
+/**
+ * Every formatting control this toolbar offers, in the order it is drawn.
+ *
+ * The array is the source and the record below is keyed by it, so a control
+ * cannot exist in one and not the other, and a test that walks this array
+ * walks the whole set rather than the subset someone remembered to list
+ * (the same reason `EmptyState.EMPTY_VARIANTS` is an array).
+ */
+export const FORMAT_ACTIONS = [
+  "h1",
+  "h2",
+  "h3",
+  "bold",
+  "italic",
+  "strike",
+  "list",
+  "orderedList",
+  "taskList",
+  "link",
+  "code",
+  "quote",
+] as const;
+
+export type FormatActionId = (typeof FORMAT_ACTIONS)[number];
+
+type FormatGroup = "heading" | "emphasis" | "block" | "insert";
+
+interface FormatSpec {
+  icon: ComponentType<{ size?: number }>;
+  group: FormatGroup;
+  action: EditorAction;
+  /**
+   * Whether it keeps its place on the bar at every width.
+   *
+   * A row of controls does not wrap: what will not fit drops into the `…`,
+   * and it is the *number* of controls that gives, not their size
+   * (`00-basis.md`). Six of the twelve stay, which is what fits beside the
+   * file-link button and the `…` at 320px — measured, see `NARROW_FLOOR`.
+   */
+  always: boolean;
+}
+
+export const FORMAT_SPECS: Record<FormatActionId, FormatSpec> = {
+  h1: {
+    icon: Heading1,
+    group: "heading",
+    action: { kind: "prefix", text: "# " },
+    always: true,
+  },
+  h2: {
+    icon: Heading2,
+    group: "heading",
+    action: { kind: "prefix", text: "## " },
+    always: true,
+  },
+  h3: {
+    icon: Heading3,
+    group: "heading",
+    action: { kind: "prefix", text: "### " },
+    always: false,
+  },
+  bold: {
+    icon: Bold,
+    group: "emphasis",
+    action: { kind: "wrap", before: "**", after: "**" },
+    always: true,
+  },
+  italic: {
+    icon: Italic,
+    group: "emphasis",
+    action: { kind: "wrap", before: "*", after: "*" },
+    always: false,
+  },
+  strike: {
+    icon: Strikethrough,
+    group: "emphasis",
+    action: { kind: "wrap", before: "~~", after: "~~" },
+    always: false,
+  },
+  list: {
+    icon: List,
+    group: "block",
+    action: { kind: "prefix", text: "- " },
+    always: true,
+  },
+  orderedList: {
+    icon: ListOrdered,
+    group: "block",
+    action: { kind: "prefix", text: "1. " },
+    always: false,
+  },
+  taskList: {
+    icon: ListChecks,
+    group: "block",
+    action: { kind: "prefix", text: "- [ ] " },
+    always: false,
+  },
+  link: {
+    icon: Link,
+    group: "insert",
+    action: { kind: "link" },
+    always: true,
+  },
+  code: {
+    icon: Code,
+    group: "insert",
+    action: { kind: "codeblock" },
+    always: true,
+  },
+  quote: {
+    icon: Quote,
+    group: "insert",
+    action: { kind: "prefix", text: "> " },
+    always: false,
+  },
+};
+
+const GROUP_ORDER: FormatGroup[] = ["heading", "emphasis", "block", "insert"];
+
+/**
+ * The width at which the other six formatting controls come back out of the
+ * `…`, written here rather than left implicit in a `sm:` scattered through
+ * the markup.
+ *
+ * It is Tailwind's `sm` (640px) because that is the widest breakpoint the
+ * full bar still clears: twelve formatting buttons, the file-link button and
+ * the `…` are 14 × 32px, with four 13px separators, thirteen 2px gaps and
+ * 24px of horizontal padding — 558px. The narrow set is eight buttons and no
+ * separators, 294px, which clears 320px. Between those two counts there is no
+ * arrangement that fits 320 and shows more, so there is one threshold and not
+ * a scale of them. Measured in Chromium at 320/375/400/430/639/640/768/1512;
+ * the editor column is the viewport width below 1120, so a viewport query and
+ * a container query answer the same question here.
+ */
+const NARROW_FLOOR = "sm";
+
+/** Wide-only: `display:contents` keeps the button a direct flex child. */
+const WIDE_ONLY = `hidden ${NARROW_FLOOR}:contents`;
+const SEPARATOR = `mx-1.5 hidden h-4 w-px bg-bg-border ${NARROW_FLOOR}:block`;
 
 interface Props {
   onAction: (action: EditorAction) => void;
@@ -40,139 +190,122 @@ export default function EditorToolbar({
 }: Props) {
   const t = useTranslations("knowledge.editor.toolbar");
 
-  const btnClass =
-    "inline-flex h-8 w-8 items-center justify-center rounded-lg text-text-muted transition-colors hover:bg-bg-elevated hover:text-text-primary disabled:cursor-not-allowed disabled:opacity-40";
+  const formatButton = (id: FormatActionId) => {
+    const spec = FORMAT_SPECS[id];
+    const Icon = spec.icon;
+    const button = (
+      <Button
+        key={id}
+        variant="ghost"
+        iconOnly
+        aria-label={t(id)}
+        title={t(id)}
+        onClick={() => onAction(spec.action)}
+        disabled={disabled}
+      >
+        <Icon size={15} />
+      </Button>
+    );
+    return spec.always ? (
+      button
+    ) : (
+      <span key={id} className={WIDE_ONLY}>
+        {button}
+      </span>
+    );
+  };
 
   return (
-    <div
-      role="toolbar"
-      aria-label={t("label")}
-      className="flex flex-wrap items-center gap-0.5 border-b border-bg-border bg-bg-card px-3 py-1.5"
-    >
-      <button
-        type="button"
-        className={btnClass}
-        aria-label={t("h1")}
-        title={t("h1")}
-        onClick={() => onAction({ kind: "prefix", text: "# " })}
-        disabled={disabled}
+    <div className="flex items-center gap-0.5 border-b border-bg-border bg-bg-card px-3 py-1.5">
+      {/* The formatting controls, and only those. The `…` beside them holds
+          what the document as a whole does — keeping a version, opening the
+          history — which is not formatting and does not belong in a group
+          named for it. */}
+      <div
+        role="toolbar"
+        aria-label={t("label")}
+        className="flex min-w-0 items-center gap-0.5"
       >
-        <Heading1 size={15} />
-      </button>
-      <button
-        type="button"
-        className={btnClass}
-        aria-label={t("h2")}
-        title={t("h2")}
-        onClick={() => onAction({ kind: "prefix", text: "## " })}
-        disabled={disabled}
-      >
-        <Heading2 size={15} />
-      </button>
-      <button
-        type="button"
-        className={btnClass}
-        aria-label={t("h3")}
-        title={t("h3")}
-        onClick={() => onAction({ kind: "prefix", text: "### " })}
-        disabled={disabled}
-      >
-        <Heading3 size={15} />
-      </button>
-      <span className="mx-1.5 h-4 w-px bg-bg-border" />
-      <button
-        type="button"
-        className={btnClass}
-        aria-label={t("bold")}
-        title={t("bold")}
-        onClick={() => onAction({ kind: "wrap", before: "**", after: "**" })}
-        disabled={disabled}
-      >
-        <Bold size={15} />
-      </button>
-      <button
-        type="button"
-        className={btnClass}
-        aria-label={t("list")}
-        title={t("list")}
-        onClick={() => onAction({ kind: "prefix", text: "- " })}
-        disabled={disabled}
-      >
-        <List size={15} />
-      </button>
-      <button
-        type="button"
-        className={btnClass}
-        aria-label={t("link")}
-        title={t("link")}
-        onClick={() => onAction({ kind: "link" })}
-        disabled={disabled}
-      >
-        <Link size={15} />
-      </button>
-      <button
-        type="button"
-        className={btnClass}
-        aria-label={t("code")}
-        title={t("code")}
-        onClick={() => onAction({ kind: "codeblock" })}
-        disabled={disabled}
-      >
-        <Code size={15} />
-      </button>
-      {onFileLinkRequest && (
-        <>
-          <span className="mx-1.5 h-4 w-px bg-bg-border" />
-          <button
-            type="button"
-            className={btnClass}
-            aria-label={t("fileLink")}
-            title={t("fileLink")}
-            onClick={onFileLinkRequest}
-            disabled={disabled}
-          >
-            <Link2 size={15} />
-          </button>
-        </>
-      )}
-      <span className="mx-1.5 h-4 w-px bg-bg-border" />
-      <button
-        type="button"
-        className={`${btnClass} w-auto gap-1.5 px-2`}
-        aria-label={t("keepVersion")}
-        title={t("keepVersion")}
-        onClick={onKeepVersion}
-        disabled={disabled}
-      >
-        <BookmarkPlus size={15} />
-        <span className="hidden text-xs font-medium sm:inline">
-          {t("keepVersion")}
-        </span>
-      </button>
-      {/* Beside "keep this version": where a version is made is where
-          someone looks for the ones already made. The panel itself stays
-          at the foot of the note, so this reveals it rather than
-          replacing it. */}
-      {onOpenVersionHistory && (
-        <button
-          type="button"
-          // 32px, like the nine buttons beside it. The 44px coarse-pointer
-          // floor is real and this row misses it, but it misses it for every
-          // button: at `gap-0.5` there is 2px between items, so a 44px target
-          // on one of them either widens the row — which the same rule
-          // forbids, and this row already wraps at 375px without this button
-          // — or overlaps its neighbour and steals the tap. The rule's own
-          // remedy is to carry fewer controls here, which is a change to the
-          // whole toolbar and belongs with the mobile work.
-          className={btnClass}
-          aria-label={t("versionHistory")}
-          title={t("versionHistory")}
-          onClick={onOpenVersionHistory}
-          disabled={disabled}
-        >
-          <History size={15} />
-        </button>
-      )}
+        {GROUP_ORDER.map((group, i) => (
+          <span key={group} className="contents">
+            {i > 0 && <span className={SEPARATOR} />}
+            {FORMAT_ACTIONS.filter((id) => FORMAT_SPECS[id].group === group).map(
+              formatButton,
+            )}
+          </span>
+        ))}
+        {onFileLinkRequest && (
+          <>
+            <span className={SEPARATOR} />
+            {/* `FileSymlink`, not a second chain link: this inserts a
+                `loft://` reference to a file in the library, and beside the
+                Markdown-link button the two chain glyphs were the same
+                picture with two names only a screen reader heard. */}
+            <Button
+              variant="ghost"
+              iconOnly
+              aria-label={t("fileLink")}
+              title={t("fileLink")}
+              onClick={onFileLinkRequest}
+              disabled={disabled}
+            >
+              <FileSymlink size={15} />
+            </Button>
+          </>
+        )}
+      </div>
+
+      <div className="ml-auto">
+        <OverflowMenu label={t("more")}>
+          {(close) => (
+            <>
+              {/* Below `sm` these six are not on the bar, so this is where
+                  they are. Above it they are on the bar and this block is
+                  `display:none` — one control, one place, at any one width. */}
+              <div className={`${NARROW_FLOOR}:hidden`}>
+                {FORMAT_ACTIONS.filter((id) => !FORMAT_SPECS[id].always).map(
+                  (id) => (
+                    <ActionMenuItem
+                      key={id}
+                      icon={FORMAT_SPECS[id].icon}
+                      label={t(id)}
+                      disabled={disabled}
+                      onClick={() => {
+                        close();
+                        onAction(FORMAT_SPECS[id].action);
+                      }}
+                    />
+                  ),
+                )}
+              </div>
+              <ActionMenuItem
+                icon={BookmarkPlus}
+                label={t("keepVersion")}
+                disabled={disabled}
+                onClick={() => {
+                  close();
+                  onKeepVersion();
+                }}
+              />
+              {/* Beside "keep this version": where a version is made is where
+                  someone looks for the ones already made. The panel itself
+                  stays at the foot of the note, so this reveals it rather
+                  than replacing it. */}
+              {onOpenVersionHistory && (
+                <ActionMenuItem
+                  icon={History}
+                  label={t("versionHistory")}
+                  disabled={disabled}
+                  onClick={() => {
+                    close();
+                    onOpenVersionHistory();
+                  }}
+                />
+              )}
+            </>
+          )}
+        </OverflowMenu>
+      </div>
     </div>
   );
 }

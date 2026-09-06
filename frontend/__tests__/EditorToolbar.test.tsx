@@ -1,0 +1,221 @@
+import { afterEach, describe, expect, it, vi } from "vitest";
+import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
+import { readFileSync } from "node:fs";
+import { fileURLToPath } from "node:url";
+import { resolve, dirname } from "node:path";
+
+vi.mock("next-intl", () => ({
+  useTranslations: (namespace: string) => (key: string) => `${namespace}.${key}`,
+}));
+
+import EditorToolbar, {
+  FORMAT_ACTIONS,
+  FORMAT_SPECS,
+  applyEditorAction,
+} from "../EditorToolbar";
+
+const SRC = resolve(
+  dirname(fileURLToPath(import.meta.url)),
+  "../EditorToolbar.tsx",
+);
+
+function renderToolbar(overrides: Partial<Parameters<typeof EditorToolbar>[0]> = {}) {
+  const onAction = vi.fn();
+  const onFileLinkRequest = vi.fn();
+  const onKeepVersion = vi.fn();
+  const onOpenVersionHistory = vi.fn();
+  render(
+    <EditorToolbar
+      onAction={onAction}
+      onFileLinkRequest={onFileLinkRequest}
+      onKeepVersion={onKeepVersion}
+      onOpenVersionHistory={onOpenVersionHistory}
+      {...overrides}
+    />,
+  );
+  return { onAction, onFileLinkRequest, onKeepVersion, onOpenVersionHistory };
+}
+
+function toolbar(): HTMLElement {
+  return screen.getByRole("toolbar");
+}
+
+function openMenu() {
+  fireEvent.click(
+    screen.getByRole("button", { name: "knowledge.editor.toolbar.more" }),
+  );
+}
+
+/** The lucide component behind each `<svg>`, read off its own class. */
+function iconNames(root: HTMLElement): string[] {
+  return Array.from(root.querySelectorAll("svg")).map((svg) => {
+    const named = Array.from(svg.classList).find(
+      (c) => c.startsWith("lucide-") && c !== "lucide-icon",
+    );
+    if (!named) throw new Error(`svg with no lucide name: ${svg.outerHTML}`);
+    return named;
+  });
+}
+
+afterEach(cleanup);
+
+describe("EditorToolbar", () => {
+  /**
+   * Twelve, pinned. The count is the point: the record below is keyed by
+   * this array, and the per-action table in `editor.test.ts` walks it, so
+   * the only way to add a control without a test is to add it here — where
+   * this number stops matching.
+   */
+  it("offers twelve formatting controls, each with a spec", () => {
+    expect(FORMAT_ACTIONS).toHaveLength(12);
+    expect(Object.keys(FORMAT_SPECS).sort()).toEqual([...FORMAT_ACTIONS].sort());
+  });
+
+  /**
+   * Two chain links side by side told a sighted user nothing: `Link` was the
+   * Markdown link and `Link2` the `loft://` file reference, and only the
+   * accessible name said which was which.
+   */
+  it("draws no two controls with the same glyph", () => {
+    renderToolbar();
+    const names = iconNames(toolbar());
+    expect(names.length).toBeGreaterThan(0);
+    expect(new Set(names).size).toBe(names.length);
+  });
+
+  /**
+   * The toolbar formats a selection. Keeping a version and opening the
+   * history act on the whole document, so they sit beside it rather than in
+   * it — and `role="toolbar"` is what says where the line falls.
+   */
+  it("keeps the document-level actions out of the toolbar", () => {
+    renderToolbar();
+    expect(
+      within(toolbar()).queryByRole("button", {
+        name: "knowledge.editor.toolbar.keepVersion",
+      }),
+    ).toBeNull();
+    expect(toolbar().textContent).not.toContain("keepVersion");
+
+    openMenu();
+    const keep = screen.getByRole("menuitem", {
+      name: "knowledge.editor.toolbar.keepVersion",
+    });
+    expect(toolbar().contains(keep)).toBe(false);
+    expect(
+      screen.getByRole("menuitem", {
+        name: "knowledge.editor.toolbar.versionHistory",
+      }),
+    ).toBeTruthy();
+  });
+
+  /**
+   * Every control reaches its handler, whichever side of the threshold it is
+   * drawn on. Both halves are in the tree at once — CSS decides which one a
+   * given width shows — so this presses each of them exactly where it lives.
+   */
+  it("routes every formatting control to onAction", () => {
+    const { onAction } = renderToolbar();
+    const onBar = FORMAT_ACTIONS.filter((id) => FORMAT_SPECS[id].always);
+    const inMenu = FORMAT_ACTIONS.filter((id) => !FORMAT_SPECS[id].always);
+    expect(onBar).toHaveLength(6);
+    expect(inMenu).toHaveLength(6);
+
+    for (const id of onBar) {
+      fireEvent.click(
+        within(toolbar()).getByRole("button", {
+          name: `knowledge.editor.toolbar.${id}`,
+        }),
+      );
+      expect(onAction).toHaveBeenLastCalledWith(FORMAT_SPECS[id].action);
+    }
+
+    for (const id of inMenu) {
+      openMenu();
+      fireEvent.click(
+        screen.getByRole("menuitem", {
+          name: `knowledge.editor.toolbar.${id}`,
+        }),
+      );
+      expect(onAction).toHaveBeenLastCalledWith(FORMAT_SPECS[id].action);
+    }
+    expect(onAction).toHaveBeenCalledTimes(FORMAT_ACTIONS.length);
+  });
+
+  it("drops the file-link control when the host cannot answer it", () => {
+    renderToolbar({ onFileLinkRequest: undefined });
+    expect(
+      screen.queryByRole("button", {
+        name: "knowledge.editor.toolbar.fileLink",
+      }),
+    ).toBeNull();
+  });
+
+  it("passes disabled down to every control", () => {
+    renderToolbar({ disabled: true });
+    for (const button of within(toolbar()).getAllByRole("button")) {
+      expect(button).toBeDisabled();
+    }
+    openMenu();
+    for (const item of screen.getAllByRole("menuitem")) {
+      expect(item).toBeDisabled();
+    }
+  });
+
+  /**
+   * DESIGN.md §6 "Disabled (every variant)": a translucent control still
+   * says what it said, only dimmer. `Button` owns the treatment now, and
+   * the point of adopting it is that this file cannot write its own.
+   */
+  it("writes no disabled treatment of its own", () => {
+    expect(readFileSync(SRC, "utf-8")).not.toContain("disabled:opacity");
+  });
+
+  /**
+   * The row does not wrap. `00-basis.md`: what will not fit goes into the
+   * `…`, and it is the number of controls that gives, not their labels —
+   * so nothing here may reintroduce `flex-wrap`.
+   */
+  it("never wraps its controls onto a second line", () => {
+    expect(readFileSync(SRC, "utf-8")).not.toContain("flex-wrap");
+  });
+});
+
+describe("applyEditorAction, per control", () => {
+  // One row per entry in FORMAT_ACTIONS, read from the same array the
+  // toolbar is drawn from, so a thirteenth control cannot arrive untested.
+  const cases: Record<
+    (typeof FORMAT_ACTIONS)[number],
+    { before: string; selStart: number; selEnd: number; after: string }
+  > = {
+    h1: { before: "line", selStart: 0, selEnd: 0, after: "# line" },
+    h2: { before: "line", selStart: 0, selEnd: 0, after: "## line" },
+    h3: { before: "line", selStart: 0, selEnd: 0, after: "### line" },
+    bold: { before: "a b", selStart: 2, selEnd: 3, after: "a **b**" },
+    italic: { before: "a b", selStart: 2, selEnd: 3, after: "a *b*" },
+    strike: { before: "a b", selStart: 2, selEnd: 3, after: "a ~~b~~" },
+    list: { before: "item", selStart: 0, selEnd: 0, after: "- item" },
+    orderedList: { before: "item", selStart: 0, selEnd: 0, after: "1. item" },
+    taskList: { before: "item", selStart: 0, selEnd: 0, after: "- [ ] item" },
+    link: { before: "see foo", selStart: 4, selEnd: 7, after: "see [foo](url)" },
+    code: { before: "x", selStart: 0, selEnd: 1, after: "\n```\nx\n```\n" },
+    quote: { before: "said", selStart: 0, selEnd: 0, after: "> said" },
+  };
+
+  it("covers every control the toolbar draws", () => {
+    expect(Object.keys(cases).sort()).toEqual([...FORMAT_ACTIONS].sort());
+  });
+
+  for (const id of FORMAT_ACTIONS) {
+    it(`${id} rewrites the body as documented`, () => {
+      const c = cases[id];
+      const { text } = applyEditorAction(
+        c.before,
+        c.selStart,
+        c.selEnd,
+        FORMAT_SPECS[id].action,
+      );
+      expect(text).toBe(c.after);
+    });
+  }
+});
