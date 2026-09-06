@@ -147,6 +147,17 @@ describe("decodeLinkTargets", () => {
     );
   });
 
+  it("leaves an image's own destination alone", () => {
+    // `![…](…)` is an image; its destination is a path, not a heading anchor.
+    const source = "![![alt](inner.png)](#%2Fasset)";
+    expect(decodeLinkTargets(source)).toBe(source);
+  });
+
+  it("leaves a plain image destination alone", () => {
+    const source = "![alt](#%E4%B8%80)";
+    expect(decodeLinkTargets(source)).toBe(source);
+  });
+
   it("leaves an unclosed label alone", () => {
     const source = "[outer [inner](#%E4%B8%80)";
     expect(decodeLinkTargets(source)).toBe(source);

@@ -154,7 +154,9 @@ export function decodeLinkTargets(source: string): string {
       if (!closesLabel && wasImage === false && source[i + 1] === "(") {
         labelHasLink = true;
       }
-      if (closesLabel && !labelHasLink && source[i + 1] === "(") {
+      // `wasImage === false`: an outer `![…](…)` is an image, and its
+      // destination is a file path, not a heading anchor to make readable.
+      if (closesLabel && wasImage === false && !labelHasLink && source[i + 1] === "(") {
         const match = HEADING_ANCHOR.exec(source.slice(i + 2));
         if (match) {
           const anchor = match[0].slice(0, -1);
