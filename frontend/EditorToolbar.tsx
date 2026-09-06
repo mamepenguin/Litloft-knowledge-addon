@@ -156,14 +156,15 @@ export default function EditorToolbar({
       {onOpenVersionHistory && (
         <button
           type="button"
-          // 32px drawn, 44px of target where the pointer is coarse, per the
-          // mobile rule in `2026-09-03-ui-redesign-00-basis.md` — which asks
-          // for the target, not the box. The target is an overlay so the
-          // flex footprint stays 32px: growing the item to 44px would push a
-          // row that fits at 430px into wrapping, which the same rule
-          // forbids. (At 375px the row already wraps without this button at
-          // all; that is the toolbar's own, and belongs with the mobile work.)
-          className={`${btnClass} relative pointer-coarse:after:absolute pointer-coarse:after:left-1/2 pointer-coarse:after:top-1/2 pointer-coarse:after:h-11 pointer-coarse:after:w-11 pointer-coarse:after:-translate-x-1/2 pointer-coarse:after:-translate-y-1/2 pointer-coarse:after:content-['']`}
+          // 32px, like the nine buttons beside it. The 44px coarse-pointer
+          // floor is real and this row misses it, but it misses it for every
+          // button: at `gap-0.5` there is 2px between items, so a 44px target
+          // on one of them either widens the row — which the same rule
+          // forbids, and this row already wraps at 375px without this button
+          // — or overlaps its neighbour and steals the tap. The rule's own
+          // remedy is to carry fewer controls here, which is a change to the
+          // whole toolbar and belongs with the mobile work.
+          className={btnClass}
           aria-label={t("versionHistory")}
           title={t("versionHistory")}
           onClick={onOpenVersionHistory}
