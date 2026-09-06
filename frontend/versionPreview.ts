@@ -50,8 +50,11 @@ export function decodeLinkTargets(source: string): string {
   let indentedCode = false;
   /** Whether the previous line was blank, which is what may start one. */
   let afterBlankLine = true;
-  /** Open `[` on this line. Labels may nest: `[outer [inner]](#x)`. */
-  let labelDepth = 0;
+  /**
+   * The open `[` on this line, innermost last, each remembering whether it
+   * was an image opener. Labels nest — `[outer [inner]](#x)` is one link.
+   */
+  let labels: boolean[] = [];
   /** Whether the open label already holds a link, which voids the outer one. */
   let labelHasLink = false;
 
@@ -99,7 +102,7 @@ export function decodeLinkTargets(source: string): string {
       out.push(ch);
       i += 1;
       atLineStart = true;
-      labelDepth = 0;
+      labels = [];
       labelHasLink = false;
       continue;
     }
@@ -133,7 +136,8 @@ export function decodeLinkTargets(source: string): string {
     }
 
     if (ch === "[") {
-      labelDepth += 1;
+      // `![` opens an image, and an image inside a link is allowed.
+      labels.push(source[i - 1] === "!" && source[i - 2] !== "\\");
       out.push(ch);
       i += 1;
       continue;
@@ -142,13 +146,14 @@ export function decodeLinkTargets(source: string): string {
     if (ch === "]") {
       // A label has to have been open: a bare `]` with no `[` before it is
       // ordinary text, and `plain ](#x)` is not a link.
-      const closesLabel = labelDepth === 1;
+      const wasImage = labels.pop() ?? null;
+      const closesLabel = wasImage !== null && labels.length === 0;
       // Markdown forbids a link inside a link, so an inner one voids the
       // outer opener and `[outer [inner](url)](#x)` ends as literal text.
-      if (!closesLabel && labelDepth > 1 && source[i + 1] === "(") {
+      // An image is not a link, so `[![alt](img.png)](#x)` still decodes.
+      if (!closesLabel && wasImage === false && source[i + 1] === "(") {
         labelHasLink = true;
       }
-      if (labelDepth > 0) labelDepth -= 1;
       if (closesLabel && !labelHasLink && source[i + 1] === "(") {
         const match = HEADING_ANCHOR.exec(source.slice(i + 2));
         if (match) {

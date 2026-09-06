@@ -140,6 +140,13 @@ describe("decodeLinkTargets", () => {
     expect(decodeLinkTargets(source)).toBe(source);
   });
 
+  it("decodes a link whose label holds an image", () => {
+    // An image is not a link, so it does not void the label around it.
+    expect(decodeLinkTargets("[![alt](image.png)](#%E4%B8%80)")).toBe(
+      "[![alt](image.png)](#一)",
+    );
+  });
+
   it("leaves an unclosed label alone", () => {
     const source = "[outer [inner](#%E4%B8%80)";
     expect(decodeLinkTargets(source)).toBe(source);
