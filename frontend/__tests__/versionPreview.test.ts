@@ -55,16 +55,17 @@ describe("decodeLinkTargets", () => {
     expect(decodeLinkTargets(source)).toBe(source);
   });
 
-  it("reads a destination whose parentheses balance", () => {
-    expect(
-      decodeLinkTargets("[wiki](https://en.wikipedia.org/wiki/Foo_(bar)%20baz)"),
-    ).toBe("[wiki](https://en.wikipedia.org/wiki/Foo_(bar) baz)");
+  it("leaves a destination that is not a bare fragment", () => {
+    // Deliberately narrower than "every link destination": a URL with
+    // balanced parentheses is a grammar this module does not try to parse,
+    // so it is left as written rather than half-decoded.
+    const source = "[wiki](https://en.wikipedia.org/wiki/Foo_(bar)%20baz)";
+    expect(decodeLinkTargets(source)).toBe(source);
   });
 
-  it("leaves a link title alone", () => {
-    expect(decodeLinkTargets('[a](#%E4%B8%80 "a %20 title")')).toBe(
-      '[a](#一 "a %20 title")',
-    );
+  it("leaves a link that carries a title", () => {
+    const source = '[a](#%E4%B8%80 "a %20 title")';
+    expect(decodeLinkTargets(source)).toBe(source);
   });
 
   it("does not let a destination run past the end of its line", () => {
@@ -91,6 +92,19 @@ describe("decodeLinkTargets", () => {
     expect(decodeLinkTargets(source)).toBe(source);
   });
 
+  it("keeps the continuation lines of an indented code block", () => {
+    // Only the first line follows a blank one; the second is a continuation,
+    // and is just as much code as the first.
+    const source = "para\n\n    first\n    [a](#%E4%B8%80)\n";
+    expect(decodeLinkTargets(source)).toBe(source);
+  });
+
+  it("leaves the indented block when the indent stops", () => {
+    expect(decodeLinkTargets("para\n\n    code\n\n[a](#%E4%B8%80)\n")).toBe(
+      "para\n\n    code\n\n[a](#一)\n",
+    );
+  });
+
   it("does not close a four-backtick fence with three", () => {
     const source = "````\n```\n[a](#%E4%B8%80)\n````\n";
     expect(decodeLinkTargets(source)).toBe(source);
@@ -103,18 +117,25 @@ describe("decodeLinkTargets", () => {
     );
   });
 
-  it("does not count parentheses inside a title as destination nesting", () => {
-    expect(decodeLinkTargets('[a](#%E4%B8%80 "see (draft")')).toBe(
-      '[a](#一 "see (draft")',
+  it("leaves a title holding a parenthesis", () => {
+    const source = '[a](#%E4%B8%80 "see (draft")';
+    expect(decodeLinkTargets(source)).toBe(source);
+  });
+
+  it("leaves an angle-bracketed destination alone", () => {
+    const source = "[a](<#%E4%B8%80 %E4%BA%8C>)";
+    expect(decodeLinkTargets(source)).toBe(source);
+  });
+
+  it("decodes a label whose own brackets balance", () => {
+    expect(decodeLinkTargets("[outer [inner]](#%E4%B8%80)")).toBe(
+      "[outer [inner]](#一)",
     );
   });
 
-  it("keeps an angle-bracketed destination readable", () => {
-    // Angle brackets are what let a destination hold a space, and a space is
-    // where the ordinary reading stops — so this is the case that needs them.
-    expect(decodeLinkTargets("[a](<#%E4%B8%80 %E4%BA%8C>)")).toBe(
-      "[a](<#一 二>)",
-    );
+  it("leaves an unclosed label alone", () => {
+    const source = "[outer [inner](#%E4%B8%80)";
+    expect(decodeLinkTargets(source)).toBe(source);
   });
 
   it("does not decode a plus sign into a space", () => {
