@@ -53,11 +53,21 @@ const ROTATIONAL_PALETTE: PaletteColor[] = [
 /**
  * Compute a stable group→color mapping by frequency: the top N groups
  * (tags / folders) get distinct colors, everything else is muted.
+ *
+ * `includeEmpty` is for folder mode, where `""` is the drive root — a real
+ * place holding real files, and usually the busiest one. Skipping it left
+ * every root file muted and absent from the legend, which is also why the
+ * `"(root)"` label this file used to carry was never once drawn.
+ * A tag is never empty in the same sense, so tag mode keeps the skip.
  */
-function topGroups(values: string[], limit: number): Map<string, PaletteColor> {
+function topGroups(
+  values: string[],
+  limit: number,
+  includeEmpty = false,
+): Map<string, PaletteColor> {
   const counts = new Map<string, number>();
   for (const v of values) {
-    if (!v) continue;
+    if (!v && !includeEmpty) continue;
     counts.set(v, (counts.get(v) ?? 0) + 1);
   }
   const ordered = Array.from(counts.entries())
@@ -68,22 +78,49 @@ function topGroups(values: string[], limit: number): Map<string, PaletteColor> {
   );
 }
 
+/**
+ * One swatch in the legend.
+ *
+ * The palette is a pure function and cannot call `useTranslations`, so the
+ * labels this module owns travel as keys and the component resolves them.
+ * Labels that come from the data — a tag, a folder name — travel as text,
+ * because there is nothing to translate. Exactly one of the two is set.
+ *
+ * `labelKey` is relative to the `knowledge.connections` namespace, which is
+ * the one the graph component holds.
+ */
+export interface LegendEntry {
+  labelKey?: string;
+  label?: string;
+  color: PaletteColor;
+}
+
 export interface Palette {
   colorFor(node: GraphNode): PaletteColor;
-  legend(): { label: string; color: PaletteColor }[];
+  legend(): LegendEntry[];
 }
+
+/**
+ * Read off `KIND_PALETTE` rather than written out again, so a sixth kind
+ * cannot appear in the picture with no swatch to name it.
+ */
+const KIND_LEGEND_KEY: Record<GraphMimeKind, string> = {
+  md: "legend.kind.md",
+  video: "legend.kind.video",
+  image: "legend.kind.image",
+  pdf: "legend.kind.pdf",
+  other: "legend.kind.other",
+};
 
 export function buildPalette(nodes: GraphNode[], mode: ColorBy): Palette {
   if (mode === "kind") {
     return {
       colorFor: (n) => KIND_PALETTE[n.mime_kind] ?? MUTED,
-      legend: () => [
-        { label: "Markdown", color: KIND_PALETTE.md },
-        { label: "Video", color: KIND_PALETTE.video },
-        { label: "Image", color: KIND_PALETTE.image },
-        { label: "PDF", color: KIND_PALETTE.pdf },
-        { label: "Other", color: KIND_PALETTE.other },
-      ],
+      legend: () =>
+        (Object.keys(KIND_PALETTE) as GraphMimeKind[]).map((kind) => ({
+          labelKey: KIND_LEGEND_KEY[kind],
+          color: KIND_PALETTE[kind],
+        })),
     };
   }
   if (mode === "tag") {
@@ -106,14 +143,15 @@ export function buildPalette(nodes: GraphNode[], mode: ColorBy): Palette {
   }
   if (mode === "folder") {
     const folders = nodes.map((n) => n.folder);
-    const map = topGroups(folders, ROTATIONAL_PALETTE.length);
+    const map = topGroups(folders, ROTATIONAL_PALETTE.length, true);
     return {
       colorFor: (n) => map.get(n.folder) ?? MUTED,
       legend: () =>
-        Array.from(map.entries()).map(([name, color]) => ({
-          label: name || "(root)",
-          color,
-        })),
+        Array.from(map.entries()).map(([name, color]) =>
+          name
+            ? { label: name, color }
+            : { labelKey: "legend.root", color },
+        ),
     };
   }
   // flat

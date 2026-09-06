@@ -33,6 +33,25 @@ vi.mock("@/components/PropertiesPanel", () => ({
 
 const Editor = (await import("../Editor")).default;
 
+/**
+ * Open the toolbar's `…` and hand back the row named by `key`.
+ *
+ * "Keep this version" and "Version history" act on the document rather than
+ * on the selection, so they sit beside the formatting toolbar instead of
+ * inside it. They are `menuitem`s now, and they are not in the tree at all
+ * until the menu is open — pressing one is two steps, and a test that keeps
+ * doing it in one would go on passing against a button that had been
+ * removed from the screen.
+ */
+function openToolbarMenu(key: string): HTMLElement {
+  fireEvent.click(
+    screen.getByRole("button", { name: "knowledge.editor.toolbar.more" }),
+  );
+  return screen.getByRole("menuitem", {
+    name: `knowledge.editor.toolbar.${key}`,
+  });
+}
+
 function response({
   ok = true,
   status = ok ? 200 : 400,
@@ -164,11 +183,7 @@ describe("Editor explicit versions", () => {
     renderEditor();
     const textarea = await screen.findByLabelText("knowledge.editor.editArea");
     setEditorContent(textarea, "dirty body");
-    fireEvent.click(
-      screen.getByRole("button", {
-        name: "knowledge.editor.toolbar.keepVersion",
-      }),
-    );
+    fireEvent.click(openToolbarMenu("keepVersion"));
 
     await waitFor(() => expect(puts).toHaveLength(1));
     await act(async () => vi.advanceTimersByTime(2500));
@@ -211,11 +226,7 @@ describe("Editor explicit versions", () => {
     await waitFor(() => expect(contentPuts).toHaveLength(1));
 
     setEditorContent(textarea, "explicit body");
-    fireEvent.click(
-      screen.getByRole("button", {
-        name: "knowledge.editor.toolbar.keepVersion",
-      }),
-    );
+    fireEvent.click(openToolbarMenu("keepVersion"));
     expect(contentPuts).toHaveLength(1);
 
     await act(async () => {
@@ -273,11 +284,7 @@ describe("Editor explicit versions", () => {
     await screen.findByLabelText("knowledge.editor.editArea");
     expect(screen.queryByTestId("version-row-2")).toBeNull();
 
-    fireEvent.click(
-      screen.getByRole("button", {
-        name: "knowledge.editor.toolbar.versionHistory",
-      }),
-    );
+    fireEvent.click(openToolbarMenu("versionHistory"));
 
     expect(await screen.findByTestId("version-row-2")).toBeInTheDocument();
   });
@@ -639,11 +646,7 @@ describe("Editor explicit versions", () => {
     await waitFor(() =>
       expect(textarea).toHaveAttribute("contenteditable", "false"),
     );
-    expect(
-      screen.getByRole("button", {
-        name: "knowledge.editor.toolbar.keepVersion",
-      }),
-    ).toBeDisabled();
+    expect(openToolbarMenu("keepVersion")).toBeDisabled();
 
     act(() => {
       markdownContentRegistry.lookup("f1")?.setContent("external edit");
