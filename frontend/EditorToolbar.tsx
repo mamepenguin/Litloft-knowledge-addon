@@ -57,7 +57,7 @@ export type FormatActionId = (typeof FORMAT_ACTIONS)[number];
 
 type FormatGroup = "heading" | "emphasis" | "block" | "insert";
 
-type FormatTier = "narrow" | "mid" | "full";
+type FormatTier = "narrow" | "wideOnTouch" | "mid" | "full";
 
 interface FormatSpec {
   icon: ComponentType<{ size?: number }>;
@@ -79,7 +79,7 @@ export const FORMAT_SPECS: Record<FormatActionId, FormatSpec> = {
     icon: Heading1,
     group: "heading",
     action: { kind: "prefix", text: "# " },
-    tier: "narrow",
+    tier: "wideOnTouch",
   },
   h2: {
     icon: Heading2,
@@ -174,14 +174,52 @@ const GROUP_ORDER: FormatGroup[] = ["heading", "emphasis", "block", "insert"];
  * every tier permanently hidden — measured, and the reason this comment
  * exists.
  */
-const MID_ONLY = "hidden @min-[432px]:contents";
-const FULL_ONLY = "hidden @min-[534px]:contents";
-const MID_ONLY_IN_MENU = "@min-[432px]:hidden";
-const FULL_ONLY_IN_MENU = "@min-[534px]:hidden";
+/**
+ * A touch control is 44px of target, not 32px, and the row must carry the
+ * pitch to match — 12px between controls instead of 2, and a `…` trigger
+ * that is itself 44px (`OverflowMenu`'s `pointer-coarse:min-w-11`). The same
+ * bar therefore holds fewer controls under a finger than under a pointer:
+ *
+ *   fine   k controls need 34k + 34    coarse  k controls need 44k + 44
+ *
+ * That covers the narrow floors, where there are no separators. The mid and
+ * full floors are **measured**, not derived: once the groups are separated
+ * the arithmetic above is 88px short, because each separator costs its own
+ * width plus a gap on either side. `572` and `704` are what the row actually
+ * asks for with ten and thirteen controls on a coarse pointer.
+ *
+ * The floors below are those, with `k` counting the formatting controls and
+ * the file-link button. At a 375px viewport the bar is 360 and its content
+ * box 336, which takes six on touch — one fewer than the seven it takes with
+ * a pointer. **H1 is the one that goes**, and it is in the `…`: a note here
+ * takes its title from the frontmatter and the filename, so an H1 at the top
+ * of the body repeats it, and headings that start at H2 leave H2 on the bar.
+ *
+ * At 320 even six do not fit: the row asks for 308 and the bar's content box
+ * is 281, so it overflows by 27px. 320 is outside the design width —
+ * `00-basis.md` sets it at 400 and forbids wrapping and overflow at 375, and
+ * does not name 320 — so this is a degradation at an unsupported width rather
+ * than a target. Closing it would mean dropping a seventh control, and which
+ * one is a decision nothing has made.
+ *
+ * The two branches are mutually exclusive on purpose. Writing one floor and
+ * overriding it for touch would leave two equal-specificity rules deciding by
+ * stylesheet order, which is not something this file controls.
+ */
+const TOUCH_H1 = "hidden pointer-fine:contents pointer-coarse:@min-[352px]:contents";
+const MID_ONLY =
+  "hidden pointer-fine:@min-[432px]:contents pointer-coarse:@min-[572px]:contents";
+const FULL_ONLY =
+  "hidden pointer-fine:@min-[534px]:contents pointer-coarse:@min-[704px]:contents";
+const TOUCH_H1_IN_MENU = "pointer-fine:hidden pointer-coarse:@min-[352px]:hidden";
+const MID_ONLY_IN_MENU =
+  "pointer-fine:@min-[432px]:hidden pointer-coarse:@min-[572px]:hidden";
+const FULL_ONLY_IN_MENU =
+  "pointer-fine:@min-[534px]:hidden pointer-coarse:@min-[704px]:hidden";
 
 /** Groups only read as groups once the mid tier is out. */
 const SEPARATOR =
-  "mx-1.5 hidden h-4 w-px shrink-0 bg-bg-border @min-[432px]:block";
+  "mx-1.5 hidden h-4 w-px shrink-0 bg-bg-border pointer-fine:@min-[432px]:block pointer-coarse:@min-[572px]:block";
 
 interface Props {
   onAction: (action: EditorAction) => void;
@@ -211,19 +249,7 @@ export default function EditorToolbar({
         key={id}
         variant="ghost"
         iconOnly
-        // `Button` grows an icon-only control's hit area by 6px a side on a
-        // coarse pointer. That is half of the DESIGN.md §Row Actions recipe
-        // and, as `Button.tsx` says, the caller owns the other half: the row
-        // must carry a pitch the overhang fits in. This row does not — the
-        // controls sit 34px apart, so the 44px targets would overlap by 10px
-        // and the later button would take the tap.
-        //
-        // Before this bar was rebuilt it used a local class with no coarse
-        // rule at all, so every target was an honest 32px. Suppressing the
-        // overhang keeps that, rather than shipping targets that quietly
-        // steal from each other. Giving the row a real 44px pitch means
-        // showing fewer controls on touch, which is its own change.
-        className="shrink-0 pointer-coarse:before:hidden"
+        className="shrink-0"
         aria-label={t(id)}
         title={t(id)}
         onClick={() => onAction(spec.action)}
@@ -233,15 +259,21 @@ export default function EditorToolbar({
       </Button>
     );
     if (spec.tier === "narrow") return button;
+    const wrapper =
+      spec.tier === "wideOnTouch"
+        ? TOUCH_H1
+        : spec.tier === "mid"
+          ? MID_ONLY
+          : FULL_ONLY;
     return (
-      <span key={id} className={spec.tier === "mid" ? MID_ONLY : FULL_ONLY}>
+      <span key={id} className={wrapper}>
         {button}
       </span>
     );
   };
 
   return (
-    <div className="@container flex items-center gap-0.5 border-b border-bg-border bg-bg-card px-3 py-1.5">
+    <div className="@container flex items-center gap-0.5 border-b border-bg-border bg-bg-card px-3 py-1.5 pointer-coarse:gap-3">
       {/* The formatting controls, and only those. The `…` beside them holds
           what the document as a whole does — keeping a version, opening the
           history — which is not formatting and does not belong in a group
@@ -249,7 +281,7 @@ export default function EditorToolbar({
       <div
         role="toolbar"
         aria-label={t("label")}
-        className="flex items-center gap-0.5"
+        className="flex items-center gap-0.5 pointer-coarse:min-h-11 pointer-coarse:gap-3"
       >
         {GROUP_ORDER.map((group, i) => (
           <span key={group} className="contents">
@@ -269,7 +301,7 @@ export default function EditorToolbar({
             <Button
               variant="ghost"
               iconOnly
-              className="shrink-0 pointer-coarse:before:hidden"
+              className="shrink-0"
               aria-label={t("fileLink")}
               title={t("fileLink")}
               onClick={onFileLinkRequest}
@@ -288,10 +320,16 @@ export default function EditorToolbar({
               {/* Below `sm` these six are not on the bar, so this is where
                   they are. Above it they are on the bar and this block is
                   `display:none` — one control, one place, at any one width. */}
-              {(["mid", "full"] as const).map((tier) => (
+              {(["wideOnTouch", "mid", "full"] as const).map((tier) => (
                 <div
                   key={tier}
-                  className={tier === "mid" ? MID_ONLY_IN_MENU : FULL_ONLY_IN_MENU}
+                  className={
+                    tier === "wideOnTouch"
+                      ? TOUCH_H1_IN_MENU
+                      : tier === "mid"
+                        ? MID_ONLY_IN_MENU
+                        : FULL_ONLY_IN_MENU
+                  }
                 >
                   {FORMAT_ACTIONS.filter((id) => FORMAT_SPECS[id].tier === tier).map(
                     (id) => (

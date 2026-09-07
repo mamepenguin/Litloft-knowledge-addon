@@ -118,10 +118,12 @@ describe("EditorToolbar", () => {
     const { onAction } = renderToolbar();
     const onBar = FORMAT_ACTIONS.filter((id) => FORMAT_SPECS[id].tier === "narrow");
     const inMenu = FORMAT_ACTIONS.filter((id) => FORMAT_SPECS[id].tier !== "narrow");
-    expect(onBar).toHaveLength(6);
-    // Three come back at the mid bar and three more at the full one; both
-    // are in the menu at the narrow width this renders at.
-    expect(inMenu).toHaveLength(6);
+    // Five are on the bar at every width and pointer. H1 is not one of them:
+    // it is on the bar with a pointer, and in the `…` on a narrow touch bar.
+    expect(onBar).toHaveLength(5);
+    expect(onBar).not.toContain("h1");
+    expect(inMenu).toHaveLength(7);
+    expect(FORMAT_ACTIONS.filter((id) => FORMAT_SPECS[id].tier === "wideOnTouch")).toEqual(["h1"]);
     expect(FORMAT_ACTIONS.filter((id) => FORMAT_SPECS[id].tier === "mid")).toHaveLength(3);
     expect(FORMAT_ACTIONS.filter((id) => FORMAT_SPECS[id].tier === "full")).toHaveLength(3);
 
@@ -197,11 +199,15 @@ describe("EditorToolbar", () => {
   it("writes its responsive class names where Tailwind can read them", () => {
     const src = readFileSync(SRC, "utf-8");
     for (const cls of [
-      "hidden @min-[432px]:contents",
-      "hidden @min-[534px]:contents",
-      "@min-[432px]:hidden",
-      "@min-[534px]:hidden",
-      "@min-[432px]:block",
+      "pointer-fine:@min-[432px]:contents",
+      "pointer-coarse:@min-[572px]:contents",
+      "pointer-fine:@min-[534px]:contents",
+      "pointer-coarse:@min-[704px]:contents",
+      "pointer-coarse:@min-[352px]:contents",
+      "pointer-fine:@min-[432px]:hidden",
+      "pointer-coarse:@min-[572px]:hidden",
+      "pointer-fine:@min-[432px]:block",
+      "pointer-coarse:@min-[572px]:block",
     ]) {
       expect(src).toContain(cls);
     }
@@ -235,18 +241,18 @@ describe("EditorToolbar", () => {
    * because they had been squeezed. The count gives, not the size.
    */
   /**
-   * `Button` overhangs an icon-only control by 6px a side on a coarse
-   * pointer. At this row's 34px pitch two of those overlap by 10px and the
-   * later button wins the hit test, so every control silently keeps less
-   * than it appears to — the defect `Button.tsx` names and leaves to the
-   * caller. Until the row carries a 44px pitch, it does not take the half
-   * it cannot support.
+   * `Button` grows an icon-only control to 44px of target on a coarse
+   * pointer, and `Button.tsx` says the caller owns the other half of the
+   * recipe: the row must reach the floor and carry a pitch the overhang fits
+   * between. 32px controls 12px apart is a 44px pitch, so the targets sit
+   * edge to edge instead of overlapping — and nothing suppresses them.
    */
-  it("takes no hit area it cannot fit between its controls", () => {
+  it("carries the pitch and the floor its controls' hit areas need", () => {
     const src = readFileSync(SRC, "utf-8");
-    const buttons = (src.match(/iconOnly/g) ?? []).length;
-    expect(buttons).toBeGreaterThan(0);
-    expect((src.match(/pointer-coarse:before:hidden/g) ?? []).length).toBe(buttons);
+    expect(src).toContain("pointer-coarse:gap-3");
+    expect(src).toContain("pointer-coarse:min-h-11");
+    // Suppressing the overhang was the answer while the row was too tight.
+    expect(src).not.toContain("before:hidden");
   });
 
   it("lets no control be squeezed instead of dropped", () => {
