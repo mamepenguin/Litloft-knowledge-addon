@@ -88,16 +88,32 @@ function withoutComments(text: string): string {
 }
 
 /**
- * What makes a file part of this population — core's needle set, copied
- * because the two repositories cannot share a test helper.
+ * What a popup **is**, in two independent spellings — core's definition,
+ * copied because the two repositories cannot share a test helper.
  *
- * The ARIA a popup surface declares, plus the attribute its trigger
- * carries. Wider than "things that render a scrim" on purpose: a new
- * menu matches one of these before it has a scrim, which is when the
- * failure is useful.
+ * Earlier rounds defined this by how a popup dismissed itself, and each
+ * round one was missed: dismissal is the property being fixed, so the
+ * broken ones are exactly the ones that do not match. The second needle is
+ * geometry — `top-full` / `bottom-full`, how an anchored surface is drawn
+ * against the edge of the control that opened it — which no dismissal
+ * style can hide.
+ *
+ * The array is the definition: the alternation is joined from it and the
+ * cases below iterate it, so a spelling cannot leave one without leaving
+ * the other.
  */
-const POPUP_NEEDLE =
-  /role="menu"|role="menuitem|role="listbox"|role="option"|role="dialog"|aria-haspopup/;
+const NEEDLES = [
+  'role="menu"',
+  'role="menuitem',
+  'role="listbox"',
+  'role="option"',
+  'role="dialog"',
+  "aria-haspopup",
+  "top-full",
+  "bottom-full",
+] as const;
+
+const POPUP_NEEDLE = new RegExp(NEEDLES.join("|"));
 
 function popupFiles(roots: string[] = [ADDON_ROOT]): string[] {
   const out: string[] = [];
