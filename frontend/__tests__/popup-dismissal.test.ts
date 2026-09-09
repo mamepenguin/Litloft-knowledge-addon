@@ -101,6 +101,9 @@ function withoutComments(text: string): string {
  * The array is the definition: the alternation is joined from it and the
  * cases below iterate it, so a spelling cannot leave one without leaving
  * the other.
+ *
+ * That sentence shipped here once while the file had no such cases, and
+ * five of the eight spellings were deletable in silence. They exist now.
  */
 const NEEDLES = [
   'role="menu"',
@@ -111,6 +114,7 @@ const NEEDLES = [
   "aria-haspopup",
   "top-full",
   "bottom-full",
+  "MENU_SURFACE",
 ] as const;
 
 const POPUP_NEEDLE = new RegExp(NEEDLES.join("|"));
@@ -195,7 +199,41 @@ function globalPointerListeners(roots: string[] = [ADDON_ROOT]): string[] {
   return [...new Set(found)].sort();
 }
 
+/** A whole, well-formed declaration for each needle. */
+const NEEDLE_DECLARATIONS: Record<(typeof NEEDLES)[number], string> = {
+  'role="menu"': 'role="menu"',
+  'role="menuitem': 'role="menuitemradio"',
+  'role="listbox"': 'role="listbox"',
+  'role="option"': 'role="option"',
+  'role="dialog"': 'role="dialog"',
+  "aria-haspopup": 'aria-haspopup="menu"',
+  "top-full": 'className="absolute top-full"',
+  "bottom-full": 'className="absolute bottom-full"',
+  MENU_SURFACE: "className={MENU_SURFACE}",
+};
+
 describe("Every popup surface in the knowledge addon", () => {
+  it("defines its population in one place", () => {
+    expect(NEEDLES).toHaveLength(9);
+    expect(Object.keys(NEEDLE_DECLARATIONS).sort()).toEqual([...NEEDLES].sort());
+  });
+
+  it.each(
+    NEEDLES.map((needle) => [needle, NEEDLE_DECLARATIONS[needle]]),
+  )("is found by %s", (_needle, declaration) => {
+    // Without a case of its own a spelling is a branch that could be
+    // deleted with every other assertion green. Measured in this file
+    // before these existed: five of eight were.
+    const dir = mkdtempSync(join(tmpdir(), "knowledge-popup-needle-"));
+    const file = join(dir, "Sample.tsx");
+    writeFileSync(file, `export const x = <div ${declaration} />;\n`);
+    try {
+      expect(popupFiles([dir])).toEqual([relative(ADDON_ROOT, file)]);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
   it("is named, with where its dismissal lives", () => {
     expect(popupFiles()).toEqual(Object.keys(POPUPS).sort());
   });
