@@ -199,7 +199,19 @@ function globalPointerListeners(roots: string[] = [ADDON_ROOT]): string[] {
   return [...new Set(found)].sort();
 }
 
-/** A whole, well-formed declaration for each needle. */
+/**
+ * A whole, well-formed declaration for each needle.
+ *
+ * The keys are checked against `NEEDLES` below, and each case asserts that
+ * the declaration it runs contains its own needle. Without the second half
+ * the table was pinned on neither axis: the case writes the fixture and
+ * asserts it lands in `popupFiles`, which says it is *a* popup and never
+ * that this spelling is why — measured, setting all nine values to
+ * `role="menu"` left nine green "is found by" cases, eight of them
+ * measuring a spelling they are not named for. `MENU_SURFACE` is the worst
+ * of them, because this declaration is that needle's only exercise
+ * anywhere in this repository.
+ */
 const NEEDLE_DECLARATIONS: Record<(typeof NEEDLES)[number], string> = {
   'role="menu"': 'role="menu"',
   'role="menuitem': 'role="menuitemradio"',
@@ -220,10 +232,15 @@ describe("Every popup surface in the knowledge addon", () => {
 
   it.each(
     NEEDLES.map((needle) => [needle, NEEDLE_DECLARATIONS[needle]]),
-  )("is found by %s", (_needle, declaration) => {
+  )("is found by %s", (needle, declaration) => {
     // Without a case of its own a spelling is a branch that could be
     // deleted with every other assertion green. Measured in this file
     // before these existed: five of eight were.
+    //
+    // The needle first: `role="menuitem` is a prefix, satisfied by the
+    // `role="menuitemradio"` the declaration writes.
+    expect(declaration).toContain(needle);
+
     const dir = mkdtempSync(join(tmpdir(), "knowledge-popup-needle-"));
     const file = join(dir, "Sample.tsx");
     writeFileSync(file, `export const x = <div ${declaration} />;\n`);
