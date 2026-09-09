@@ -8,7 +8,7 @@ import {
   waitFor,
 } from "@testing-library/react";
 import {
-  dismissViaScrim,
+  dismissByPressingOutside,
   openScrim,
 } from "@/__tests__/helpers/dismissScrim";
 import {
@@ -215,18 +215,20 @@ describe("Editor wiki-link autocomplete", () => {
     // on a phone the tap that dismissed the list then went on to `click`
     // whatever the finger was over. It closes on the scrim's click now.
     act(() => {
-      dismissViaScrim();
+      dismissByPressingOutside();
     });
     await waitFor(() => {
       expect(screen.queryByTestId("wiki-link-autocomplete")).toBeNull();
     });
   });
 
-  it("does not close on the press, only on the click", async () => {
+  it("does not let the dismissing tap reach the page under it", async () => {
     // The mechanism, so that reverting it fails here rather than only on
-    // a phone. jsdom does not hit-test, so what is *not* claimed is that
-    // the scrim is the element a real tap lands on — core's
-    // `e2e-layout/popup-dismiss.spec.ts` measures that in Chromium.
+    // a phone: the press outside closes the list, and the `click` that
+    // press produces is swallowed before anything on the page sees it.
+    // jsdom does not hit-test, so what is *not* claimed is which element
+    // a real tap lands on — core's `e2e-layout/popup-dismiss.spec.ts`
+    // measures the outcome in Chromium, at four stacking arrangements.
     defaultStream("hello ");
     searchKnowledgeMock.mockResolvedValue({
       query: "",
@@ -239,19 +241,21 @@ describe("Editor wiki-link autocomplete", () => {
     await typeAtEnd(textarea, "[[a");
     await screen.findByTestId("wiki-link-autocomplete");
 
-    const scrim = openScrim();
-    act(() => {
-      fireEvent.pointerDown(scrim);
-      fireEvent.mouseDown(scrim);
-    });
-    expect(screen.queryByTestId("wiki-link-autocomplete")).toBeInTheDocument();
+    const underneath = document.createElement("button");
+    const pressed = vi.fn();
+    underneath.addEventListener("click", pressed);
+    document.body.appendChild(underneath);
 
     act(() => {
-      fireEvent.click(scrim);
+      fireEvent.pointerDown(underneath);
+      fireEvent.click(underneath);
     });
+
     await waitFor(() => {
       expect(screen.queryByTestId("wiki-link-autocomplete")).toBeNull();
     });
+    expect(pressed).not.toHaveBeenCalled();
+    underneath.remove();
   });
 
   it("does not close when clicking inside the popup (e.g. selecting an option)", async () => {
