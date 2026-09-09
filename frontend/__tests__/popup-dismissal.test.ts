@@ -63,6 +63,27 @@ function sourceFiles(dir: string): string[] {
 }
 
 /**
+ * The file with its comments removed.
+ *
+ * The needles below are attribute spellings, and a docstring that names
+ * one is describing a popup rather than declaring one. Measured in core:
+ * deleting every ARIA attribute from `SortButton` left it in the
+ * population, because a comment beside the rows quotes `role="menu"`
+ * while explaining why they carry a role at all. The population would
+ * then have rested on a sentence.
+ */
+function withoutComments(text: string): string {
+  return text
+    .replace(/\/\*[\s\S]*?\*\//g, "")
+    .split("\n")
+    .filter((line) => {
+      const t = line.trim();
+      return !t.startsWith("//") && !t.startsWith("*");
+    })
+    .join("\n");
+}
+
+/**
  * What makes a file part of this population — core's needle set, copied
  * because the two repositories cannot share a test helper.
  *
@@ -77,7 +98,7 @@ function popupFiles(roots: string[] = [ADDON_ROOT]): string[] {
   const out: string[] = [];
   for (const root of roots) {
     for (const file of sourceFiles(root)) {
-      if (POPUP_NEEDLE.test(readFileSync(file, "utf-8"))) {
+      if (POPUP_NEEDLE.test(withoutComments(readFileSync(file, "utf-8")))) {
         out.push(relative(ADDON_ROOT, file));
       }
     }
@@ -132,7 +153,7 @@ describe("Every popup surface in the knowledge addon", () => {
       .filter(
         ([, e]) =>
           !/<DismissScrim\b/.test(
-            readFileSync(resolve(ADDON_ROOT, e.dismissedIn!), "utf-8"),
+            withoutComments(readFileSync(resolve(ADDON_ROOT, e.dismissedIn!), "utf-8")),
           ),
       )
       .map(([file]) => file);
@@ -141,7 +162,7 @@ describe("Every popup surface in the knowledge addon", () => {
 
   it("is the only thing here rendering a scrim", () => {
     const rendering = sourceFiles(ADDON_ROOT)
-      .filter((f) => /<DismissScrim\b/.test(readFileSync(f, "utf-8")))
+      .filter((f) => /<DismissScrim\b/.test(withoutComments(readFileSync(f, "utf-8"))))
       .map((f) => relative(ADDON_ROOT, f))
       .sort();
     const declared = new Set(
