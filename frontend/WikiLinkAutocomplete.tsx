@@ -164,71 +164,72 @@ export const WikiLinkAutocomplete = function WikiLinkAutocomplete({
       }
     : undefined;
 
+  /*
+    Dismissed by a press outside the list, and the click that press
+    produces is swallowed.
+
+    This list used to close from a capturing `mousedown` / `touchstart` on
+    `document`. That answers on the press and leaves the click to the page,
+    so on a phone the tap that dismissed the list went on to activate
+    whatever was under the finger — the list is drawn over the note being
+    edited and over the page around it, so the finger was usually over
+    something. `DismissScrim` is core's one way out of a popup: it takes
+    the press and refuses the click, and the list it guards is what it is
+    given as a child.
+
+    `z-40` is the dim's tier, under the list's own `z-50`. Rendered beside
+    the list, so the portalled form takes it into the portal and the inline
+    form leaves it in place; neither is where the dismissal happens.
+  */
   const popup = (
-    <>
-    {/*
-      Dismissed on the scrim's click, not on a `document` press.
-
-      This list used to close from a capturing `mousedown` / `touchstart`
-      on `document`. That answers on the press, so on a phone the tap that
-      dismissed the list went on to `click` whatever was under the finger
-      — the list is drawn over the note being edited and over the page
-      around it, so the finger was usually over something. `DismissScrim`
-      is core's one way out of a popup and records why the click is the
-      event to take.
-
-      `z-40`, under the list's own `z-50` and over the editor. Rendered
-      beside the list, so the portalled form takes it into the portal and
-      the inline form leaves it in place.
-    */}
-    <DismissScrim onDismiss={onClose} className="fixed inset-0 z-40" />
-    <div
-      ref={popupRef}
-      data-testid="wiki-link-autocomplete"
-      style={positionedStyle}
-      className={`${
-        anchor ? "z-50" : "absolute z-50 mt-1"
-      } max-h-64 w-72 overflow-auto rounded-xl border border-bg-border bg-bg-card shadow-lg`}
-    >
-      <ul
-        role="listbox"
-        aria-label={t("placeholder")}
-        className="flex flex-col"
+    <DismissScrim onDismiss={onClose} className="fixed inset-0 z-40">
+      <div
+        ref={popupRef}
+        data-testid="wiki-link-autocomplete"
+        style={positionedStyle}
+        className={`${
+          anchor ? "z-50" : "absolute z-50 mt-1"
+        } max-h-64 w-72 overflow-auto rounded-xl border border-bg-border bg-bg-card shadow-lg`}
       >
-        {hits.length === 0 ? (
-          <li className="px-3 py-2 text-xs text-text-muted">
-            {t("emptyState")}
-          </li>
-        ) : (
-          hits.map((hit, idx) => {
-            const isActive = idx === highlight;
-            const basename = hit.filename.replace(/\.md$/i, "");
-            return (
-              <li
-                key={hit.file_id}
-                role="option"
-                aria-selected={isActive}
-                onMouseDown={(e) => {
-                  e.preventDefault();
-                  onSelect(
-                    { basename, mdId: hit.md_id },
-                    e.shiftKey,
-                  );
-                }}
-                className={`cursor-pointer px-3 py-1.5 text-sm ${
-                  isActive
-                    ? "bg-bg-elevated text-text-primary"
-                    : "text-text-muted hover:bg-bg-elevated"
-                }`}
-              >
-                {hit.title || basename}
-              </li>
-            );
-          })
-        )}
-      </ul>
-    </div>
-    </>
+        <ul
+          role="listbox"
+          aria-label={t("placeholder")}
+          className="flex flex-col"
+        >
+          {hits.length === 0 ? (
+            <li className="px-3 py-2 text-xs text-text-muted">
+              {t("emptyState")}
+            </li>
+          ) : (
+            hits.map((hit, idx) => {
+              const isActive = idx === highlight;
+              const basename = hit.filename.replace(/\.md$/i, "");
+              return (
+                <li
+                  key={hit.file_id}
+                  role="option"
+                  aria-selected={isActive}
+                  onMouseDown={(e) => {
+                    e.preventDefault();
+                    onSelect(
+                      { basename, mdId: hit.md_id },
+                      e.shiftKey,
+                    );
+                  }}
+                  className={`cursor-pointer px-3 py-1.5 text-sm ${
+                    isActive
+                      ? "bg-bg-elevated text-text-primary"
+                      : "text-text-muted hover:bg-bg-elevated"
+                  }`}
+                >
+                  {hit.title || basename}
+                </li>
+              );
+            })
+          )}
+        </ul>
+      </div>
+    </DismissScrim>
   );
 
   if (anchor && typeof document !== "undefined") {
