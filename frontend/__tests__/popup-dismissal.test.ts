@@ -44,6 +44,13 @@ import { resolve, dirname, relative } from "node:path";
  */
 
 const ADDON_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
+
+/**
+ * How many source files this addon has, so the walk cannot narrow in
+ * silence. `toBe`, per `review-workflow.md` rule 1: a floor tolerates
+ * losing most of the tree and still reads as a guard.
+ */
+const FILE_COUNT = 36;
 const SELF = fileURLToPath(import.meta.url);
 
 function sourceFiles(dir: string): string[] {
@@ -76,10 +83,7 @@ function withoutComments(text: string): string {
   return text
     .replace(/\/\*[\s\S]*?\*\//g, "")
     .split("\n")
-    .filter((line) => {
-      const t = line.trim();
-      return !t.startsWith("//") && !t.startsWith("*");
-    })
+    .filter((line) => !line.trim().startsWith("//"))
     .join("\n");
 }
 
@@ -92,7 +96,8 @@ function withoutComments(text: string): string {
  * menu matches one of these before it has a scrim, which is when the
  * failure is useful.
  */
-const POPUP_NEEDLE = /role="menu"|role="menuitem"|role="listbox"|aria-haspopup/;
+const POPUP_NEEDLE =
+  /role="menu"|role="menuitem|role="listbox"|role="option"|role="dialog"|aria-haspopup/;
 
 function popupFiles(roots: string[] = [ADDON_ROOT]): string[] {
   const out: string[] = [];
@@ -117,24 +122,56 @@ const POPUPS: Record<string, PopupEntry> = {
     dismissedIn: "WikiLinkAutocomplete.tsx",
     why: "the `[[` candidate list in the note editor",
   },
+
+  // Modal surfaces, here because `role="dialog"` is in the needle set.
+  // None is an anchored popup: each paints its own backdrop over the
+  // whole viewport and is dismissed by that backdrop or by Escape, with
+  // nothing behind it a stray click could reach. Enumerated rather than
+  // excluded by a path rule, so one that grows a menu inside it is
+  // already named.
+  "BookmarkletDialog.tsx": {
+    dismissedIn: null,
+    why: "a modal dialog with its own backdrop",
+  },
+  "CaptureBasket.tsx": {
+    dismissedIn: null,
+    why: "a modal panel with its own backdrop",
+  },
+  "ClipDuplicateDialog.tsx": {
+    dismissedIn: null,
+    why: "a modal dialog with its own backdrop",
+  },
+  "FileLinkModal.tsx": {
+    dismissedIn: null,
+    why: "a modal dialog with its own backdrop",
+  },
+  "UnresolvedLinkDialog.tsx": {
+    dismissedIn: null,
+    why: "a modal dialog with its own backdrop",
+  },
 };
 
 /**
- * A `document`- or `window`-level listener for a pointer *press*.
+ * A `document`- or `window`-level pointer listener.
  *
  * A listener on a specific element is a gesture on that element and is
  * out of scope: the graph canvas binds one to pan.
+ *
+ * `click` is in the alternation for the reason core's copy records: a
+ * `click` listener at this scope *looks* right and fails the same way a
+ * press one does, because `window` is not in front of anything. The popup
+ * closes and the element under the finger receives the very same click.
  */
-const OUTSIDE_PRESS =
-  /\b(?:document|window)\.addEventListener\(\s*["'](?:mousedown|pointerdown|touchstart)["']/g;
+const GLOBAL_POINTER_LISTENER =
+  /\b(?:document|window)\.addEventListener\(\s*["'](?:click|mousedown|pointerdown|touchstart)["']/g;
 
-function outsidePressListeners(roots: string[] = [ADDON_ROOT]): string[] {
+function globalPointerListeners(roots: string[] = [ADDON_ROOT]): string[] {
   const found: string[] = [];
   for (const root of roots) {
     for (const file of sourceFiles(root)) {
       const text = readFileSync(file, "utf-8");
       const rel = relative(ADDON_ROOT, file);
-      for (const m of text.matchAll(OUTSIDE_PRESS)) {
+      for (const m of text.matchAll(GLOBAL_POINTER_LISTENER)) {
         found.push(`${rel}:${text.slice(0, m.index!).split("\n").length}`);
       }
     }
@@ -176,13 +213,16 @@ describe("Every popup surface in the knowledge addon", () => {
 
 describe("An outside press", () => {
   it("never dismisses a popup here", () => {
-    expect(outsidePressListeners()).toEqual([]);
+    expect(globalPointerListeners()).toEqual([]);
   });
 
-  it("looks at the tree it claims to", () => {
-    // A scan that has quietly narrowed to one directory reports the same
-    // empty list as a scan that found nothing.
-    expect(sourceFiles(ADDON_ROOT).length).toBeGreaterThan(20);
+  it("looks at the whole tree it claims to", () => {
+    // `toBe`, not a bound: a scan quietly narrowed to one directory
+    // reports the same empty list as a scan that found nothing, and a
+    // floor tolerates most of the narrowing. Core's copy carries the same
+    // number for the same reason, and the price is the same — adding a
+    // source file here edits this line.
+    expect(sourceFiles(ADDON_ROOT).length).toBe(FILE_COUNT);
     expect(popupFiles()).toContain("WikiLinkAutocomplete.tsx");
   });
 
@@ -201,7 +241,7 @@ describe("An outside press", () => {
       ].join("\n"),
     );
     try {
-      expect(outsidePressListeners([dir])).toEqual([
+      expect(globalPointerListeners([dir])).toEqual([
         `${relative(ADDON_ROOT, file)}:5`,
       ]);
     } finally {
@@ -214,7 +254,7 @@ describe("An outside press", () => {
     const file = join(dir, "Gesture.tsx");
     writeFileSync(file, 'svg.addEventListener("pointerdown", onDown);\n');
     try {
-      expect(outsidePressListeners([dir])).toEqual([]);
+      expect(globalPointerListeners([dir])).toEqual([]);
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }
