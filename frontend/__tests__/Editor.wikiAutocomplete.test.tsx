@@ -8,6 +8,10 @@ import {
   waitFor,
 } from "@testing-library/react";
 import {
+  dismissViaScrim,
+  openScrim,
+} from "@/__tests__/helpers/dismissScrim";
+import {
   editorContent,
   editorSelection,
   setEditorContent,
@@ -206,9 +210,44 @@ describe("Editor wiki-link autocomplete", () => {
     await typeAtEnd(textarea, "[[a");
     await screen.findByTestId("wiki-link-autocomplete");
 
-    // Click on the document body, outside the popup and the textarea.
+    // The scrim, not `document.body`. This popup used to close from a
+    // capturing `mousedown` on the document, which answers on the press:
+    // on a phone the tap that dismissed the list then went on to `click`
+    // whatever the finger was over. It closes on the scrim's click now.
     act(() => {
-      fireEvent.mouseDown(document.body);
+      dismissViaScrim();
+    });
+    await waitFor(() => {
+      expect(screen.queryByTestId("wiki-link-autocomplete")).toBeNull();
+    });
+  });
+
+  it("does not close on the press, only on the click", async () => {
+    // The mechanism, so that reverting it fails here rather than only on
+    // a phone. jsdom does not hit-test, so what is *not* claimed is that
+    // the scrim is the element a real tap lands on — core's
+    // `e2e-layout/popup-dismiss.spec.ts` measures that in Chromium.
+    defaultStream("hello ");
+    searchKnowledgeMock.mockResolvedValue({
+      query: "",
+      drive: "d",
+      results: [makeHit("noteid000001", "Alpha.md", "Alpha")],
+      truncated: false,
+    });
+    render(<Editor fileId="f1" filename="note.md" drive="d" inlineMode />);
+    const textarea = await screen.findByLabelText("editArea");
+    await typeAtEnd(textarea, "[[a");
+    await screen.findByTestId("wiki-link-autocomplete");
+
+    const scrim = openScrim();
+    act(() => {
+      fireEvent.pointerDown(scrim);
+      fireEvent.mouseDown(scrim);
+    });
+    expect(screen.queryByTestId("wiki-link-autocomplete")).toBeInTheDocument();
+
+    act(() => {
+      fireEvent.click(scrim);
     });
     await waitFor(() => {
       expect(screen.queryByTestId("wiki-link-autocomplete")).toBeNull();

@@ -3,6 +3,7 @@
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { useTranslations } from "next-intl";
+import { DismissScrim } from "@/components/DismissScrim";
 import { searchKnowledge, type SearchHit } from "./api";
 
 export interface AutocompleteHit extends SearchHit {
@@ -138,21 +139,6 @@ export const WikiLinkAutocomplete = function WikiLinkAutocomplete({
 
   const popupRef = useRef<HTMLDivElement | null>(null);
 
-  useEffect(() => {
-    const onPointerDown = (e: MouseEvent | TouchEvent) => {
-      const el = popupRef.current;
-      if (!el) return;
-      const target = e.target as Node | null;
-      if (target && el.contains(target)) return;
-      onClose();
-    };
-    document.addEventListener("mousedown", onPointerDown, true);
-    document.addEventListener("touchstart", onPointerDown, true);
-    return () => {
-      document.removeEventListener("mousedown", onPointerDown, true);
-      document.removeEventListener("touchstart", onPointerDown, true);
-    };
-  }, [onClose]);
   const [flipTop, setFlipTop] = useState<number | null>(null);
   useLayoutEffect(() => {
     if (!anchor) {
@@ -179,6 +165,23 @@ export const WikiLinkAutocomplete = function WikiLinkAutocomplete({
     : undefined;
 
   const popup = (
+    <>
+    {/*
+      Dismissed on the scrim's click, not on a `document` press.
+
+      This list used to close from a capturing `mousedown` / `touchstart`
+      on `document`. That answers on the press, so on a phone the tap that
+      dismissed the list went on to `click` whatever was under the finger
+      — the list is drawn over the note being edited and over the page
+      around it, so the finger was usually over something. `DismissScrim`
+      is core's one way out of a popup and records why the click is the
+      event to take.
+
+      `z-40`, under the list's own `z-50` and over the editor. Rendered
+      beside the list, so the portalled form takes it into the portal and
+      the inline form leaves it in place.
+    */}
+    <DismissScrim onDismiss={onClose} className="fixed inset-0 z-40" />
     <div
       ref={popupRef}
       data-testid="wiki-link-autocomplete"
@@ -225,6 +228,7 @@ export const WikiLinkAutocomplete = function WikiLinkAutocomplete({
         )}
       </ul>
     </div>
+    </>
   );
 
   if (anchor && typeof document !== "undefined") {
