@@ -104,6 +104,16 @@ function withoutComments(text: string): string {
  *
  * That sentence shipped here once while the file had no such cases, and
  * five of the eight spellings were deletable in silence. They exist now.
+ *
+ * **Two of the spellings name core identifiers rather than classes.** A
+ * knowledge component that adopts core's shared menu surface writes
+ * `useMenuSurface`, and one that takes the shared corner table writes
+ * `ANCHORED_VERTICAL` — neither renders `top-full` anywhere in this
+ * repository, so a scan for the classes alone would put such a file in the
+ * population of nothing. `EditorToolbar` is already the case that makes
+ * this concrete: its `…` menu is core's `<OverflowMenu>`, whose direction
+ * has been measured rather than declared since core's sweep, and this
+ * repository holds no line of the geometry that decides it.
  */
 const NEEDLES = [
   'role="menu"',
@@ -114,7 +124,8 @@ const NEEDLES = [
   "aria-haspopup",
   "top-full",
   "bottom-full",
-  "MENU_SURFACE",
+  "useMenuSurface",
+  "ANCHORED_VERTICAL",
 ] as const;
 
 const POPUP_NEEDLE = new RegExp(NEEDLES.join("|"));
@@ -208,9 +219,12 @@ function globalPointerListeners(roots: string[] = [ADDON_ROOT]): string[] {
  * asserts it lands in `popupFiles`, which says it is *a* popup and never
  * that this spelling is why — measured, setting all nine values to
  * `role="menu"` left nine green "is found by" cases, eight of them
- * measuring a spelling they are not named for. `MENU_SURFACE` is the worst
- * of them, because this declaration is that needle's only exercise
- * anywhere in this repository.
+ * measuring a spelling they are not named for. The two core identifiers
+ * are the worst of them, because this declaration is each one's only
+ * exercise anywhere in this repository — no knowledge component calls
+ * `useMenuSurface` or reads `ANCHORED_VERTICAL` today, which is exactly
+ * the state the needle exists to cover: the first one that does must not
+ * arrive unseen.
  */
 const NEEDLE_DECLARATIONS: Record<(typeof NEEDLES)[number], string> = {
   'role="menu"': 'role="menu"',
@@ -221,12 +235,13 @@ const NEEDLE_DECLARATIONS: Record<(typeof NEEDLES)[number], string> = {
   "aria-haspopup": 'aria-haspopup="menu"',
   "top-full": 'className="absolute top-full"',
   "bottom-full": 'className="absolute bottom-full"',
-  MENU_SURFACE: "className={MENU_SURFACE}",
+  useMenuSurface: "const surface = useMenuSurface(open);",
+  ANCHORED_VERTICAL: "className={ANCHORED_VERTICAL[1].down}",
 };
 
 describe("Every popup surface in the knowledge addon", () => {
   it("defines its population in one place", () => {
-    expect(NEEDLES).toHaveLength(9);
+    expect(NEEDLES).toHaveLength(10);
     expect(Object.keys(NEEDLE_DECLARATIONS).sort()).toEqual([...NEEDLES].sort());
   });
 
