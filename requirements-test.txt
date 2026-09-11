@@ -1,3 +1,15 @@
+# Test-only dependencies, pinned.
+#
+# The pins are load-bearing: `pytest.ini` carries a coverage floor, and what
+# that floor decides is a function of `should_fail_under`, which lives in
+# coverage.py rather than in pytest-cov. So `coverage` is pinned directly
+# instead of being left to pytest-cov's range — a floor whose verdict depends
+# on an unpinned dependency is not a floor.
+#
+# This package has the most exposure to that, being the one whose total sits on
+# pytest-cov's rounding boundary: 85.247686 rounds up to 85.25, and the gate's
+# behaviour there is exactly what `should_fail_under` decides. See `pytest.ini`.
 pytest==8.3.5
 pytest-asyncio==0.25.3
 pytest-cov==6.0.0
+coverage==7.15.4
