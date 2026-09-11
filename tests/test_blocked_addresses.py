@@ -1,10 +1,10 @@
 """Knowledge's half of the SSRF address contract.
 
 The rule "which IP addresses may a clip fetch reach" is implemented twice:
-``app.services.fetcher._is_blocked_ip`` here, and
-``app/services/safe_image_fetch._is_blocked_ip`` in core, which runs in its own
-container and cannot import this one. The core half of this file is
-``backend/tests/test_ssrf_blocked_addresses.py`` in the Litloft repository.
+``app.services.fetcher._is_blocked_ip`` here, and ``_is_blocked_ip`` in
+``backend/app/services/safe_image_fetch.py`` in the Litloft repository, which
+runs in its own container and cannot import this one. The core half of this
+file is ``backend/tests/test_ssrf_blocked_addresses.py`` there.
 
 **The two tables below are declared answers, not a comparison.** Checking one
 implementation against the other is green whenever both are wrong the same way,
@@ -13,9 +13,9 @@ Each side is checked against the literal instead.
 
 What this cannot hold: nothing mechanically compares the two copies of the
 table. This repository's ``Dockerfile.test`` has this repository as its build
-context and core does not run these tests. The exact-count assertions below
-catch a row that goes missing from *this* copy; a row deleted from both copies
-at once is not reachable from any test in either repository.
+context and core does not run these tests. The count and the two category
+assertions below catch rows that go missing from *this* copy; rows deleted from
+both copies at once are not reachable from any test in either repository.
 """
 from __future__ import annotations
 
@@ -100,8 +100,8 @@ def test_the_declared_population_is_the_size_it_says():
     """A table that quietly loses rows still passes every case it still holds.
 
     Both counts are declared here rather than derived from the lists, so
-    shrinking either list fails this. The core half declares the same two
-    numbers over the same rows.
+    shrinking either list fails this. The core half keeps its own copy of both
+    numbers: changing a list here means changing them there.
     """
     assert len(MUST_BLOCK) == 39
     assert len(MUST_ALLOW) == 8
@@ -111,8 +111,10 @@ def test_the_declared_population_is_the_size_it_says():
 def test_every_ipv6_embedding_form_is_represented():
     """An address that carries an IPv4 payload can hide a private destination
     behind flags that describe only the wrapper, so each form a payload can
-    arrive in needs a row. Declared by prefix rather than counted, so adding a
-    form to the implementation without a case here fails.
+    arrive in needs a row. What this holds is that every form named here keeps
+    at least one row: deleting a form's rows fails it however the counts are
+    written. It does not reach the other direction — a form added to an
+    implementation and not to this list changes nothing here.
     """
     forms = {
         "ipv4-mapped": ipaddress.ip_network("::ffff:0:0/96"),
@@ -130,3 +132,42 @@ def test_every_ipv6_embedding_form_is_represented():
         if any(ip.version == 6 and ip in network for ip in blocked)
     }
     assert covered == set(forms)
+
+
+def test_every_ipv4_category_the_gate_refuses_is_represented():
+    """The counts are one assertion, and no assertion holds its own form.
+
+    These are the reasons rows are in the block table, declared as a set and
+    matched by prefix rather than by the text beside each address, so the
+    population cannot be walked back past them however the counts are written.
+    IPv6 rows are held by the embedding-form test instead, and only bare IPv4
+    addresses count here — a mapped row standing in for a category would let
+    the plain one be deleted.
+    """
+    categories = {
+        "loopback": [ipaddress.ip_network("127.0.0.0/8")],
+        "private": [
+            ipaddress.ip_network("10.0.0.0/8"),
+            ipaddress.ip_network("172.16.0.0/12"),
+            ipaddress.ip_network("192.168.0.0/16"),
+        ],
+        "link-local": [ipaddress.ip_network("169.254.0.0/16")],
+        "cgnat": [ipaddress.ip_network("100.64.0.0/10")],
+        "unspecified": [ipaddress.ip_network("0.0.0.0/32")],
+        "multicast": [ipaddress.ip_network("224.0.0.0/4")],
+        "reserved": [ipaddress.ip_network("240.0.0.0/4")],
+        "broadcast": [ipaddress.ip_network("255.255.255.255/32")],
+        "documentation": [
+            ipaddress.ip_network("192.0.2.0/24"),
+            ipaddress.ip_network("198.51.100.0/24"),
+            ipaddress.ip_network("203.0.113.0/24"),
+        ],
+    }
+    blocked = [ipaddress.ip_address(address) for address, _ in MUST_BLOCK]
+    bare_v4 = [ip for ip in blocked if ip.version == 4]
+    covered = {
+        name
+        for name, networks in categories.items()
+        if any(ip in network for ip in bare_v4 for network in networks)
+    }
+    assert covered == set(categories)
