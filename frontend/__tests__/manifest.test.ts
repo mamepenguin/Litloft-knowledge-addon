@@ -18,10 +18,10 @@ import { fileURLToPath } from "node:url";
 
 import { slotComponents } from "../slots";
 
-// `realpathSync` first, because in a dev checkout this file is reached
-// through `frontend/src/addons/knowledge`, a symlink to this addon's
-// `frontend/`. `path.resolve` is lexical and would walk `..` out of the
-// link into core's `src/addons`. CI copies the tree instead of linking
+// `realpathSync` first, because in a dev checkout this file is reached as a
+// symlink under `frontend/src/addons/knowledge/`, the per-file link tree
+// `setup-addons.sh` builds. `path.resolve` is lexical and would walk `..` out
+// of the link into core's `src/addons`. CI copies the tree instead of linking
 // it, so there the call is a no-op and both layouts land in one place.
 const ADDON_ROOT = resolve(
   dirname(realpathSync(fileURLToPath(import.meta.url))),
