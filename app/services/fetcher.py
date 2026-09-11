@@ -42,6 +42,12 @@ _DOCKER_HOSTS = frozenset({
 
 _MAX_REDIRECTS = 5
 
+_NAT64_WELL_KNOWN = ipaddress.ip_network("64:ff9b::/96")
+_IPV4_COMPATIBLE = ipaddress.ip_network("::/96")
+_IPV4_TRANSLATED = ipaddress.ip_network("::ffff:0:0:0/96")
+_ISATAP_MARKER = 0x5EFE
+_ISATAP_FLAGS = frozenset({0x0000, 0x0200})
+
 
 class BlockedURL(Exception):
     """Raised when a URL fails SSRF validation."""
@@ -51,15 +57,40 @@ class FetchError(Exception):
     """Raised on network / HTTP errors after validation passed."""
 
 
+def _embedded_ipv4(ip: ipaddress.IPv6Address) -> ipaddress.IPv4Address | None:
+    """Return the IPv4 destination an IPv6 address carries, if it carries one.
+
+    The properties in `_is_blocked_ip` describe the address that does the
+    carrying, not the destination inside it, so the forms below are opened and
+    the destination judged on its own.
+    """
+    if ip.ipv4_mapped is not None:
+        return ip.ipv4_mapped
+    if ip.sixtofour is not None:
+        return ip.sixtofour
+    if ip in _NAT64_WELL_KNOWN or ip in _IPV4_COMPATIBLE or ip in _IPV4_TRANSLATED:
+        return ipaddress.IPv4Address(int(ip) & 0xFFFFFFFF)
+    # ISATAP is carried in the interface identifier rather than in a prefix:
+    # `…:0:5efe:a.b.c.d` and `…:200:5efe:a.b.c.d` ride under any /64 —
+    # including a globally routable one, where every property of the carrying
+    # address says "ordinary public host".
+    packed = int(ip)
+    if (packed >> 32) & 0xFFFF == _ISATAP_MARKER and (
+        packed >> 48
+    ) & 0xFFFF in _ISATAP_FLAGS:
+        return ipaddress.IPv4Address(packed & 0xFFFFFFFF)
+    return None
+
+
 def _is_blocked_ip(ip: ipaddress.IPv4Address | ipaddress.IPv6Address) -> bool:
     if ip.is_loopback or ip.is_link_local or ip.is_multicast:
         return True
     if ip.is_private or ip.is_reserved or ip.is_unspecified:
         return True
     if isinstance(ip, ipaddress.IPv6Address):
-        # IPv4-mapped IPv6: ::ffff:x.x.x.x — unwrap and re-check
-        if ip.ipv4_mapped is not None:
-            return _is_blocked_ip(ip.ipv4_mapped)
+        embedded = _embedded_ipv4(ip)
+        if embedded is not None:
+            return _is_blocked_ip(embedded)
     else:
         # 100.64.0.0/10 (CGNAT) isn't flagged by is_private on all Pythons
         if ipaddress.IPv4Address("100.64.0.0") <= ip <= ipaddress.IPv4Address(
