@@ -300,6 +300,30 @@ describe("New note when the editor policy settles after its dialog opened", () =
   });
 });
 
+describe("New note created after its row was hidden", () => {
+  it("closes the menu and reports the dialog closed", async () => {
+    let release!: () => void;
+    policyGate = new Promise<void>((r) => {
+      release = r;
+    });
+    editorPolicy = "disabled";
+    const { onRequestClose, onDialogOpenChange } = renderRow({ path: "notes" });
+    openNewNote();
+    await act(async () => {
+      release();
+    });
+    await waitFor(() =>
+      expect(screen.queryByRole("menuitem", { name: NEW_NOTE })).not.toBeInTheDocument(),
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Save" }));
+
+    await waitFor(() => expect(mockRouterPush).toHaveBeenCalledTimes(1));
+    expect(onRequestClose).toHaveBeenCalledTimes(1);
+    expect(onDialogOpenChange.mock.calls).toEqual([[true], [false]]);
+  });
+});
+
 describe("New note inside the Add menu", () => {
   async function openFromAdd() {
     render(

@@ -112,6 +112,13 @@ describe("the knowledge manifest", () => {
     expect(slots).toEqual(["file-actions-menu"]);
   });
 
+  it("puts New note in the Add menu", () => {
+    const slots = entries
+      .filter((entry) => entry.id === "knowledge-new-note")
+      .map((entry) => entry.slot);
+    expect(slots).toEqual(["folder-actions-menu"]);
+  });
+
   it("leaves the editor as the only thing in the file-detail column", () => {
     expect(manifest.slots["file-detail-sections"].map((e) => e.id)).toEqual([
       "knowledge-edit",
