@@ -42,7 +42,7 @@ describe("the knowledge manifest", () => {
     // Exact, not a lower bound. The failure worth catching is an entry
     // nobody remembers declaring — under `>=` a stray one is invisible,
     // and a stray one renders on every file detail page.
-    expect(entries).toHaveLength(9);
+    expect(entries).toHaveLength(8);
   });
 
   it("gives every entry a component to render", () => {
@@ -75,7 +75,6 @@ describe("the knowledge manifest", () => {
       "knowledge-search-capture": "SearchCaptureActions",
       "knowledge-version-history": "VersionHistoryMenuItem",
       "knowledge-new-note": "NewNoteMenuItem",
-      "knowledge-clip-web-page": "ClipWebPageMenuItem",
     });
   });
 

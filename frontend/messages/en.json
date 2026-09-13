@@ -283,13 +283,6 @@
     "newNote": {
       "menuItem": "New note",
       "dialogTitle": "New note"
-    },
-    "clipWebPage": {
-      "menuItem": "Clip web page",
-      "title": "Clip web page",
-      "fetching": "Clipping the page...",
-      "closeWhileFetching": "Closing keeps the clip running, but its result will not be shown here.",
-      "failed": "The page could not be clipped"
     }
   }
 }

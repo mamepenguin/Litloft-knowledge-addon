@@ -50,7 +50,7 @@ const ADDON_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
  * silence. `toBe`, per `review-workflow.md` rule 1: a floor tolerates
  * losing most of the tree and still reads as a guard.
  */
-const FILE_COUNT = 40;
+const FILE_COUNT = 37;
 const SELF = fileURLToPath(import.meta.url);
 
 function sourceFiles(dir: string): string[] {
@@ -169,10 +169,6 @@ const POPUPS: Record<string, PopupEntry> = {
     why: "a modal panel with its own backdrop",
   },
   "ClipDuplicateDialog.tsx": {
-    dismissedIn: null,
-    why: "a modal dialog with its own backdrop",
-  },
-  "ClipWebPageDialog.tsx": {
     dismissedIn: null,
     why: "a modal dialog with its own backdrop",
   },

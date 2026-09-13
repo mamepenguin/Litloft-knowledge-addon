@@ -31,15 +31,10 @@ lookup via the Internal API.
 
 ## Add menu
 
-The folder toolbar's **Add** menu gets two rows from this addon:
-
-- **New note** creates a Markdown file after you confirm its folder and
-  name, then opens it in the editor. Hidden on drives where `editor` is off.
-- **Clip web page** clips a URL into the folder you choose and opens the
-  clip when it is ready. Closing the dialog while it is fetching does not
-  stop the clip; its result is then only visible as the file itself.
-
-Both start at the folder the menu was opened from.
+The folder toolbar's **Add** menu gets a **New note** row from this addon.
+It creates a Markdown file in the folder the menu was opened from, after you
+confirm the folder and name, then opens it in the editor. Hidden on drives
+where `editor` is off.
 
 ## Configuration
 
