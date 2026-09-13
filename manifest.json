@@ -5,6 +5,13 @@
     "type": "external_service",
     "scope": "drive",
     "href": "/drive/{drive}/addons/knowledge",
+    "navigation": {
+        "label": "Notes",
+        "i18n_key": "knowledge.nav.label",
+        "icon": "notebook-pen",
+        "placement": "primary",
+        "priority": 20
+    },
     "slots": {
         "header-actions": [
             {"id": "knowledge-capture-basket", "label": "Capture Basket", "priority": 10}

@@ -31,7 +31,16 @@ const ADDON_ROOT = resolve(
 
 const manifest = JSON.parse(
   readFileSync(resolve(ADDON_ROOT, "manifest.json"), "utf-8"),
-) as { slots: Record<string, { id: string; priority: number }[]> };
+) as {
+  href: string;
+  navigation: Record<string, unknown>;
+  slots: Record<string, { id: string; priority: number }[]>;
+};
+
+const readMessages = (locale: string) =>
+  JSON.parse(
+    readFileSync(resolve(ADDON_ROOT, `frontend/messages/${locale}.json`), "utf-8"),
+  ) as { knowledge: { nav: { label: string } } };
 
 const entries = Object.entries(manifest.slots).flatMap(([slot, list]) =>
   list.map((entry) => ({ slot, id: entry.id })),
@@ -115,5 +124,21 @@ describe("the knowledge manifest", () => {
     expect(manifest.slots["file-detail-sections"].map((e) => e.id)).toEqual([
       "knowledge-edit",
     ]);
+  });
+
+  it("declares the Notes sidebar entry and keeps the generated route", () => {
+    expect(manifest.navigation).toEqual({
+      label: "Notes",
+      i18n_key: "knowledge.nav.label",
+      icon: "notebook-pen",
+      placement: "primary",
+      priority: 20,
+    });
+    expect(manifest.href).toBe("/drive/{drive}/addons/knowledge");
+  });
+
+  it("carries the Notes label key in both locales", () => {
+    expect(readMessages("en").knowledge.nav.label).toBe("Notes");
+    expect(readMessages("ja").knowledge.nav.label).toBe("ノート");
   });
 });
