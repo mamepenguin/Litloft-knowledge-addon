@@ -282,6 +282,10 @@
       "cancel": "キャンセル",
       "conflictError": "同じ名前のノートが既に存在します。",
       "invalidPathError": "無効なパスです。"
+    },
+    "newNote": {
+      "menuItem": "新しいノート",
+      "dialogTitle": "新しいノート"
     }
   }
 }

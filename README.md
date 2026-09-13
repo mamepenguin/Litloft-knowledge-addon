@@ -29,6 +29,13 @@ lookup via the Internal API.
 4. Open Litloft. A "Knowledge" entry appears in the sidebar once the
    container is healthy.
 
+## Add menu
+
+The folder toolbar's **Add** menu gets a **New note** row from this addon.
+It creates a Markdown file in the folder the menu was opened from, after you
+confirm the folder and name, then opens it in the editor. Hidden on drives
+where `editor` is off.
+
 ## Configuration
 
 Environment variables (defaults in parentheses):

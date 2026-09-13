@@ -282,6 +282,10 @@
       "cancel": "Cancel",
       "conflictError": "A note with that name already exists.",
       "invalidPathError": "Invalid path."
+    },
+    "newNote": {
+      "menuItem": "New note",
+      "dialogTitle": "New note"
     }
   }
 }
