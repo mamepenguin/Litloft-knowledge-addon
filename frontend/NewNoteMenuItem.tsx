@@ -70,12 +70,15 @@ export default function NewNoteMenuItem({
     [drive, onDialogOpenChange, onRequestClose, router],
   );
 
-  if (!drive) return null;
-  if (!policy.isLoading && !policy.enabled) return null;
+  // The gate hides the row only. A dialog opened while the policy was
+  // still loading stays until the user leaves it.
+  const rowHidden = !drive || (!policy.isLoading && !policy.enabled);
 
   return (
     <>
-      <ActionMenuItem icon={FilePlus} label={t("menuItem")} onClick={handleOpen} />
+      {!rowHidden && (
+        <ActionMenuItem icon={FilePlus} label={t("menuItem")} onClick={handleOpen} />
+      )}
       {defaultFilename !== null &&
         host &&
         createPortal(

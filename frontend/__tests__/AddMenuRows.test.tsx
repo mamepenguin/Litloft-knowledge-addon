@@ -73,6 +73,7 @@ const PAGE = "https://example.com/article";
 
 type PolicyAnswer = "enabled" | "disabled" | "error";
 let editorPolicy: PolicyAnswer;
+let policyGate: Promise<void> | null = null;
 let catalogue: { addons: Record<string, unknown>; slots: Record<string, unknown> };
 
 const KNOWLEDGE_CATALOGUE = {
@@ -95,6 +96,7 @@ function json(data: unknown, status = 200): Response {
 const fetchSpy = vi.fn(async (input: RequestInfo | URL) => {
   const url = String(input);
   if (url === "/api/drives/d/addon-policies") {
+    if (policyGate) await policyGate;
     if (editorPolicy === "error") return json({}, 500);
     return json({
       addons: { knowledge: { default: true, features: { editor: editorPolicy === "enabled" } } },
@@ -121,6 +123,7 @@ beforeEach(() => {
   window.localStorage.clear();
   wsEvent = null;
   editorPolicy = "enabled";
+  policyGate = null;
   catalogue = KNOWLEDGE_CATALOGUE;
   mockCreateTextFile.mockResolvedValue({ id: "note1" });
   mockFindClipsByUrl.mockResolvedValue([]);
@@ -323,6 +326,8 @@ describe("Clip web page from the Add menu", () => {
   });
 
   it("clips into the Add menu's folder and waits, saying that closing does not stop it", async () => {
+    window.localStorage.setItem("knowledge:lastSubfolder:d", "remembered");
+    const before = storageSnapshot();
     const { onRequestClose } = renderRow(ClipWebPageMenuItem, { path: "web" });
     openClip();
     expect(screen.getByLabelText("folder")).toHaveValue("web");
@@ -336,6 +341,9 @@ describe("Clip web page from the Add menu", () => {
     expect(mockCreateClip).toHaveBeenCalledWith("d", { url: PAGE, subfolder: "web", title: null });
     expect(screen.getByRole("dialog", { name: CLIP })).toBeInTheDocument();
     expect(onRequestClose).not.toHaveBeenCalled();
+    emit("knowledge.clip.ready", { job_id: 7, file_id: "clip7" });
+    await waitFor(() => expect(mockRouterPush).toHaveBeenCalledTimes(1));
+    expect(storageSnapshot()).toEqual(before);
   });
 
   it("opens the clipped file once when its own job is ready, and ignores other jobs", async () => {
@@ -497,5 +505,110 @@ describe.each([
 
     expect(screen.queryByRole("menu")).not.toBeInTheDocument();
     expect(trigger).toHaveFocus();
+  });
+});
+
+describe("New note when the editor policy settles after its dialog opened", () => {
+  it("keeps the dialog and its input, and still reports its close", async () => {
+    let release!: () => void;
+    policyGate = new Promise<void>((r) => {
+      release = r;
+    });
+    editorPolicy = "disabled";
+    const { onDialogOpenChange } = renderRow(NewNoteMenuItem, { path: "notes" });
+    fireEvent.click(screen.getByRole("menuitem", { name: NEW_NOTE }));
+    fireEvent.change(screen.getByRole("textbox", { name: "Filename" }), {
+      target: { value: "kept.md" },
+    });
+
+    await act(async () => {
+      release();
+    });
+    await waitFor(() =>
+      expect(screen.queryByRole("menuitem", { name: NEW_NOTE })).not.toBeInTheDocument(),
+    );
+
+    expect(screen.getByRole("dialog", { name: NEW_NOTE })).toBeInTheDocument();
+    expect(screen.getByRole("textbox", { name: "Filename" })).toHaveValue("kept.md");
+    expect(screen.getByLabelText("folder")).toHaveValue("notes");
+
+    fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    expect(onDialogOpenChange.mock.calls).toEqual([[true], [false]]);
+  });
+});
+
+describe("submitting again", () => {
+  it("can create the note after a failed attempt", async () => {
+    mockCreateTextFile.mockRejectedValueOnce(new Error("already exists"));
+    renderRow(NewNoteMenuItem, { path: "notes" });
+    fireEvent.click(screen.getByRole("menuitem", { name: NEW_NOTE }));
+    fireEvent.click(screen.getByRole("button", { name: "Save" }));
+    await screen.findByText("already exists");
+
+    const save = screen.getByRole("button", { name: "Save" });
+    expect(save).toBeEnabled();
+    fireEvent.click(save);
+    await waitFor(() => expect(mockRouterPush).toHaveBeenCalledTimes(1));
+    expect(mockCreateTextFile).toHaveBeenCalledTimes(2);
+  });
+
+  it("creates one note however many times Enter is pressed while it is pending", async () => {
+    let release!: (v: unknown) => void;
+    mockCreateTextFile.mockReturnValue(
+      new Promise((r) => {
+        release = r;
+      }),
+    );
+    renderRow(NewNoteMenuItem, { path: "notes" });
+    fireEvent.click(screen.getByRole("menuitem", { name: NEW_NOTE }));
+    const field = screen.getByRole("textbox", { name: "Filename" });
+    fireEvent.keyDown(field, { key: "Enter" });
+    fireEvent.keyDown(field, { key: "Enter" });
+    await act(async () => {
+      release({ id: "note1" });
+    });
+    await waitFor(() => expect(mockRouterPush).toHaveBeenCalledTimes(1));
+    expect(mockCreateTextFile).toHaveBeenCalledTimes(1);
+  });
+
+  it("can clip again after its job failed", async () => {
+    renderRow(ClipWebPageMenuItem, { path: "web" });
+    fireEvent.click(screen.getByRole("menuitem", { name: CLIP }));
+    fireEvent.change(screen.getByRole("textbox", { name: "URL to clip" }), {
+      target: { value: PAGE },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Clip" }));
+    await screen.findByText("Clipping the page...");
+    emit("knowledge.clip.failed", { job_id: 7, file_id: "clip7", error: "fetch timed out" });
+    await screen.findByText("fetch timed out");
+
+    mockCreateClip.mockResolvedValueOnce({ job_id: 9, file_id: "clip9", status: "fetching" });
+    const clip = screen.getByRole("button", { name: "Clip" });
+    expect(clip).toBeEnabled();
+    fireEvent.click(clip);
+    expect(await screen.findByText("Clipping the page...")).toBeInTheDocument();
+    expect(mockCreateClip).toHaveBeenCalledTimes(2);
+  });
+
+  it("sends one clip however many times Clip is pressed while it is pending", async () => {
+    let release!: (v: unknown) => void;
+    mockFindClipsByUrl.mockReturnValue(
+      new Promise((r) => {
+        release = r;
+      }),
+    );
+    renderRow(ClipWebPageMenuItem, { path: "web" });
+    fireEvent.click(screen.getByRole("menuitem", { name: CLIP }));
+    const field = screen.getByRole("textbox", { name: "URL to clip" });
+    fireEvent.change(field, { target: { value: PAGE } });
+    fireEvent.click(screen.getByRole("button", { name: "Clip" }));
+    fireEvent.click(screen.getByRole("button", { name: "Clip" }));
+    await act(async () => {
+      release([]);
+    });
+    await screen.findByText("Clipping the page...");
+    expect(mockFindClipsByUrl).toHaveBeenCalledTimes(1);
+    expect(mockCreateClip).toHaveBeenCalledTimes(1);
   });
 });
