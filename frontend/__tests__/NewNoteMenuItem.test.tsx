@@ -355,6 +355,35 @@ describe("New note inside the Add menu", () => {
     expect(screen.getByLabelText("folder")).toHaveValue("notes/sub");
   });
 
+  it("keeps the dialog through a press after a failed create, and creates on retry", async () => {
+    mockCreateTextFile.mockRejectedValueOnce(new Error("already exists"));
+    await openFromAdd();
+    fireEvent.click(screen.getByRole("button", { name: "Save" }));
+    await screen.findByText("already exists");
+
+    const input = screen.getByRole("textbox", { name: "Filename" });
+    fireEvent.pointerDown(input);
+    fireEvent.click(input);
+    expect(screen.getByRole("dialog", { name: NEW_NOTE })).toBeInTheDocument();
+    expect(screen.getByRole("menu")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Save" }));
+    await waitFor(() => expect(mockRouterPush).toHaveBeenCalledTimes(1));
+    expect(mockCreateTextFile).toHaveBeenCalledTimes(2);
+  });
+
+  it("closes only the dialog on the first Escape after a failed create", async () => {
+    mockCreateTextFile.mockRejectedValueOnce(new Error("already exists"));
+    await openFromAdd();
+    fireEvent.click(screen.getByRole("button", { name: "Save" }));
+    await screen.findByText("already exists");
+
+    fireEvent.keyDown(screen.getByRole("textbox", { name: "Filename" }), { key: "Escape" });
+
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    expect(screen.getByRole("menu")).toBeInTheDocument();
+  });
+
   it("closes only the dialog on the first Escape and the menu on the second", async () => {
     const trigger = await openFromAdd();
     fireEvent.keyDown(screen.getByRole("textbox", { name: "Filename" }), { key: "Escape" });
