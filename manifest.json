@@ -19,6 +19,10 @@
             {"id": "knowledge-create-note", "label": "Create note", "priority": 20},
             {"id": "knowledge-version-history", "label": "Version history", "priority": 30}
         ],
+        "folder-actions-menu": [
+            {"id": "knowledge-new-note", "label": "New note", "priority": 30},
+            {"id": "knowledge-clip-web-page", "label": "Clip web page", "priority": 40}
+        ],
         "file-detail-sections": [
             {"id": "knowledge-edit", "label": "Edit Note", "priority": 5}
         ],
