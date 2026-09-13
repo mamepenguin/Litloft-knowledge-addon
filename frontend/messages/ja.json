@@ -1,5 +1,8 @@
 {
   "knowledge": {
+    "nav": {
+      "label": "ノート"
+    },
     "shortcuts": {
       "knowledge": "Knowledge",
       "knowledgeEditor": "Knowledgeエディタ",
