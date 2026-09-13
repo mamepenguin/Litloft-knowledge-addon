@@ -207,6 +207,19 @@ describe("New note dialog", () => {
     expect(onRequestClose).toHaveBeenCalledTimes(1);
   });
 
+  it("creates once in the folder chosen in the dialog, not the Add menu's", async () => {
+    renderRow({ path: "notes" });
+    openNewNote();
+    fireEvent.change(screen.getByLabelText("folder"), { target: { value: "journal/2026" } });
+    fireEvent.change(screen.getByRole("textbox", { name: "Filename" }), {
+      target: { value: "n.md" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Save" }));
+
+    await waitFor(() => expect(mockRouterPush).toHaveBeenCalledTimes(1));
+    expect(mockCreateTextFile.mock.calls).toEqual([["d", { path: "journal/2026/n.md" }]]);
+  });
+
   it("keeps the dialog and does not navigate when creation fails", async () => {
     mockCreateTextFile.mockRejectedValue(new Error("already exists"));
     const { onRequestClose } = renderRow({ path: "notes" });
