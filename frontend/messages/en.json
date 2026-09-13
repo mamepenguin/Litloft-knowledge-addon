@@ -1,5 +1,8 @@
 {
   "knowledge": {
+    "nav": {
+      "label": "Notes"
+    },
     "shortcuts": {
       "knowledge": "Knowledge",
       "knowledgeEditor": "Knowledge Editor",
