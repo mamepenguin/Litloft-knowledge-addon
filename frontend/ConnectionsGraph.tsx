@@ -4,8 +4,6 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
 import {
-  ChevronDown,
-  ChevronRight,
   ZoomIn,
   ZoomOut,
   RotateCcw,
@@ -49,7 +47,6 @@ export default function ConnectionsGraph({ drive }: Props) {
   const t = useTranslations("knowledge.connections");
   const router = useRouter();
 
-  const [open, setOpen] = useState(true);
   const [data, setData] = useState<ConnectionsGraphResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -289,183 +286,163 @@ export default function ConnectionsGraph({ drive }: Props) {
 
   return (
     <section className="flex flex-col gap-3">
-      <button
-        type="button"
-        onClick={() => setOpen((v) => !v)}
-        className="flex items-center gap-1 text-left"
-        aria-expanded={open}
-      >
-        <p className="text-[11px] font-semibold text-text-muted">
-          {t("title")}
+      {loading && (
+        <div className="h-[420px] animate-pulse rounded-2xl bg-bg-elevated md:h-[560px]" />
+      )}
+      {error && (
+        <p className="text-xs text-danger" role="alert">
+          {t("loadFailed")}: {error}
         </p>
-        {open ? (
-          <ChevronDown size={11} strokeWidth={2} className="text-text-muted" />
-        ) : (
-          <ChevronRight size={11} strokeWidth={2} className="text-text-muted" />
-        )}
-      </button>
+      )}
+      {!loading && !error && !hasAnyContent && (
+        <p className="text-xs text-text-muted">{t("emptyGraph")}</p>
+      )}
 
-      {open && (
-        <div className="flex flex-col gap-3">
-          {loading && (
-            <div className="h-[420px] animate-pulse rounded-2xl bg-bg-elevated md:h-[560px]" />
+      {hasGraph && (
+        <>
+          <GraphToolbar
+            searchQuery={searchQuery}
+            onSearchChange={setSearchQuery}
+            colorBy={colorBy}
+            onColorByChange={setColorBy}
+            t={t}
+          />
+
+          {focusedId && (
+            <GraphFocusBanner
+              title={nodeById.get(focusedId)?.title ?? ""}
+              depth={depth}
+              onDepthChange={setDepth}
+              onReset={onResetFocus}
+              t={t}
+            />
           )}
-          {error && (
-            <p className="text-xs text-danger" role="alert">
-              {t("loadFailed")}: {error}
+
+          {/* Truncation outranks the too-big hint: one says the graph
+              is hard to read, the other says it is incomplete, and a
+              reader who only sees the first will trust what they see.
+              Focus mode does not fetch more, so this stays visible
+              there too. */}
+          {data?.truncated ? (
+            <p className="rounded-xl border border-accent-amber/30 bg-accent-amber/10 px-3 py-2 text-xs text-accent-amber animate-fade-in">
+              {t("stats.truncatedWarning")}
             </p>
-          )}
-          {!loading && !error && !hasAnyContent && (
-            <p className="text-xs text-text-muted">{t("emptyGraph")}</p>
+          ) : (
+            nodes.length > TOO_BIG_THRESHOLD &&
+            !focusedId && (
+              <p className="rounded-xl border border-accent-amber/30 bg-accent-amber/10 px-3 py-2 text-xs text-accent-amber animate-fade-in">
+                {t("stats.tooBigWarning")}
+              </p>
+            )
           )}
 
-          {hasGraph && (
-            <>
-              <GraphToolbar
-                searchQuery={searchQuery}
-                onSearchChange={setSearchQuery}
-                colorBy={colorBy}
-                onColorByChange={setColorBy}
+          <div className="relative overflow-hidden rounded-2xl border border-bg-border bg-bg-card animate-fade-in">
+            <svg
+              ref={attachRef}
+              viewBox={`0 0 ${PAN_ZOOM_VIEWBOX.width} ${PAN_ZOOM_VIEWBOX.height}`}
+              className={`lg-graph block h-[420px] w-full select-none md:h-[560px]${
+                visibleIds !== null ? " lg-filtered" : ""
+              }`}
+              preserveAspectRatio="xMidYMid meet"
+              onPointerUp={handleSvgPointerUp}
+            >
+              <style>{GRAPH_LAYER_CSS}</style>
+              <g ref={attachViewport}>
+                <EdgeLayer
+                  edges={activeEdges}
+                  layout={layout}
+                  selectedId={selectedId}
+                />
+                <NodeLayer
+                  nodes={activeNodes}
+                  layout={layout}
+                  palette={palette}
+                  selectedId={selectedId}
+                  focusedId={focusedId}
+                  matchedIds={matchedIds}
+                />
+              </g>
+            </svg>
+
+            <div className="absolute right-3 bottom-3 flex flex-col gap-1">
+              <ZoomButton onClick={panZoom.zoomIn} title={t("zoom.in")}>
+                <ZoomIn size={14} strokeWidth={1.8} />
+              </ZoomButton>
+              <ZoomButton onClick={panZoom.zoomOut} title={t("zoom.out")}>
+                <ZoomOut size={14} strokeWidth={1.8} />
+              </ZoomButton>
+              <ZoomButton onClick={panZoom.reset} title={t("zoom.reset")}>
+                <RotateCcw size={14} strokeWidth={1.8} />
+              </ZoomButton>
+            </div>
+
+            <div
+              ref={attachZoomPill}
+              className="absolute left-3 bottom-3 rounded-full border border-bg-border bg-bg-elevated px-2.5 py-1 text-[10px] tabular-nums text-text-muted"
+            >
+              100%
+            </div>
+
+            {selectedNode && (
+              <GraphDetailCard
+                node={selectedNode}
+                edges={edges}
+                onCenter={onCenterSelected}
+                onOpen={onOpenSelected}
                 t={t}
               />
+            )}
+          </div>
 
-              {focusedId && (
-                <GraphFocusBanner
-                  title={nodeById.get(focusedId)?.title ?? ""}
-                  depth={depth}
-                  onDepthChange={setDepth}
-                  onReset={onResetFocus}
-                  t={t}
-                />
-              )}
-
-              {/* Truncation outranks the too-big hint: one says the graph
-                  is hard to read, the other says it is incomplete, and a
-                  reader who only sees the first will trust what they see.
-                  Focus mode does not fetch more, so this stays visible
-                  there too. */}
-              {data?.truncated ? (
-                <p className="rounded-xl border border-accent-amber/30 bg-accent-amber/10 px-3 py-2 text-xs text-accent-amber animate-fade-in">
-                  {t("stats.truncatedWarning")}
-                </p>
-              ) : (
-                nodes.length > TOO_BIG_THRESHOLD &&
-                !focusedId && (
-                  <p className="rounded-xl border border-accent-amber/30 bg-accent-amber/10 px-3 py-2 text-xs text-accent-amber animate-fade-in">
-                    {t("stats.tooBigWarning")}
-                  </p>
-                )
-              )}
-
-              <div className="relative overflow-hidden rounded-2xl border border-bg-border bg-bg-card animate-fade-in">
-                <svg
-                  ref={attachRef}
-                  viewBox={`0 0 ${PAN_ZOOM_VIEWBOX.width} ${PAN_ZOOM_VIEWBOX.height}`}
-                  className={`lg-graph block h-[420px] w-full select-none md:h-[560px]${
-                    visibleIds !== null ? " lg-filtered" : ""
-                  }`}
-                  preserveAspectRatio="xMidYMid meet"
-                  onPointerUp={handleSvgPointerUp}
+          {legendItems.length > 0 && (
+            <ul
+              className="flex flex-wrap items-center gap-x-3 gap-y-1 px-1"
+              role="list"
+            >
+              {legendItems.map((item) => (
+                <li
+                  key={item.labelKey ?? item.label}
+                  className="flex items-center gap-1.5 text-[11px] text-text-muted"
                 >
-                  <style>{GRAPH_LAYER_CSS}</style>
-                  <g ref={attachViewport}>
-                    <EdgeLayer
-                      edges={activeEdges}
-                      layout={layout}
-                      selectedId={selectedId}
-                    />
-                    <NodeLayer
-                      nodes={activeNodes}
-                      layout={layout}
-                      palette={palette}
-                      selectedId={selectedId}
-                      focusedId={focusedId}
-                      matchedIds={matchedIds}
-                    />
-                  </g>
-                </svg>
-
-                <div className="absolute right-3 bottom-3 flex flex-col gap-1">
-                  <ZoomButton onClick={panZoom.zoomIn} title={t("zoom.in")}>
-                    <ZoomIn size={14} strokeWidth={1.8} />
-                  </ZoomButton>
-                  <ZoomButton onClick={panZoom.zoomOut} title={t("zoom.out")}>
-                    <ZoomOut size={14} strokeWidth={1.8} />
-                  </ZoomButton>
-                  <ZoomButton onClick={panZoom.reset} title={t("zoom.reset")}>
-                    <RotateCcw size={14} strokeWidth={1.8} />
-                  </ZoomButton>
-                </div>
-
-                <div
-                  ref={attachZoomPill}
-                  className="absolute left-3 bottom-3 rounded-full border border-bg-border bg-bg-elevated px-2.5 py-1 text-[10px] tabular-nums text-text-muted"
-                >
-                  100%
-                </div>
-
-                {selectedNode && (
-                  <GraphDetailCard
-                    node={selectedNode}
-                    edges={edges}
-                    onCenter={onCenterSelected}
-                    onOpen={onOpenSelected}
-                    t={t}
+                  <span
+                    className="h-2.5 w-2.5 shrink-0 rounded-full border"
+                    style={{
+                      backgroundColor: item.color.fill,
+                      borderColor: item.color.stroke,
+                    }}
                   />
-                )}
-              </div>
-
-              {legendItems.length > 0 && (
-                <ul
-                  className="flex flex-wrap items-center gap-x-3 gap-y-1 px-1"
-                  role="list"
-                >
-                  {legendItems.map((item) => (
-                    <li
-                      key={item.labelKey ?? item.label}
-                      className="flex items-center gap-1.5 text-[11px] text-text-muted"
-                    >
-                      <span
-                        className="h-2.5 w-2.5 shrink-0 rounded-full border"
-                        style={{
-                          backgroundColor: item.color.fill,
-                          borderColor: item.color.stroke,
-                        }}
-                      />
-                      <span className="max-w-[140px] truncate">
-                        {item.labelKey ? t(item.labelKey) : item.label}
-                      </span>
-                    </li>
-                  ))}
-                </ul>
-              )}
-
-              <div className="flex items-center gap-3 px-1 text-[11px] text-text-muted">
-                <span>{t("stats.nodes", { count: nodes.length })}</span>
-                <span>{t("stats.edges", { count: edges.length })}</span>
-              </div>
-            </>
+                  <span className="max-w-[140px] truncate">
+                    {item.labelKey ? t(item.labelKey) : item.label}
+                  </span>
+                </li>
+              ))}
+            </ul>
           )}
 
-          {!loading && !error && (data?.orphan_count ?? 0) > 0 && (
-            <div className="flex flex-col gap-2">
-              <button
-                type="button"
-                onClick={() => setOrphansOpen((v) => !v)}
-                className="self-start text-xs text-accent hover:underline"
-              >
-                {orphansOpen
-                  ? t("orphans.hide")
-                  : t("orphans.show", { count: data?.orphan_count ?? 0 })}
-              </button>
-              {orphansOpen && data && (
-                <GraphOrphanPanel
-                  orphans={data.orphans}
-                  orphanCount={data.orphan_count}
-                  t={t}
-                />
-              )}
-            </div>
+          <div className="flex items-center gap-3 px-1 text-[11px] text-text-muted">
+            <span>{t("stats.nodes", { count: nodes.length })}</span>
+            <span>{t("stats.edges", { count: edges.length })}</span>
+          </div>
+        </>
+      )}
+
+      {!loading && !error && (data?.orphan_count ?? 0) > 0 && (
+        <div className="flex flex-col gap-2">
+          <button
+            type="button"
+            onClick={() => setOrphansOpen((v) => !v)}
+            className="self-start text-xs text-accent hover:underline"
+          >
+            {orphansOpen
+              ? t("orphans.hide")
+              : t("orphans.show", { count: data?.orphan_count ?? 0 })}
+          </button>
+          {orphansOpen && data && (
+            <GraphOrphanPanel
+              orphans={data.orphans}
+              orphanCount={data.orphan_count}
+              t={t}
+            />
           )}
         </div>
       )}

@@ -20,7 +20,16 @@ vi.mock("next/navigation", () => ({
   usePathname: () => PATH,
 }));
 
-vi.mock("@/components/CurrentDriveProvider", () => ({ useCurrentDrive: () => "d" }));
+let drive = "d";
+vi.mock("@/components/CurrentDriveProvider", () => ({ useCurrentDrive: () => drive }));
+
+vi.mock("next/link", () => ({
+  default: ({ children, ...props }: React.AnchorHTMLAttributes<HTMLAnchorElement>) => (
+    <a data-next-link="" {...props}>
+      {children}
+    </a>
+  ),
+}));
 
 let nickname: string | null = null;
 vi.mock("@/components/ProfileProvider", () => ({
@@ -86,6 +95,7 @@ const before = (a: Element, b: Element) =>
   Boolean(a.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING);
 
 beforeEach(() => {
+  drive = "d";
   params = new URLSearchParams();
   nickname = null;
   editorEnabled = true;
@@ -475,11 +485,23 @@ describe("the connections entry", () => {
     const { isAddonNavRowActive } = await import("@/components/sidebar/isSidebarLinkActive");
     render(<NotesPage />);
 
-    const href = screen.getByRole("link", { name: CONNECTIONS }).getAttribute("href")!;
+    const link = screen.getByRole("link", { name: CONNECTIONS });
+    const href = link.getAttribute("href")!;
     expect(href).toBe("/drive/d/addons/knowledge/connections");
+    expect(link).toHaveAttribute("data-next-link");
 
     const knowledge = addonUrlFor("knowledge", { label: "Notes", icon: "notebook-pen", href: "/drive/{drive}/addons/knowledge", scope: "drive" }, "d")!;
     const intelligence = addonUrlFor("intelligence", { label: "Ask", icon: "message-circle-question", href: "/drive/{drive}/addons/intelligence", scope: "drive" }, "d")!;
     expect([isAddonNavRowActive(href, knowledge), isAddonNavRowActive(href, intelligence)]).toEqual([true, false]);
+  });
+});
+
+describe("the connections entry on a drive whose name needs encoding", () => {
+  it("encodes the drive into the link", () => {
+    drive = "動画 #1?";
+    render(<NotesPage />);
+    expect(screen.getByRole("link", { name: CONNECTIONS }).getAttribute("href")).toBe(
+      "/drive/%E5%8B%95%E7%94%BB%20%231%3F/addons/knowledge/connections",
+    );
   });
 });

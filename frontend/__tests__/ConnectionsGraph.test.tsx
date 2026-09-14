@@ -84,6 +84,29 @@ afterEach(() => {
 });
 
 describe("ConnectionsGraph", () => {
+  it("offers no control that folds the graph away", async () => {
+    stubGraphFetch(baseGraph);
+    render(<ConnectionsGraph drive="test-drive" />);
+    await waitFor(() => expect(screen.getByText("Note A")).toBeTruthy());
+
+    for (const control of Array.from(document.querySelectorAll<HTMLElement>("[aria-expanded]"))) {
+      fireEvent.click(control);
+    }
+    expect(findGraphSvg()).toBeTruthy();
+    expect(screen.getByText("Note A")).toBeTruthy();
+  });
+
+  it("offers no control that folds the empty state away", async () => {
+    stubGraphFetch({ nodes: [], edges: [], orphan_count: 0, orphans: [] });
+    render(<ConnectionsGraph drive="test-drive" />);
+    await waitFor(() => expect(screen.getByText("emptyGraph")).toBeTruthy());
+
+    for (const control of Array.from(document.querySelectorAll<HTMLElement>("[aria-expanded]"))) {
+      fireEvent.click(control);
+    }
+    expect(screen.getByText("emptyGraph")).toBeTruthy();
+  });
+
   it("renders nodes and edges from API", async () => {
     stubGraphFetch(baseGraph);
     render(<ConnectionsGraph drive="test-drive" />);
