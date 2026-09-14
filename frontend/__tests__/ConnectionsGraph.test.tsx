@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, onTestFinished, vi } from "vitest";
 import { cleanup, render, screen, waitFor, within, fireEvent } from "@testing-library/react";
 
 vi.mock("next-intl", () => ({
@@ -14,6 +14,7 @@ vi.mock("next/navigation", () => ({
 }));
 
 import ConnectionsGraph from "../ConnectionsGraph";
+import { ShortcutsProvider } from "@/components/ShortcutsProvider";
 
 const baseGraph = {
   nodes: [
@@ -270,5 +271,130 @@ describe("ConnectionsGraph", () => {
     // the class change here, just that the click doesn't throw and the
     // graph still renders).
     expect(screen.getByText("Note A")).toBeTruthy();
+  });
+});
+
+describe("ConnectionsGraph zoom keys", () => {
+  function zoomPill(): HTMLElement {
+    const pill = screen
+      .getAllByText(/^\d+%$/)
+      .find((el) => el.tagName === "DIV");
+    if (!pill) throw new Error("zoom pill not found");
+    return pill;
+  }
+
+  async function nextFrame() {
+    await new Promise<void>((r) => requestAnimationFrame(() => r()));
+    await new Promise<void>((r) => requestAnimationFrame(() => r()));
+  }
+
+  async function renderGraph() {
+    stubGraphFetch(baseGraph);
+    const view = render(
+      <ShortcutsProvider>
+        <ConnectionsGraph drive="test-drive" />
+        <div contentEditable suppressContentEditableWarning data-testid="rich" />
+      </ShortcutsProvider>,
+    );
+    await screen.findByText("Note A");
+    await nextFrame();
+    return view;
+  }
+
+  function zoomPercent(): number {
+    return Number(zoomPill().textContent!.replace("%", ""));
+  }
+
+  it.each([
+    ["+", "in"],
+    ["=", "in"],
+    ["-", "out"],
+  ] as const)(
+    "zooms on %s when no field has focus",
+    async (key, direction) => {
+      await renderGraph();
+      const before = zoomPercent();
+
+      fireEvent.keyDown(document.body, { key });
+
+      await waitFor(() => {
+        if (direction === "in") expect(zoomPercent()).toBeGreaterThan(before);
+        else expect(zoomPercent()).toBeLessThan(before);
+      });
+    },
+  );
+
+  it.each([
+    ["the search field", () => screen.getByPlaceholderText("searchPlaceholder")],
+    ["a contenteditable", () => screen.getByTestId("rich")],
+  ])("ignores + = - while %s has focus", async (_name, pick) => {
+    await renderGraph();
+    const field = pick();
+    expect(field).toBeTruthy();
+    const before = zoomPill().textContent;
+
+    for (const key of ["+", "=", "-"]) {
+      fireEvent.keyDown(field, { key });
+    }
+    await nextFrame();
+    expect(zoomPill().textContent).toBe(before);
+
+    fireEvent.keyDown(document.body, { key: "+" });
+    await waitFor(() => {
+      expect(zoomPill().textContent).not.toBe(before);
+    });
+  });
+
+  it("keeps zooming through a node selection cleared from the search field", async () => {
+    const proto = SVGElement.prototype as { setPointerCapture?: unknown };
+    proto.setPointerCapture = () => {};
+    onTestFinished(() => {
+      delete proto.setPointerCapture;
+    });
+    await renderGraph();
+    const svg = findGraphSvg();
+    fireEvent.pointerDown(svg.querySelector('[data-node-id="fA"]')!);
+    fireEvent.pointerUp(svg);
+    expect(await screen.findByText("detail.open")).toBeTruthy();
+
+    const selected = zoomPill().textContent;
+    fireEvent.keyDown(document.body, { key: "+" });
+    await waitFor(() => {
+      expect(zoomPill().textContent).not.toBe(selected);
+    });
+
+    fireEvent.keyDown(screen.getByPlaceholderText("searchPlaceholder"), {
+      key: "Escape",
+    });
+    await waitFor(() => {
+      expect(screen.queryByText("detail.open")).toBeNull();
+    });
+
+    const cleared = zoomPill().textContent;
+    fireEvent.keyDown(document.body, { key: "+" });
+    await waitFor(() => {
+      expect(zoomPill().textContent).not.toBe(cleared);
+    });
+  });
+
+  it("keeps the zoom keys out of the shortcut cheat sheet", async () => {
+    await renderGraph();
+
+    fireEvent.keyDown(document.body, { key: "?" });
+
+    expect(await screen.findByRole("dialog")).toBeTruthy();
+    expect(screen.queryByText("Zoom in")).toBeNull();
+    expect(screen.queryByText("Zoom out")).toBeNull();
+  });
+
+  it("stops claiming the keys once the graph unmounts", async () => {
+    const view = await renderGraph();
+    expect(fireEvent.keyDown(document.body, { key: "+" })).toBe(false);
+
+    view.rerender(<ShortcutsProvider>{null}</ShortcutsProvider>);
+
+    for (const key of ["+", "=", "-"]) {
+      expect(fireEvent.keyDown(document.body, { key })).toBe(true);
+    }
   });
 });
