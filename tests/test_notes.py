@@ -73,6 +73,20 @@ class TestCreateNote:
         verify.close()
         assert recorded == {"src000000aa"}
 
+    def test_repeated_source_is_recorded_once(
+        self, client, fake_internal, viewer_cookie, knowledge_db
+    ):
+        r = _post_note(
+            client, viewer_cookie,
+            content="body",
+            source_file_ids=["src000000aa", "src000000aa"],
+        )
+        assert r.status_code == 201, r.text
+
+        verify = knowledge_db()
+        assert verify.query(NoteOriginSource).count() == 1
+        verify.close()
+
     def test_source_lookup_failure_still_creates_the_note(
         self, client, fake_internal, viewer_cookie, knowledge_db
     ):
