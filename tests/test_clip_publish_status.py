@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import asyncio
 
+import httpx
 import pytest
 
 from app import main as main_module
@@ -41,10 +42,19 @@ def _db_status(session_factory, job_id: int) -> str:
         s.close()
 
 
-def _make_client(session_factory, job_id, *, get_status=None, put_status=None):
+def _make_client(
+    session_factory,
+    job_id,
+    *,
+    get_status=None,
+    put_status=None,
+    rename_error: Exception | None = None,
+    emit_error: Exception | None = None,
+):
     class Recorder:
         events: list[tuple[str, dict, str | None, str]] = []
         status_at_put: list[str] = []
+        status_at_rename: list[str] = []
 
         def __init__(self, credential=None):
             pass
@@ -61,15 +71,21 @@ def _make_client(session_factory, job_id, *, get_status=None, put_status=None):
             return '"etag"'
 
         async def rename_file(self, file_id, new_filename):
+            Recorder.status_at_rename.append(_db_status(session_factory, job_id))
+            if rename_error is not None:
+                raise rename_error
             return {}
 
         async def emit_addon_event(self, event, data, drive=None):
             Recorder.events.append(
                 (event, data, drive, _db_status(session_factory, job_id))
             )
+            if emit_error is not None:
+                raise emit_error
 
     Recorder.events = []
     Recorder.status_at_put = []
+    Recorder.status_at_rename = []
     return Recorder
 
 
@@ -127,6 +143,7 @@ async def test_a_written_clip_is_ready_before_its_event_and_not_before_the_write
     )
 
     assert recorder.status_at_put == ["fetching"]
+    assert recorder.status_at_rename == ["ready"]
     assert recorder.events == [
         (
             "knowledge.clip.ready",
@@ -166,6 +183,34 @@ async def test_a_clip_whose_body_was_not_written_reads_failed_without_an_event(
 
     assert recorder.events == []
     assert _search(client, viewer_cookie) == [("f1", "failed")]
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "rename_error, emit_error",
+    [
+        (httpx.ConnectError("core unreachable"), None),
+        (None, httpx.ConnectError("event bridge unreachable")),
+    ],
+)
+async def test_a_written_clip_stays_ready_when_rename_or_event_fails(
+    monkeypatch, knowledge_db, client, viewer_cookie, rename_error, emit_error
+):
+    vid = viewer_id_for_nickname("alice")
+    job_id = _insert_job(knowledge_db, vid)
+    recorder = _make_client(
+        knowledge_db, job_id, rename_error=rename_error, emit_error=emit_error
+    )
+
+    await _run_publish(
+        monkeypatch,
+        knowledge_db,
+        ClipTask(job_id, "f1", vid, URL, "", drive=DRIVE),
+        recorder,
+    )
+
+    assert recorder.status_at_put == ["fetching"]
+    assert _search(client, viewer_cookie) == [("f1", "ready")]
 
 
 @pytest.mark.asyncio

@@ -720,14 +720,18 @@ describe("the Knowledge page's recent clips, reopened", () => {
   const OTHER = "https://example.com/other";
   const THIRD = "https://example.com/third";
 
-  function seed(drive: string, rows: [string, { status: string; url: string }][]) {
+  let NOW = 0;
+
+  function seed(drive: string, rows: [string, { status: string; url: string; title?: string }][]) {
     window.localStorage.setItem(
       `knowledge:recentJobs:${drive}`,
-      JSON.stringify(
-        rows.map(([id, job], i) => [id, { ...job, subfolder: "", addedAt: Date.now() - i * 1000 }]),
-      ),
+      JSON.stringify(rows.map(([id, job], i) => [id, { ...job, subfolder: "", addedAt: NOW - i * 1000 }])),
     );
   }
+
+  beforeEach(() => {
+    NOW = Date.now() - 60_000;
+  });
 
   function saved(): [string, string][] {
     const rows = JSON.parse(window.localStorage.getItem("knowledge:recentJobs:d") ?? "[]") as [
@@ -757,7 +761,7 @@ describe("the Knowledge page's recent clips, reopened", () => {
 
   it("looks up each URL with a clip still fetching, once, and settles what finished", async () => {
     seed("d", [
-      ["a", { status: "fetching", url: PAGE }],
+      ["a", { status: "fetching", url: PAGE, title: "Kept title" }],
       ["b", { status: "fetching", url: PAGE }],
       ["c", { status: "fetching", url: OTHER }],
       ["r", { status: "ready", url: THIRD }],
@@ -790,6 +794,16 @@ describe("the Knowledge page's recent clips, reopened", () => {
     expect(openLinks().sort()).toEqual(["/files/a", "/files/r"]);
     expect(spinners()).toBe(1);
     expect(screen.getAllByRole("listitem")).toHaveLength(5);
+    const rows = JSON.parse(window.localStorage.getItem("knowledge:recentJobs:d") ?? "[]") as [
+      string,
+      Record<string, unknown>,
+    ][];
+    expect(rows.slice(0, 3)).toEqual([
+      ["a", { status: "ready", url: PAGE, title: "Kept title", subfolder: "", addedAt: NOW }],
+      ["b", { status: "failed", url: PAGE, subfolder: "", addedAt: NOW - 1000 }],
+      ["c", { status: "fetching", url: OTHER, subfolder: "", addedAt: NOW - 2000 }],
+    ]);
+    expect(screen.getByTitle("Kept title")).toBeInTheDocument();
   });
 
   it("asks nothing when no clip is fetching", async () => {
