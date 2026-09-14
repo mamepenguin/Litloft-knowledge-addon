@@ -130,6 +130,20 @@ describe("the knowledge manifest", () => {
     expect(slots).toEqual(["folder-actions-menu"]);
   });
 
+  it("puts Clip web page in the Add menu", () => {
+    const slots = entries
+      .filter((entry) => entry.id === "knowledge-clip-web-page")
+      .map((entry) => entry.slot);
+    expect(slots).toEqual(["folder-actions-menu"]);
+  });
+
+  it("mounts the clip notifier in the header", () => {
+    const slots = entries
+      .filter((entry) => entry.id === "knowledge-clip-notifier")
+      .map((entry) => entry.slot);
+    expect(slots).toEqual(["header-actions"]);
+  });
+
   it("leaves the editor as the only thing in the file-detail column", () => {
     expect(manifest.slots["file-detail-sections"].map((e) => e.id)).toEqual([
       "knowledge-edit",

@@ -317,6 +317,32 @@ describe("Clip web page dialog", () => {
     expect(mockCreateClip).toHaveBeenCalledTimes(2);
   });
 
+  it("keeps an open dialog and its input when the row stops being drawn", () => {
+    const onDialogOpenChange = vi.fn();
+    const onRequestClose = vi.fn();
+    const view = (drive: string) => (
+      <Harness>
+        <ClipWebPageMenuItem
+          drive={drive}
+          path="web"
+          onRequestClose={onRequestClose}
+          onDialogOpenChange={onDialogOpenChange}
+        />
+      </Harness>
+    );
+    const { rerender } = render(view("d"));
+    openClip();
+    fireEvent.change(screen.getByRole("textbox", { name: URL_FIELD }), { target: { value: PAGE } });
+
+    rerender(view(""));
+
+    expect(screen.queryByRole("menuitem", { name: CLIP })).not.toBeInTheDocument();
+    expect(screen.getByRole("dialog", { name: CLIP })).toBeInTheDocument();
+    expect(screen.getByRole("textbox", { name: URL_FIELD })).toHaveValue(PAGE);
+    fireEvent.click(screen.getByRole("button", { name: "Close" }));
+    expect(onDialogOpenChange.mock.calls).toEqual([[true], [false]]);
+  });
+
   it("returns to the menu on cancel", () => {
     const { onRequestClose, onDialogOpenChange } = renderRow();
     openClip();
