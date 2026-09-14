@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
@@ -40,6 +40,15 @@ export default function ClipWebPageDialog({ drive, path, onCancel, onDone }: Pro
   const host = useDialogPortalTarget();
   const router = useRouter();
   const [duplicate, setDuplicate] = useState<Duplicate | null>(null);
+  // A request can be accepted after the user closed this dialog. Its job is
+  // still announced, but it must not close the menu or a dialog opened since.
+  const openRef = useRef(true);
+  useEffect(() => {
+    openRef.current = true;
+    return () => {
+      openRef.current = false;
+    };
+  }, []);
 
   useShortcuts(
     "knowledge-clip-web-page-dialog",
@@ -61,7 +70,7 @@ export default function ClipWebPageDialog({ drive, path, onCancel, onDone }: Pro
 
   const accepted = (job: ClipJob) => {
     addPendingClip(job.job_id);
-    onDone();
+    if (openRef.current) onDone();
   };
 
   if (duplicate) {

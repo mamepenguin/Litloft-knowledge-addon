@@ -4,6 +4,37 @@ import { useState, useSyncExternalStore } from "react";
 
 import type { WebSocketEvent } from "@/types";
 
+// `t` is kept per namespace, as the real hook memoises it.
+vi.mock("next-intl", async () => {
+  const messages = (await import("@/messages/en.json")).default as unknown as Record<string, unknown>;
+  const lookup = (path: string): unknown =>
+    path.split(".").reduce<unknown>(
+      (node, part) => (node && typeof node === "object" ? (node as Record<string, unknown>)[part] : undefined),
+      messages,
+    );
+  const cache = new Map<string, (key: string, values?: Record<string, unknown>) => string>();
+  const useTranslations = (namespace?: string) => {
+    const cacheKey = namespace ?? "";
+    let t = cache.get(cacheKey);
+    if (!t) {
+      t = (key, values) => {
+        const path = namespace === undefined ? key : `${namespace}.${key}`;
+        const raw = lookup(path);
+        let text = typeof raw === "string" ? raw : path;
+        for (const [k, v] of Object.entries(values ?? {})) text = text.replace(`{${k}}`, String(v));
+        return text;
+      };
+      cache.set(cacheKey, t);
+    }
+    return t;
+  };
+  return {
+    useTranslations,
+    useLocale: () => "en",
+    NextIntlClientProvider: ({ children }: { children: React.ReactNode }) => children,
+  };
+});
+
 const mockRouterPush = vi.fn();
 vi.mock("next/navigation", () => ({
   useSearchParams: () => new URLSearchParams(""),
@@ -527,5 +558,112 @@ describe("Clip web page inside the Add menu", () => {
 
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
     expect(screen.getByRole("menu")).toBeInTheDocument();
+  });
+});
+
+describe("Clip web page when the user leaves before the clip is accepted", () => {
+  function holdCreate() {
+    let release!: (job: unknown) => void;
+    mockCreateClip.mockReturnValueOnce(
+      new Promise((r) => {
+        release = r;
+      }),
+    );
+    return (job: unknown) =>
+      act(async () => {
+        release(job);
+      });
+  }
+
+  it("does not close a dialog reopened since, nor the menu, and still announces the clip", async () => {
+    const accept = holdCreate();
+    const { onRequestClose, onDialogOpenChange } = renderRow({ path: "web" });
+    openClip();
+    submitClip();
+    await waitFor(() => expect(mockCreateClip).toHaveBeenCalledTimes(1));
+    fireEvent.click(screen.getByRole("button", { name: "Close" }));
+    openClip();
+    fireEvent.change(screen.getByRole("textbox", { name: URL_FIELD }), {
+      target: { value: "https://example.com/second" },
+    });
+
+    await accept({ job_id: 7, file_id: "clip7", status: "fetching" });
+
+    expect(screen.getByRole("dialog", { name: CLIP })).toBeInTheDocument();
+    expect(screen.getByRole("textbox", { name: URL_FIELD })).toHaveValue("https://example.com/second");
+    expect(onRequestClose).not.toHaveBeenCalled();
+    expect(onDialogOpenChange.mock.calls).toEqual([[true], [false], [true]]);
+
+    emit("knowledge.clip.ready", { job_id: 7, file_id: "clip7", title: "First" });
+    expect(toasts()).toEqual({ success: ["Clipped: First"], error: [] });
+  });
+
+  it("does not close the menu when Create new is accepted after Escape", async () => {
+    mockFindClipsByUrl.mockResolvedValue([{ job_id: 3, file_id: "latest", status: "ready" }]);
+    const accept = holdCreate();
+    const { onRequestClose, onDialogOpenChange } = renderRow({ path: "web" });
+    openClip();
+    submitClip();
+    fireEvent.click(await screen.findByRole("button", { name: "Create new" }));
+    await waitFor(() => expect(mockCreateClip).toHaveBeenCalledTimes(1));
+    fireEvent.keyDown(document.body, { key: "Escape" });
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+
+    await accept({ job_id: 12, file_id: "clip12", status: "fetching" });
+
+    expect(onRequestClose).not.toHaveBeenCalled();
+    expect(onDialogOpenChange.mock.calls).toEqual([[true], [false]]);
+    emit("knowledge.clip.failed", { job_id: 12, file_id: "clip12", error: "x" });
+    expect(toasts()).toEqual({ success: [], error: ["A web page could not be clipped"] });
+  });
+});
+
+describe("Clip result that arrives before the clip is accepted", () => {
+  it("announces a ready that came first once the clip is accepted", async () => {
+    let release!: (job: unknown) => void;
+    mockCreateClip.mockReturnValueOnce(
+      new Promise((r) => {
+        release = r;
+      }),
+    );
+    renderRow({ path: "web" });
+    openClip();
+    submitClip();
+    await waitFor(() => expect(mockCreateClip).toHaveBeenCalledTimes(1));
+
+    emit("knowledge.clip.ready", { job_id: 7, file_id: "clip7", title: "Early" });
+    expect(toasts()).toEqual({ success: [], error: [] });
+
+    await act(async () => {
+      release({ job_id: 7, file_id: "clip7", status: "fetching" });
+    });
+    await waitFor(() => expect(toasts()).toEqual({ success: ["Clipped: Early"], error: [] }));
+  });
+
+  it("is announced once when the clip is accepted, and not again on remount", async () => {
+    let release!: (job: unknown) => void;
+    mockCreateClip.mockReturnValueOnce(
+      new Promise((r) => {
+        release = r;
+      }),
+    );
+    renderRow({ path: "web" });
+    openClip();
+    submitClip();
+    await waitFor(() => expect(mockCreateClip).toHaveBeenCalledTimes(1));
+
+    emit("knowledge.clip.failed", { job_id: 7, file_id: "clip7", error: "blocked" });
+    expect(toasts()).toEqual({ success: [], error: [] });
+
+    await act(async () => {
+      release({ job_id: 7, file_id: "clip7", status: "fetching" });
+    });
+    await waitFor(() =>
+      expect(toasts()).toEqual({ success: [], error: ["A web page could not be clipped"] }),
+    );
+
+    setNotifierMounted(false);
+    setNotifierMounted(true);
+    expect(toasts()).toEqual({ success: [], error: ["A web page could not be clipped"] });
   });
 });
