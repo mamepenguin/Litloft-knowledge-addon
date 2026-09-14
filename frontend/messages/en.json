@@ -222,7 +222,6 @@
       "saveFailed": "Could not save captures"
     },
     "connections": {
-      "title": "Note & file connections",
       "loading": "Loading connections…",
       "loadFailed": "Failed to load connections",
       "emptyGraph": "No connections yet. Cite source files in your notes or add file relations to populate this graph.",

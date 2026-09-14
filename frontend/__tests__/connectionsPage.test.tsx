@@ -1,35 +1,105 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { cleanup, render, screen } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 
 vi.mock("next-intl", () => ({
-  useTranslations: (ns?: string) => (key: string) => `${ns ?? ""}.${key}`,
+  useTranslations:
+    (ns?: string) =>
+    (key: string, params?: Record<string, unknown>) =>
+      `${ns ?? ""}.${key}${params ? JSON.stringify(params) : ""}`,
 }));
+vi.mock("next/navigation", () => ({ useRouter: () => ({ push: vi.fn() }) }));
 let drive: string | null = "d";
 vi.mock("@/components/CurrentDriveProvider", () => ({ useCurrentDrive: () => drive }));
-const graph = vi.fn();
-vi.mock("../ConnectionsGraph", () => ({
-  default: (props: { drive: string }) => {
-    graph(props);
-    return <div data-testid="graph" />;
-  },
-}));
 
 const ConnectionsPage = (await import("../pages/connections")).default;
 
-describe("the connections page", () => {
-  afterEach(cleanup);
+function stubGraph(status: number, payload: unknown) {
+  vi.stubGlobal(
+    "fetch",
+    vi.fn(async () => ({ ok: status < 300, status, json: async () => payload })),
+  );
+}
 
-  it("draws the graph for this drive under one page heading, with a way back to Notes", () => {
+const GRAPH = {
+  nodes: [
+    { id: "fA", title: "Note A", path: "a.md", mime_kind: "md", folder: "notes", tags: [], relation_count: 1 },
+    { id: "fB", title: "Source B", path: "b.pdf", mime_kind: "pdf", folder: "media", tags: [], relation_count: 1 },
+  ],
+  edges: [{ a: "fA", b: "fB", kind: "related" }],
+  orphan_count: 1,
+  orphans: [{ id: "fO", title: "lonely", path: "lonely.md" }],
+};
+
+function body(container: HTMLElement): HTMLElement {
+  return container.querySelector("header")!.nextElementSibling as HTMLElement;
+}
+
+describe("the connections page", () => {
+  afterEach(() => {
+    cleanup();
+    vi.unstubAllGlobals();
+  });
+
+  it("draws the graph under one page heading, with a way back to Notes for this drive", async () => {
     drive = "動画 d";
+    stubGraph(200, GRAPH);
     const { container } = render(<ConnectionsPage />);
+    await screen.findByText("Note A");
 
     expect([...container.querySelectorAll("h1")].map((h) => h.textContent)).toEqual([
       "knowledge.notes.connections",
     ]);
-    expect(screen.getByTestId("graph")).toBeInTheDocument();
-    expect(graph.mock.calls.map(([p]) => p)).toEqual([{ drive: "動画 d" }]);
     expect(screen.getByRole("link", { name: "knowledge.notes.back" }).getAttribute("href")).toBe(
       "/drive/%E5%8B%95%E7%94%BB%20d/addons/knowledge",
     );
+    drive = "d";
+  });
+
+  it.each([
+    [
+      "the graph",
+      () => stubGraph(200, GRAPH),
+      () => screen.findByText("Note A"),
+      [
+        "knowledge.connections.colorBy.kind",
+        "knowledge.connections.colorBy.tag",
+        "knowledge.connections.colorBy.folder",
+        "knowledge.connections.colorBy.flat",
+        "knowledge.connections.zoom.in",
+        "knowledge.connections.zoom.out",
+        "knowledge.connections.zoom.reset",
+        'knowledge.connections.orphans.show{"count":1}',
+      ],
+      (root: HTMLElement) => {
+        expect(root.querySelector('svg[viewBox^="0 0 1100"]')).not.toBeNull();
+        expect(within(root).getByText("Note A")).toBeInTheDocument();
+      },
+    ],
+    [
+      "the empty state",
+      () => stubGraph(200, { nodes: [], edges: [], orphan_count: 0, orphans: [] }),
+      () => screen.findByText("knowledge.connections.emptyGraph"),
+      [],
+      (root: HTMLElement) => expect(within(root).getByText("knowledge.connections.emptyGraph")).toBeInTheDocument(),
+    ],
+    [
+      "the failure state",
+      () => stubGraph(500, { detail: "boom" }),
+      () => screen.findByRole("alert"),
+      [],
+      (root: HTMLElement) => expect(within(root).getByRole("alert")).toBeInTheDocument(),
+    ],
+  ])("offers nothing that empties %s", async (_label, arrange, settled, controls, stillThere) => {
+    arrange();
+    const { container } = render(<ConnectionsPage />);
+    await settled();
+    const root = body(container);
+
+    const buttons = within(root).queryAllByRole("button");
+    expect(buttons.map((b) => b.getAttribute("aria-label") ?? b.getAttribute("title") ?? b.textContent)).toEqual(
+      controls,
+    );
+    for (const button of buttons) fireEvent.click(button);
+    stillThere(root);
   });
 });
