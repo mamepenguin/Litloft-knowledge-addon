@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, onTestFinished, vi } from "vitest";
 import { cleanup, render, screen, waitFor, within, fireEvent } from "@testing-library/react";
 
 vi.mock("next-intl", () => ({
@@ -301,16 +301,25 @@ describe("ConnectionsGraph zoom keys", () => {
     return view;
   }
 
-  it.each(["+", "=", "-"])(
+  function zoomPercent(): number {
+    return Number(zoomPill().textContent!.replace("%", ""));
+  }
+
+  it.each([
+    ["+", "in"],
+    ["=", "in"],
+    ["-", "out"],
+  ] as const)(
     "zooms on %s when no field has focus",
-    async (key) => {
+    async (key, direction) => {
       await renderGraph();
-      const before = zoomPill().textContent;
+      const before = zoomPercent();
 
       fireEvent.keyDown(document.body, { key });
 
       await waitFor(() => {
-        expect(zoomPill().textContent).not.toBe(before);
+        if (direction === "in") expect(zoomPercent()).toBeGreaterThan(before);
+        else expect(zoomPercent()).toBeLessThan(before);
       });
     },
   );
@@ -334,6 +343,48 @@ describe("ConnectionsGraph zoom keys", () => {
     await waitFor(() => {
       expect(zoomPill().textContent).not.toBe(before);
     });
+  });
+
+  it("keeps zooming through a node selection cleared from the search field", async () => {
+    const proto = SVGElement.prototype as { setPointerCapture?: unknown };
+    proto.setPointerCapture = () => {};
+    onTestFinished(() => {
+      delete proto.setPointerCapture;
+    });
+    await renderGraph();
+    const svg = findGraphSvg();
+    fireEvent.pointerDown(svg.querySelector('[data-node-id="fA"]')!);
+    fireEvent.pointerUp(svg);
+    expect(await screen.findByText("detail.open")).toBeTruthy();
+
+    const selected = zoomPill().textContent;
+    fireEvent.keyDown(document.body, { key: "+" });
+    await waitFor(() => {
+      expect(zoomPill().textContent).not.toBe(selected);
+    });
+
+    fireEvent.keyDown(screen.getByPlaceholderText("searchPlaceholder"), {
+      key: "Escape",
+    });
+    await waitFor(() => {
+      expect(screen.queryByText("detail.open")).toBeNull();
+    });
+
+    const cleared = zoomPill().textContent;
+    fireEvent.keyDown(document.body, { key: "+" });
+    await waitFor(() => {
+      expect(zoomPill().textContent).not.toBe(cleared);
+    });
+  });
+
+  it("keeps the zoom keys out of the shortcut cheat sheet", async () => {
+    await renderGraph();
+
+    fireEvent.keyDown(document.body, { key: "?" });
+
+    expect(await screen.findByRole("dialog")).toBeTruthy();
+    expect(screen.queryByText("Zoom in")).toBeNull();
+    expect(screen.queryByText("Zoom out")).toBeNull();
   });
 
   it("stops claiming the keys once the graph unmounts", async () => {
