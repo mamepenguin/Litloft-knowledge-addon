@@ -25,21 +25,32 @@ export default function NotesPage() {
   const clipFirst = Boolean(searchParams.get("prefill"));
   const newNote = useNewNote({ drive });
 
-  let body: React.ReactNode;
-  if (query) {
-    body = <NoteResults key={`q:${query}`} drive={drive} query={query} />;
-  } else if (showAll) {
-    body = <NoteResults key="all" drive={drive} />;
+  const inResults = Boolean(query) || showAll;
+  // One ClipSection for the page's lifetime: unmounting it would re-run the
+  // bookmarklet's autosubmit on the way back and drop a clip still being sent.
+  // Keyed siblings are reordered by React rather than remounted.
+  const clip = (
+    <div key="clip" hidden={inResults}>
+      <ClipSection />
+    </div>
+  );
+  let body: React.ReactNode[];
+  if (inResults) {
+    body = [
+      query ? (
+        <NoteResults key={`q:${drive}:${query}`} drive={drive} query={query} />
+      ) : (
+        <NoteResults key={`all:${drive}`} drive={drive} />
+      ),
+      clip,
+    ];
   } else {
-    body = (
-      <>
-        {clipFirst && <ClipSection />}
-        <FindNote />
-        <ContinueWriting drive={drive} />
-        <RecentNotes drive={drive} />
-        {!clipFirst && <ClipSection />}
-      </>
-    );
+    const notes = [
+      <FindNote key="find" />,
+      <ContinueWriting key="continue" drive={drive} />,
+      <RecentNotes key="recent" drive={drive} />,
+    ];
+    body = clipFirst ? [clip, ...notes] : [...notes, clip];
   }
 
   return (
@@ -60,7 +71,7 @@ export default function NotesPage() {
       <div className="px-4">
         <div className="mx-auto flex w-full max-w-2xl flex-col gap-10">{body}</div>
       </div>
-      {!query && !showAll && (
+      {!inResults && (
         <div className="px-4">
           <ConnectionsGraph drive={drive} />
         </div>

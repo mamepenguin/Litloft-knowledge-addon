@@ -44,12 +44,15 @@ vi.mock("@/lib/api", async () => {
 });
 
 const createClip = vi.fn();
+const findClipsByUrl = vi.fn();
+const createTextFile = vi.fn();
 vi.mock("../api", async () => {
   const actual = await vi.importActual<typeof import("../api")>("../api");
   return {
     ...actual,
     createClip: (...a: unknown[]) => createClip(...a),
-    findClipsByUrl: vi.fn(async () => []),
+    findClipsByUrl: (...a: unknown[]) => findClipsByUrl(...a),
+    createTextFile: (...a: unknown[]) => createTextFile(...a),
   };
 });
 
@@ -88,6 +91,8 @@ beforeEach(() => {
   getDriveFiles.mockReset().mockResolvedValue(page([]));
   getWatchHistory.mockReset().mockResolvedValue([]);
   createClip.mockReset().mockResolvedValue({ job_id: 1, file_id: "c1", status: "fetching" });
+  findClipsByUrl.mockReset().mockResolvedValue([]);
+  createTextFile.mockReset().mockResolvedValue({ id: "n1" });
   window.localStorage.clear();
 });
 
@@ -176,6 +181,7 @@ describe("the Notes landing", () => {
 
   it("puts Find into the URL", async () => {
     render(<NotesPage />);
+    expect(screen.getByRole("searchbox")).toHaveAttribute("maxlength", "200");
     fireEvent.change(screen.getByRole("searchbox"), { target: { value: " kyoto trip " } });
     fireEvent.submit(screen.getByRole("search"));
     expect(push.mock.calls).toEqual([[`${PATH}?q=kyoto+trip`]]);
@@ -248,5 +254,204 @@ describe("the landing's accent budget", () => {
 
     expect(screen.queryByRole("button", { name: "knowledge.notes.newNote" })).toBeNull();
     expect(accentFills(container)).toEqual([]);
+  });
+});
+
+function deferred<T>() {
+  let resolve!: (v: T) => void;
+  let reject!: (e: unknown) => void;
+  const promise = new Promise<T>((res, rej) => {
+    resolve = res;
+    reject = rej;
+  });
+  return { promise, resolve, reject };
+}
+
+const BOOKMARKLET = { prefill: "https://example.com/a", title: "A", autosubmit: "1" };
+
+describe("the clip section across in-page navigation", () => {
+  it("does not clip again when the reader goes to Find and comes back", async () => {
+    params = new URLSearchParams(BOOKMARKLET);
+    const { rerender } = render(<NotesPage />);
+    await waitFor(() => expect(createClip).toHaveBeenCalledTimes(1));
+
+    findClipsByUrl.mockResolvedValue([{ job_id: 1, file_id: "c1", status: "fetching" }]);
+    params = new URLSearchParams({ q: "kyoto" });
+    rerender(<NotesPage />);
+    await screen.findByText('knowledge.notes.count{"count":0}');
+    params = new URLSearchParams(BOOKMARKLET);
+    rerender(<NotesPage />);
+    await act(async () => {});
+
+    expect(createClip).toHaveBeenCalledTimes(1);
+    expect(findClipsByUrl).toHaveBeenCalledTimes(1);
+    expect(screen.queryByRole("dialog")).toBeNull();
+  });
+
+  it("keeps a clip that was still being sent when the reader went to All notes", async () => {
+    params = new URLSearchParams(BOOKMARKLET);
+    const sent = deferred<{ job_id: number; file_id: string; status: string }>();
+    createClip.mockReturnValue(sent.promise);
+    const { rerender } = render(<NotesPage />);
+    await waitFor(() => expect(createClip).toHaveBeenCalledTimes(1));
+
+    params = new URLSearchParams({ view: "all" });
+    rerender(<NotesPage />);
+    await act(async () => {
+      sent.resolve({ job_id: 1, file_id: "c1", status: "fetching" });
+    });
+    params = new URLSearchParams();
+    rerender(<NotesPage />);
+
+    expect(await screen.findByTitle("https://example.com/a")).toBeInTheDocument();
+    const stored = JSON.parse(window.localStorage.getItem("knowledge:recentJobs:d") ?? "[]") as [string, unknown][];
+    expect(stored.map(([id]) => id)).toEqual(["c1"]);
+  });
+
+  it("hides the clip form, out of reach, on the results pages", async () => {
+    params = new URLSearchParams({ view: "all" });
+    const { container } = render(<NotesPage />);
+    await screen.findByText("knowledge.notes.all");
+
+    const input = container.querySelector<HTMLInputElement>(`input[aria-label="${CLIP_URL}"]`)!;
+    const wrapper = input.closest("[hidden]") as HTMLElement;
+    expect(wrapper).not.toBeNull();
+    expect(getComputedStyle(wrapper).display).toBe("none");
+    expect(screen.queryByTestId("graph")).toBeNull();
+    expect(screen.queryByRole("search")).toBeNull();
+  });
+
+  it("puts the clip form first for a prefill without autosubmit, and sends nothing", async () => {
+    params = new URLSearchParams({ prefill: "https://example.com/a" });
+    render(<NotesPage />);
+    const clip = screen.getByRole("textbox", { name: CLIP_URL });
+    expect(before(clip, screen.getByRole("search"))).toBe(true);
+    expect(clip).toHaveValue("https://example.com/a");
+    await act(async () => {});
+    expect(createClip).not.toHaveBeenCalled();
+  });
+
+  it("treats a blank q as the landing", async () => {
+    params = new URLSearchParams({ q: "   " });
+    render(<NotesPage />);
+    expect(screen.getByRole("search")).toBeInTheDocument();
+    await screen.findByText("knowledge.notes.empty");
+    expect(getDriveFiles.mock.calls).toEqual([["d", { type: "text", sort: "updated_at", order: "desc", limit: 8 }]]);
+  });
+});
+
+describe("Show more", () => {
+  const all = Array.from({ length: 90 }, (_, i) => note(`n${i}`));
+  const slice = (p: number) => page(all.slice((p - 1) * 30, p * 30), 90);
+
+  it("shows every note once however hard it is pressed, then goes away", async () => {
+    params = new URLSearchParams({ view: "all" });
+    const second = deferred<ReturnType<typeof page>>();
+    getDriveFiles
+      .mockResolvedValueOnce(slice(1))
+      .mockReturnValueOnce(second.promise)
+      .mockResolvedValueOnce(slice(3));
+    render(<NotesPage />);
+    await screen.findByText("Note n29");
+
+    const more = screen.getByRole("button", { name: "knowledge.notes.showMore" });
+    fireEvent.click(more);
+    expect(more).toBeDisabled();
+    fireEvent.click(more);
+    await act(async () => second.resolve(slice(2)));
+    fireEvent.click(screen.getByRole("button", { name: "knowledge.notes.showMore" }));
+    await screen.findByText("Note n89");
+
+    expect(getDriveFiles.mock.calls.map(([, o]) => (o as { page: number }).page)).toEqual([1, 2, 3]);
+    expect(screen.getAllByRole("link", { name: /^Note n/ }).map((a) => a.textContent)).toEqual(
+      all.map((f) => `${f.title}${f.folder_path}`),
+    );
+    expect(screen.queryByRole("button", { name: "knowledge.notes.showMore" })).toBeNull();
+  });
+
+  it("offers the same button again after a page fails, and continues from that page", async () => {
+    params = new URLSearchParams({ view: "all" });
+    getDriveFiles
+      .mockResolvedValueOnce(slice(1))
+      .mockRejectedValueOnce(new Error("boom"))
+      .mockResolvedValueOnce(slice(2));
+    render(<NotesPage />);
+    await screen.findByText("Note n29");
+
+    fireEvent.click(screen.getByRole("button", { name: "knowledge.notes.showMore" }));
+    expect(await screen.findByRole("alert")).toHaveTextContent("knowledge.notes.loadFailed");
+    fireEvent.click(screen.getByRole("button", { name: "knowledge.notes.showMore" }));
+    await screen.findByText("Note n59");
+
+    expect(getDriveFiles.mock.calls.map(([, o]) => (o as { page: number }).page)).toEqual([1, 2, 2]);
+    expect(screen.queryByRole("alert")).toBeNull();
+    expect(screen.getAllByRole("link", { name: /^Note n/ })).toHaveLength(60);
+  });
+
+  it("reports a failed first page and lets it be retried", async () => {
+    params = new URLSearchParams({ q: "kyoto" });
+    getDriveFiles.mockRejectedValueOnce(new Error("boom")).mockResolvedValueOnce(page([note("k1")], 1));
+    render(<NotesPage />);
+
+    expect(await screen.findByRole("alert")).toHaveTextContent("knowledge.notes.loadFailed");
+    fireEvent.click(screen.getByRole("button", { name: "knowledge.notes.showMore" }));
+    await screen.findByText("Note k1");
+    expect(screen.queryByRole("alert")).toBeNull();
+  });
+});
+
+describe("New note on the landing", () => {
+  it("opens the dialog, creates nothing on cancel, and opens the created note in the editor", async () => {
+    render(<NotesPage />);
+    fireEvent.click(screen.getByRole("button", { name: "knowledge.notes.newNote" }));
+    const dialog = await screen.findByRole("dialog", { name: "knowledge.newNote.dialogTitle" });
+    fireEvent.click(within(dialog).getByRole("button", { name: "common.cancel" }));
+    expect(screen.queryByRole("dialog")).toBeNull();
+    expect(createTextFile).not.toHaveBeenCalled();
+
+    fireEvent.click(screen.getByRole("button", { name: "knowledge.notes.newNote" }));
+    const again = await screen.findByRole("dialog", { name: "knowledge.newNote.dialogTitle" });
+    fireEvent.click(within(again).getByRole("button", { name: "common.save" }));
+    await waitFor(() => expect(push.mock.calls).toEqual([["/files/n1?edit=1"]]));
+    expect(createTextFile).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("Continue writing", () => {
+  it("fails on its own, leaving Recent notes and the clip form", async () => {
+    nickname = "alice";
+    getWatchHistory.mockRejectedValue(new Error("boom"));
+    getDriveFiles.mockResolvedValue(page([note("r1")], 1));
+    render(<NotesPage />);
+
+    const heading = await screen.findByText("knowledge.notes.continueWriting");
+    expect(within(heading.closest("section")!).getByRole("alert")).toHaveTextContent("knowledge.notes.loadFailed");
+    expect(await screen.findByText("Note r1")).toBeInTheDocument();
+    expect(screen.getByRole("textbox", { name: CLIP_URL })).toBeInTheDocument();
+    expect(screen.getAllByRole("alert")).toHaveLength(1);
+  });
+
+  it("follows a nickname change without keeping the previous profile's rows or error", async () => {
+    nickname = "alice";
+    const alice = deferred<FileItem[]>();
+    getWatchHistory.mockReturnValueOnce(alice.promise).mockResolvedValueOnce([note("bob1")]);
+    const { rerender } = render(<NotesPage />);
+    await waitFor(() => expect(getWatchHistory).toHaveBeenCalledTimes(1));
+
+    nickname = "bob";
+    rerender(<NotesPage />);
+    await screen.findByText("Note bob1");
+    await act(async () => alice.resolve([note("alice1")]));
+    expect(screen.queryByText("Note alice1")).toBeNull();
+
+    cleanup();
+    nickname = "alice";
+    getWatchHistory.mockReset().mockRejectedValueOnce(new Error("boom")).mockResolvedValueOnce([note("bob2")]);
+    const second = render(<NotesPage />);
+    await screen.findByRole("alert");
+    nickname = "bob";
+    second.rerender(<NotesPage />);
+    await screen.findByText("Note bob2");
+    expect(screen.queryByRole("alert")).toBeNull();
   });
 });

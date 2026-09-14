@@ -37,6 +37,7 @@ export function FindNote() {
     <form role="search" onSubmit={onSubmit} className="flex items-center gap-2">
       <input
         type="search"
+        maxLength={200}
         value={query}
         onChange={(e) => setQuery(e.target.value)}
         placeholder={t("findPlaceholder")}

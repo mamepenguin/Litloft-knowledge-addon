@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useTranslations } from "next-intl";
@@ -19,38 +19,45 @@ interface Props {
   query?: string;
 }
 
+/** Remounted (by key) whenever the drive or the query changes. */
 export default function NoteResults({ drive, query }: Props) {
   const t = useTranslations("knowledge.notes");
   const pathname = usePathname();
-  const [pages, setPages] = useState(1);
   const [files, setFiles] = useState<FileItem[]>([]);
   const [total, setTotal] = useState<number | null>(null);
+  const [nextPage, setNextPage] = useState(1);
+  const [loading, setLoading] = useState(false);
   const [failed, setFailed] = useState(false);
 
-  useEffect(() => {
-    if (!drive) return;
-    let cancelled = false;
+  const loadNext = useCallback(async () => {
+    setLoading(true);
     setFailed(false);
-    getDriveFiles(drive, {
-      type: "text",
-      sort: "updated_at",
-      order: "desc",
-      search: query,
-      page: pages,
-      limit: PAGE_SIZE,
-    })
-      .then((res) => {
-        if (cancelled) return;
-        setFiles((prev) => (pages === 1 ? res.data : [...prev, ...res.data]));
-        setTotal(res.meta.total);
-      })
-      .catch(() => {
-        if (!cancelled) setFailed(true);
+    try {
+      const res = await getDriveFiles(drive, {
+        type: "text",
+        sort: "updated_at",
+        order: "desc",
+        search: query,
+        page: nextPage,
+        limit: PAGE_SIZE,
       });
-    return () => {
-      cancelled = true;
-    };
-  }, [drive, query, pages]);
+      setFiles((prev) => (nextPage === 1 ? res.data : [...prev, ...res.data]));
+      setTotal(res.meta.total);
+      setNextPage(nextPage + 1);
+    } catch {
+      setFailed(true);
+    } finally {
+      setLoading(false);
+    }
+  }, [drive, query, nextPage]);
+
+  useEffect(() => {
+    if (drive) void loadNext();
+    // The first page only; later pages are asked for by the button.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const more = total === null ? failed : files.length < total;
 
   return (
     <section className="flex flex-col gap-3">
@@ -64,8 +71,8 @@ export default function NoteResults({ drive, query }: Props) {
       {total === 0 && <p className="text-sm text-text-muted">{query ? t("noResults") : t("empty")}</p>}
       <NoteList files={files} />
       {failed && <p role="alert" className="text-xs text-danger">{t("loadFailed")}</p>}
-      {total !== null && files.length < total && !failed && (
-        <Button variant="secondary" className="self-start" onClick={() => setPages((p) => p + 1)}>
+      {more && (
+        <Button variant="secondary" className="self-start" disabled={loading} onClick={() => void loadNext()}>
           {t("showMore")}
         </Button>
       )}
