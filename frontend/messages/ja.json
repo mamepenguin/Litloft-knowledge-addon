@@ -286,6 +286,15 @@
     "newNote": {
       "menuItem": "新しいノート",
       "dialogTitle": "新しいノート"
+    },
+    "clipWebPage": {
+      "menuItem": "Web ページをクリップ",
+      "title": "Web ページをクリップ"
+    },
+    "clipNotifier": {
+      "ready": "「{title}」をクリップしました",
+      "readyUntitled": "Web ページをクリップしました",
+      "failed": "Web ページをクリップできませんでした"
     }
   }
 }

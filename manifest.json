@@ -14,7 +14,8 @@
     },
     "slots": {
         "header-actions": [
-            {"id": "knowledge-capture-basket", "label": "Capture Basket", "priority": 10}
+            {"id": "knowledge-capture-basket", "label": "Capture Basket", "priority": 10},
+            {"id": "knowledge-clip-notifier", "label": "Clip notifications", "priority": 90}
         ],
         "search-result-actions": [
             {"id": "knowledge-search-capture", "label": "Capture Search Evidence", "priority": 10}
@@ -27,7 +28,8 @@
             {"id": "knowledge-version-history", "label": "Version history", "priority": 30}
         ],
         "folder-actions-menu": [
-            {"id": "knowledge-new-note", "label": "New note", "priority": 30}
+            {"id": "knowledge-new-note", "label": "New note", "priority": 30},
+            {"id": "knowledge-clip-web-page", "label": "Clip web page", "priority": 40}
         ],
         "file-detail-sections": [
             {"id": "knowledge-edit", "label": "Edit Note", "priority": 5}
