@@ -88,7 +88,7 @@ vi.mock("../api", async () => {
 
 const ClipWebPageMenuItem = (await import("../ClipWebPageMenuItem")).default;
 const ClipNotifier = (await import("../ClipNotifier")).default;
-const KnowledgeDashboard = (await import("../KnowledgeDashboard")).default;
+const ClipSection = (await import("../ClipSection")).default;
 const { _resetPendingClipsForTests, addPendingClip } = await import("../pendingClips");
 const { AddonSlot } = await import("@/components/AddonSlot");
 const { AddonSlotsProvider } = await import("@/components/AddonSlotsProvider");
@@ -492,7 +492,7 @@ describe("Clip result toasts", () => {
   it("stays silent for clips sent from the Knowledge page", async () => {
     render(
       <Harness>
-        <KnowledgeDashboard />
+        <ClipSection />
       </Harness>,
     );
     fireEvent.change(screen.getByRole("textbox", { name: URL_FIELD }), { target: { value: PAGE } });
@@ -515,7 +515,7 @@ describe("the Knowledge page's own clip form", () => {
     window.localStorage.setItem("knowledge:lastSubfolder:d", "remembered");
     render(
       <Harness>
-        <KnowledgeDashboard />
+        <ClipSection />
       </Harness>,
     );
     expect(screen.getByLabelText("folder")).toHaveValue("remembered");
@@ -754,7 +754,7 @@ describe("the Knowledge page's recent clips, reopened", () => {
   function renderDashboard() {
     render(
       <Harness>
-        <KnowledgeDashboard />
+        <ClipSection />
       </Harness>,
     );
   }

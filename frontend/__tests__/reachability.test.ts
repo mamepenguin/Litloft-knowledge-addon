@@ -162,7 +162,7 @@ describe("the knowledge addon's modules", () => {
   // any assertion noticing, since an orphan among them is no longer looked
   // for. Measured 2026-09-07.
   it("counts every module in the addon", () => {
-    expect(moduleFiles.size).toBe(42);
+    expect(moduleFiles.size).toBe(47);
     expect([...moduleFiles].filter((f) => f.endsWith(".ts")).length).toBe(12);
   });
 
@@ -175,8 +175,8 @@ describe("the knowledge addon's modules", () => {
    * lead to it.
    */
   it("reaches only what its roots lead to", () => {
-    expect(reachable().has("KnowledgeDashboard.tsx")).toBe(true);
-    expect(reachableFrom(["slots.ts"]).has("KnowledgeDashboard.tsx")).toBe(
+    expect(reachable().has("NotesPage.tsx")).toBe(true);
+    expect(reachableFrom(["slots.ts"]).has("NotesPage.tsx")).toBe(
       false,
     );
     // Several hops from a root, into a subdirectory, and a `.ts` module —
