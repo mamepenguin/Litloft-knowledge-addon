@@ -51,7 +51,7 @@ describe("the knowledge manifest", () => {
     // Exact, not a lower bound. The failure worth catching is an entry
     // nobody remembers declaring — under `>=` a stray one is invisible,
     // and a stray one renders on every file detail page.
-    expect(entries).toHaveLength(8);
+    expect(entries).toHaveLength(10);
   });
 
   it("gives every entry a component to render", () => {
@@ -84,6 +84,8 @@ describe("the knowledge manifest", () => {
       "knowledge-search-capture": "SearchCaptureActions",
       "knowledge-version-history": "VersionHistoryMenuItem",
       "knowledge-new-note": "NewNoteMenuItem",
+      "knowledge-clip-web-page": "ClipWebPageMenuItem",
+      "knowledge-clip-notifier": "ClipNotifier",
     });
   });
 
@@ -126,6 +128,20 @@ describe("the knowledge manifest", () => {
       .filter((entry) => entry.id === "knowledge-new-note")
       .map((entry) => entry.slot);
     expect(slots).toEqual(["folder-actions-menu"]);
+  });
+
+  it("puts Clip web page in the Add menu", () => {
+    const slots = entries
+      .filter((entry) => entry.id === "knowledge-clip-web-page")
+      .map((entry) => entry.slot);
+    expect(slots).toEqual(["folder-actions-menu"]);
+  });
+
+  it("mounts the clip notifier in the header", () => {
+    const slots = entries
+      .filter((entry) => entry.id === "knowledge-clip-notifier")
+      .map((entry) => entry.slot);
+    expect(slots).toEqual(["header-actions"]);
   });
 
   it("leaves the editor as the only thing in the file-detail column", () => {

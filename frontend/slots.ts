@@ -9,5 +9,7 @@ export const slotComponents: Record<string, React.LazyExoticComponent<React.Comp
   "knowledge-create-note": lazy(() => import("./CreateNoteMenuItem")),
   "knowledge-version-history": lazy(() => import("./VersionHistoryMenuItem")),
   "knowledge-new-note": lazy(() => import("./NewNoteMenuItem")),
+  "knowledge-clip-web-page": lazy(() => import("./ClipWebPageMenuItem")),
+  "knowledge-clip-notifier": lazy(() => import("./ClipNotifier")),
   "knowledge-search-capture": lazy(() => import("./SearchCaptureActions")),
 };

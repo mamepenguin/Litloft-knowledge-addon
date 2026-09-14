@@ -36,6 +36,11 @@ It creates a Markdown file in the folder the menu was opened from, after you
 confirm the folder and name, then opens it in the editor. Hidden on drives
 where `editor` is off.
 
+It also gets **Clip web page**, which clips a URL into the folder the menu
+was opened from. The dialog closes as soon as the clip is accepted, and a
+notification says when it is ready or has failed. Only clips sent from the
+Add menu in the current tab are announced this way.
+
 ## Configuration
 
 Environment variables (defaults in parentheses):

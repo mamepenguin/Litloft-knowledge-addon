@@ -286,6 +286,15 @@
     "newNote": {
       "menuItem": "New note",
       "dialogTitle": "New note"
+    },
+    "clipWebPage": {
+      "menuItem": "Clip web page",
+      "title": "Clip web page"
+    },
+    "clipNotifier": {
+      "ready": "Clipped: {title}",
+      "readyUntitled": "Web page clipped",
+      "failed": "A web page could not be clipped"
     }
   }
 }
