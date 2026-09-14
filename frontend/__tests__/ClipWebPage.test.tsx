@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
-import { useState, useSyncExternalStore } from "react";
+import { StrictMode, useState, useSyncExternalStore } from "react";
 
 import type { WebSocketEvent } from "@/types";
 
@@ -291,6 +291,28 @@ describe("Clip web page dialog", () => {
     );
     expect(mockRouterPush).not.toHaveBeenCalled();
     expect(storageSnapshot()).toEqual(before);
+  });
+
+  it("closes the dialog and the menu once the clip is accepted under StrictMode", async () => {
+    const onRequestClose = vi.fn();
+    const onDialogOpenChange = vi.fn();
+    render(
+      <StrictMode>
+        <Harness>
+          <ClipWebPageMenuItem
+            drive="d"
+            path="web"
+            onRequestClose={onRequestClose}
+            onDialogOpenChange={onDialogOpenChange}
+          />
+        </Harness>
+      </StrictMode>,
+    );
+    openClip();
+    submitClip();
+
+    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+    expect(onRequestClose).toHaveBeenCalledTimes(1);
   });
 
   it("keeps the dialog, the URL and the folder when the clip is refused, and can send again", async () => {
