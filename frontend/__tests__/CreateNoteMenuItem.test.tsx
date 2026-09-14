@@ -22,6 +22,7 @@ vi.mock("next/navigation", () => ({
 }));
 
 const CreateNoteMenuItem = (await import("../CreateNoteMenuItem")).default;
+const { DialogPortalProvider } = await import("@/components/DialogPortal");
 const { _resetPolicyCache } = await import("@/hooks/usePolicy");
 
 function stubFetch({ editorEnabled = true } = {}) {
@@ -182,5 +183,71 @@ describe("CreateNoteMenuItem", () => {
 
     await waitFor(() => expect(onRequestClose).toHaveBeenCalled());
     expect(onDialogOpenChange).toHaveBeenLastCalledWith(false);
+  });
+
+  describe("inside the file actions menu", () => {
+    function renderInMenu() {
+      const target = document.createElement("div");
+      document.body.appendChild(target);
+      targets.push(target);
+      const order: string[] = [];
+      const onDialogOpenChange = vi.fn((open: boolean) => order.push(`open:${open}`));
+      const onRequestClose = vi.fn(() => order.push("close"));
+      render(
+        <DialogPortalProvider target={target}>
+          <div role="menu" aria-label="file actions">
+            <CreateNoteMenuItem
+              fileId="f1"
+              drive="d"
+              filename="holiday.mkv"
+              onRequestClose={onRequestClose}
+              onDialogOpenChange={onDialogOpenChange}
+            />
+          </div>
+        </DialogPortalProvider>,
+      );
+      return { target, order, onDialogOpenChange };
+    }
+
+    const targets: HTMLElement[] = [];
+
+    afterEach(() => {
+      targets.splice(0).forEach((t) => t.remove());
+    });
+
+    it("draws the dialog in the portal target, not inside the menu", async () => {
+      stubFetch();
+      const { target } = renderInMenu();
+      await screen.findByRole("menuitem", { name: /button/i });
+      expect(target.childNodes).toHaveLength(0);
+
+      fireEvent.click(screen.getByRole("menuitem", { name: /button/i }));
+
+      const save = await screen.findByRole("button", { name: /^save$/i });
+      expect(target.contains(save)).toBe(true);
+      expect(screen.getByRole("menu").contains(save)).toBe(false);
+    });
+
+    it("reports open, then closed, then asks the host to close, on cancel", async () => {
+      stubFetch();
+      const { target, order, onDialogOpenChange } = renderInMenu();
+      fireEvent.click(await screen.findByRole("menuitem", { name: /button/i }));
+      fireEvent.click(await screen.findByRole("button", { name: /^cancel$/i }));
+
+      expect(onDialogOpenChange.mock.calls).toEqual([[true], [false]]);
+      expect(order).toEqual(["open:true", "open:false", "close"]);
+      expect(target.childNodes).toHaveLength(0);
+    });
+
+    it("reports open, then closed, then asks the host to close, on save", async () => {
+      stubFetch();
+      const { target, order, onDialogOpenChange } = renderInMenu();
+      fireEvent.click(await screen.findByRole("menuitem", { name: /button/i }));
+      fireEvent.click(await screen.findByRole("button", { name: /^save$/i }));
+
+      await waitFor(() => expect(order).toEqual(["open:true", "open:false", "close"]));
+      expect(onDialogOpenChange.mock.calls).toEqual([[true], [false]]);
+      expect(target.childNodes).toHaveLength(0);
+    });
   });
 });
