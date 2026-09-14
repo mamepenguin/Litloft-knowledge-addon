@@ -64,7 +64,8 @@ async def test_worker_happy_path(monkeypatch, session_factory):
 
     done: list[tuple[ClipTask, ExtractedArticle]] = []
 
-    async def on_done(task, article):
+    async def on_done(task, article, mark_ready):
+        mark_ready()
         done.append((task, article))
 
     w = ClipWorker(on_done=on_done, session_factory=session_factory)

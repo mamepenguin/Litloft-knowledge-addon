@@ -68,11 +68,18 @@ class ClipTask:
 
 
 # Hooks: module-level so tests can swap and main.py can wire to WS.
-JobDone = Callable[[ClipTask, ExtractedArticle], Awaitable[None]]
+# ``on_done`` calls ``mark_ready`` once the article body is on disk; a job
+# whose hook returns without calling it is marked failed. ``GET /clips``
+# reads this status, so ``ready`` must never mean "placeholder still there".
+MarkReady = Callable[[], None]
+JobDone = Callable[[ClipTask, ExtractedArticle, MarkReady], Awaitable[None]]
 JobFailed = Callable[[ClipTask, str], Awaitable[None]]
 
 
-async def _noop_done(task: ClipTask, _: ExtractedArticle) -> None:
+async def _noop_done(
+    task: ClipTask, _: ExtractedArticle, mark_ready: MarkReady
+) -> None:
+    mark_ready()
     logger.info("clip.ready file_id=%s viewer=%s", task.file_id, task.viewer_id)
 
 
@@ -202,8 +209,22 @@ class ClipWorker:
                 await self._fail(task, "extract: empty article body", permanent=True)
                 return
 
-            self._mark_ready(task.job_id)
-            await self._on_done(task, article)
+            await self._publish(task, article)
+
+    async def _publish(self, task: ClipTask, article: ExtractedArticle) -> None:
+        marked = False
+
+        def mark_ready() -> None:
+            nonlocal marked
+            if not marked:
+                self._mark_ready(task.job_id)
+                marked = True
+
+        try:
+            await self._on_done(task, article, mark_ready)
+        finally:
+            if not marked:
+                self._mark_publish_failed(task.job_id)
 
     def _claim_lease(self, job_id: int) -> bool:
         """Set lease_until to now+10min if not already held. Atomic enough
@@ -233,6 +254,19 @@ class ClipWorker:
             job.status = "ready"
             job.lease_until = None
             job.error = None
+            session.commit()
+        finally:
+            session.close()
+
+    def _mark_publish_failed(self, job_id: int) -> None:
+        session = self._session_factory()
+        try:
+            job = session.get(ClipJob, job_id)
+            if job is None:
+                return
+            job.status = "failed"
+            job.lease_until = None
+            job.error = "publish: article body was not written"
             session.commit()
         finally:
             session.close()

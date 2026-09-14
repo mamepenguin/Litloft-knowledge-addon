@@ -27,7 +27,7 @@ from app.sanitize import build_frontmatter, slugify_filename
 from app.services.extractor import ExtractedArticle
 from app.services.frontmatter import iso_z
 from app.services.note_scanner import scanner_loop
-from app.services.worker import ClipTask, ClipWorker
+from app.services.worker import ClipTask, ClipWorker, MarkReady
 
 logger = logging.getLogger(__name__)
 
@@ -41,7 +41,9 @@ def get_worker() -> Optional[ClipWorker]:
     return _worker
 
 
-async def _publish_clip(task: ClipTask, article: ExtractedArticle) -> None:
+async def _publish_clip(
+    task: ClipTask, article: ExtractedArticle, mark_ready: MarkReady
+) -> None:
     """Write the ready Markdown back to core, rename by title, emit WS.
 
     Three steps, each independently best-effort:
@@ -49,7 +51,8 @@ async def _publish_clip(task: ClipTask, article: ExtractedArticle) -> None:
     1. PUT the ``status: ready`` Markdown over the placeholder with an
        ``If-Match`` guarded against mid-fetch edits. A 412 here means the
        user (or scanner) touched the file mid-fetch — we leave the
-       placeholder in place rather than overwrite.
+       placeholder in place rather than overwrite, and the job ends
+       ``failed`` because ``mark_ready`` was never called.
     2. Rename the file to a title-derived slug. Failure is swallowed
        because the content write already succeeded and the user can
        rename manually.
@@ -81,6 +84,8 @@ async def _publish_clip(task: ClipTask, article: ExtractedArticle) -> None:
         # We don't overwrite — the fetching placeholder stays as-is.
         logger.warning("publish clip failed file_id=%s: %s", task.file_id, e)
         return
+
+    mark_ready()
 
     if article.title:
         new_filename = slugify_filename(article.title, fallback_hint="clip")

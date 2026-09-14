@@ -19,7 +19,7 @@ import {
 } from "lucide-react";
 import { useCurrentDrive } from "@/components/CurrentDriveProvider";
 import { useWebSocket } from "@/hooks/useWebSocket";
-import { type ClipJob } from "./api";
+import { findClipsByUrl, type ClipJob } from "./api";
 import ClipForm from "./ClipForm";
 import ClipPasteForm from "./ClipPasteForm";
 import BookmarkletDialog from "./BookmarkletDialog";
@@ -73,6 +73,7 @@ function saveJobs(drive: string, map: JobsMap) {
 type JobAction =
   | { type: "add"; fileId: string; job: RecentJob }
   | { type: "update"; fileId: string; patch: Partial<RecentJob> }
+  | { type: "settle"; fileId: string; status: "ready" | "failed" }
   | { type: "init"; map: JobsMap };
 
 function jobsReducer(state: JobsMap, action: JobAction): JobsMap {
@@ -93,6 +94,13 @@ function jobsReducer(state: JobsMap, action: JobAction): JobsMap {
       const cur = next.get(action.fileId);
       if (!cur) return state;
       next.set(action.fileId, { ...cur, ...action.patch });
+      return next;
+    }
+    case "settle": {
+      // A WS event may have settled the row while the lookup was in flight.
+      const cur = next.get(action.fileId);
+      if (!cur || cur.status !== "fetching") return state;
+      next.set(action.fileId, { ...cur, status: action.status });
       return next;
     }
   }
@@ -367,6 +375,26 @@ export default function KnowledgeDashboard() {
     if (!d.file_id) return;
     dispatch({ type: "update", fileId: d.file_id, patch: { status: "failed", error: d.error } });
   }, [clipFailed]);
+
+  useEffect(() => {
+    if (!drive) return;
+    const urls = new Set(
+      Array.from(loadJobs(drive).values())
+        .filter((job) => job.status === "fetching")
+        .map((job) => job.url),
+    );
+    for (const url of urls) {
+      findClipsByUrl(drive, url)
+        .then((found) => {
+          for (const clip of found) {
+            if (clip.status === "ready" || clip.status === "failed") {
+              dispatch({ type: "settle", fileId: clip.file_id, status: clip.status });
+            }
+          }
+        })
+        .catch(() => {});
+    }
+  }, [drive]);
 
   const handleJobAdded = useCallback((fileId: string, job: RecentJob) => {
     dispatch({ type: "add", fileId, job });
