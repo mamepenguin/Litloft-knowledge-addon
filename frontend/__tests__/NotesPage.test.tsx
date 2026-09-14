@@ -446,6 +446,16 @@ describe("Continue writing", () => {
 
     cleanup();
     nickname = "alice";
+    getWatchHistory.mockReset().mockResolvedValueOnce([note("alice2")]).mockReturnValueOnce(new Promise(() => {}));
+    const shown = render(<NotesPage />);
+    await screen.findByText("Note alice2");
+    nickname = "bob";
+    shown.rerender(<NotesPage />);
+    await act(async () => {});
+    expect(screen.queryByText("Note alice2")).toBeNull();
+
+    cleanup();
+    nickname = "alice";
     getWatchHistory.mockReset().mockRejectedValueOnce(new Error("boom")).mockResolvedValueOnce([note("bob2")]);
     const second = render(<NotesPage />);
     await screen.findByRole("alert");
