@@ -89,7 +89,7 @@ vi.mock("../api", async () => {
 const ClipWebPageMenuItem = (await import("../ClipWebPageMenuItem")).default;
 const ClipNotifier = (await import("../ClipNotifier")).default;
 const KnowledgeDashboard = (await import("../KnowledgeDashboard")).default;
-const { _resetPendingClipsForTests } = await import("../pendingClips");
+const { _resetPendingClipsForTests, addPendingClip } = await import("../pendingClips");
 const { AddonSlot } = await import("@/components/AddonSlot");
 const { AddonSlotsProvider } = await import("@/components/AddonSlotsProvider");
 const { AddButton } = await import("@/components/AddButton");
@@ -713,5 +713,145 @@ describe("Clip result that arrives before the clip is accepted", () => {
     setNotifierMounted(false);
     setNotifierMounted(true);
     expect(toasts()).toEqual({ success: [], error: ["A web page could not be clipped"] });
+  });
+});
+
+describe("the Knowledge page's recent clips, reopened", () => {
+  const OTHER = "https://example.com/other";
+  const THIRD = "https://example.com/third";
+
+  function seed(drive: string, rows: [string, { status: string; url: string }][]) {
+    window.localStorage.setItem(
+      `knowledge:recentJobs:${drive}`,
+      JSON.stringify(
+        rows.map(([id, job], i) => [id, { ...job, subfolder: "", addedAt: Date.now() - i * 1000 }]),
+      ),
+    );
+  }
+
+  function saved(): [string, string][] {
+    const rows = JSON.parse(window.localStorage.getItem("knowledge:recentJobs:d") ?? "[]") as [
+      string,
+      { status: string },
+    ][];
+    return rows.map(([id, job]) => [id, job.status]);
+  }
+
+  function openLinks(): string[] {
+    return screen
+      .queryAllByRole("link", { name: /Open/ })
+      .map((a) => a.getAttribute("href") ?? "");
+  }
+
+  function spinners(): number {
+    return document.querySelectorAll("li .animate-spin").length;
+  }
+
+  function renderDashboard() {
+    render(
+      <Harness>
+        <KnowledgeDashboard />
+      </Harness>,
+    );
+  }
+
+  it("looks up each URL with a clip still fetching, once, and settles what finished", async () => {
+    seed("d", [
+      ["a", { status: "fetching", url: PAGE }],
+      ["b", { status: "fetching", url: PAGE }],
+      ["c", { status: "fetching", url: OTHER }],
+      ["r", { status: "ready", url: THIRD }],
+      ["f", { status: "failed", url: "https://example.com/failed" }],
+    ]);
+    seed("elsewhere", [["z", { status: "fetching", url: "https://example.com/z" }]]);
+    mockFindClipsByUrl.mockImplementation(async (_drive: string, url: string) =>
+      url === PAGE
+        ? [
+            { job_id: 1, file_id: "a", status: "ready" },
+            { job_id: 2, file_id: "b", status: "failed" },
+            { job_id: 3, file_id: "unlisted", status: "ready" },
+          ]
+        : [{ job_id: 4, file_id: "c", status: "fetching" }],
+    );
+
+    renderDashboard();
+
+    await waitFor(() => expect(saved()).toEqual([
+      ["a", "ready"],
+      ["b", "failed"],
+      ["c", "fetching"],
+      ["r", "ready"],
+      ["f", "failed"],
+    ]));
+    expect(mockFindClipsByUrl.mock.calls.map(([drive, url]) => `${drive} ${url}`).sort()).toEqual([
+      `d ${PAGE}`,
+      `d ${OTHER}`,
+    ].sort());
+    expect(openLinks().sort()).toEqual(["/files/a", "/files/r"]);
+    expect(spinners()).toBe(1);
+    expect(screen.getAllByRole("listitem")).toHaveLength(5);
+  });
+
+  it("asks nothing when no clip is fetching", async () => {
+    seed("d", [["r", { status: "ready", url: THIRD }]]);
+    renderDashboard();
+    await settle();
+    expect(mockFindClipsByUrl).not.toHaveBeenCalled();
+  });
+
+  it("keeps a row fetching when its lookup fails, without holding back the others", async () => {
+    seed("d", [
+      ["a", { status: "fetching", url: PAGE }],
+      ["c", { status: "fetching", url: OTHER }],
+    ]);
+    mockFindClipsByUrl.mockImplementation(async (_drive: string, url: string) => {
+      if (url === PAGE) throw new Error("Error: 502");
+      return [{ job_id: 4, file_id: "c", status: "failed" }];
+    });
+
+    renderDashboard();
+
+    await waitFor(() => expect(saved()).toEqual([
+      ["a", "fetching"],
+      ["c", "failed"],
+    ]));
+    expect(spinners()).toBe(1);
+  });
+
+  it("does not undo a result the socket delivered while the lookup was in flight", async () => {
+    seed("d", [["a", { status: "fetching", url: PAGE }]]);
+    let answer: (clips: unknown[]) => void = () => {};
+    mockFindClipsByUrl.mockImplementation(
+      () => new Promise((resolve) => {
+        answer = resolve;
+      }),
+    );
+
+    renderDashboard();
+    await waitFor(() => expect(mockFindClipsByUrl).toHaveBeenCalledTimes(1));
+    emit("knowledge.clip.failed", { job_id: 1, file_id: "a", error: "x" });
+    await waitFor(() => expect(saved()).toEqual([["a", "failed"]]));
+
+    await act(async () => {
+      answer([{ job_id: 1, file_id: "a", status: "ready" }]);
+    });
+    await settle();
+
+    expect(saved()).toEqual([["a", "failed"]]);
+    expect(openLinks()).toEqual([]);
+  });
+
+  it("neither announces a settled clip nor consumes an Add menu clip's pending result", async () => {
+    addPendingClip(7);
+    seed("d", [["clip7", { status: "fetching", url: PAGE }]]);
+    mockFindClipsByUrl.mockResolvedValue([{ job_id: 7, file_id: "clip7", status: "ready" }]);
+
+    renderDashboard();
+
+    await waitFor(() => expect(openLinks()).toEqual(["/files/clip7"]));
+    expect(toasts()).toEqual({ success: [], error: [] });
+
+    emit("knowledge.clip.ready", { job_id: 7, file_id: "clip7", title: "Late" });
+    expect(toasts()).toEqual({ success: ["Clipped: Late"], error: [] });
   });
 });
