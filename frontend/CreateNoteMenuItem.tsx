@@ -17,10 +17,12 @@
  */
 
 import { useCallback, useState } from "react";
+import { createPortal } from "react-dom";
 import { useTranslations } from "next-intl";
 import { FilePlus } from "lucide-react";
 
 import { ActionMenuItem } from "@/components/ActionMenuItem";
+import { useDialogPortalTarget } from "@/components/DialogPortal";
 import { usePolicy } from "@/hooks/usePolicy";
 import CreateNoteDialog from "./CreateNoteDialog";
 
@@ -41,6 +43,7 @@ export default function CreateNoteMenuItem({
 }: CreateNoteMenuItemProps) {
   const t = useTranslations("knowledge.createNote");
   const policy = usePolicy(drive, "knowledge", "editor");
+  const host = useDialogPortalTarget();
   const [open, setOpen] = useState(false);
 
   const handleOpen = useCallback(() => {
@@ -67,13 +70,18 @@ export default function CreateNoteMenuItem({
   return (
     <>
       <ActionMenuItem icon={FilePlus} label={t("button")} onClick={handleOpen} />
-      <CreateNoteDialog
-        drive={drive}
-        sourceFileId={fileId}
-        defaultStem={stem}
-        open={open}
-        onClose={handleClose}
-      />
+      {open &&
+        host &&
+        createPortal(
+          <CreateNoteDialog
+            drive={drive}
+            sourceFileId={fileId}
+            defaultStem={stem}
+            open
+            onClose={handleClose}
+          />,
+          host,
+        )}
     </>
   );
 }
