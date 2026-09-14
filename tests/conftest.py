@@ -165,6 +165,25 @@ class FakeInternalClient:
             raise InternalAPIError(404, "not found")
         return FakeInternalClient.file_content_override[file_id]
 
+    # file_id -> drive for fetch_bulk_state; None means purged. Unlisted
+    # ids are active on "test-drive".
+    bulk_state_drives: dict[str, str | None] = {}
+    raise_on_bulk_state: int | None = None
+
+    async def fetch_bulk_state(self, file_ids):
+        from app.internal_client import InternalAPIError
+
+        if FakeInternalClient.raise_on_bulk_state is not None:
+            raise InternalAPIError(FakeInternalClient.raise_on_bulk_state, "forced")
+        statuses, not_found = [], []
+        for fid in file_ids:
+            drive = FakeInternalClient.bulk_state_drives.get(fid, "test-drive")
+            if drive is None:
+                not_found.append(fid)
+            else:
+                statuses.append({"id": fid, "drive": drive, "state": "active"})
+        return {"statuses": statuses, "not_found": not_found}
+
     async def create_file_relation(
         self, file_id_a, file_id_b, kind="related", viewer_id=None
     ):
@@ -287,6 +306,8 @@ def fake_internal(monkeypatch):
     FakeInternalClient.relations_by_drive_override = {}
     FakeInternalClient.raise_on_bulk_files = None
     FakeInternalClient.raise_on_relations_by_drive = None
+    FakeInternalClient.bulk_state_drives = {}
+    FakeInternalClient.raise_on_bulk_state = None
     FakeInternalClient.captured_trust_declarations = []
     FakeInternalClient.raise_on_declare_trust_tier = None
     import app.routers.note_from_file as note_from_file_router

@@ -59,9 +59,8 @@ class NoteCreate(BaseModel):
 
     Used by the Ask → Knowledge save flow. ``content`` is a complete
     Markdown document (frontmatter + body) composed by the frontend.
-    ``source_file_ids`` lists the files cited in the note so the backend
-    can register ``file_relations`` immediately (before any PUT /content
-    edit triggers Phase 1 sync).
+    ``source_file_ids`` feeds ``note_origin_sources`` only; core derives
+    file relations from ``content``.
     """
 
     folder: str = Field(default="Ask", max_length=512)

@@ -25,7 +25,7 @@ def _distill_payload(**overrides):
 
 
 class TestDistillHappyPath:
-    def test_creates_note_with_frontmatter_and_registers_relations(
+    def test_creates_note_with_frontmatter_and_writes_no_relation(
         self, client, fake_internal, viewer_cookie
     ):
         res = client.post(
@@ -38,17 +38,7 @@ class TestDistillHappyPath:
         assert body["note_path"] == "AI-Drafts/vid-summary.md"
         assert body["note_file_id"]
 
-        # Relation registered in core. The active_summary pointer is
-        # local to knowledge.db now (spec
-        # 2026-04-30-file-active-summary-to-knowledge), so check the
-        # row landed in the addon DB instead of the captured Internal
-        # API call list.
-        assert len(fake_internal.captured_relations) == 1
-        rel = fake_internal.captured_relations[0]
-        assert rel["file_id_a"] == "src1"
-        assert rel["file_id_b"] == body["note_file_id"]
-        assert rel["kind"] == "related"
-        assert isinstance(rel["viewer_id"], str) and rel["viewer_id"]
+        assert fake_internal.captured_relations == []
 
         from app.database import session_scope
         with session_scope() as s:
