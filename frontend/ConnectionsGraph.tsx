@@ -250,19 +250,11 @@ export default function ConnectionsGraph({ drive }: Props) {
     focusedId !== null || selectedId !== null,
   );
 
-  // Zoom stays on its own listener: these are not Escape, and moving
-  // them would change which of them fire while a field has focus.
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === "+" || e.key === "=") {
-        panZoom.zoomIn();
-      } else if (e.key === "-") {
-        panZoom.zoomOut();
-      }
-    };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [panZoom]);
+  useShortcuts("knowledge-graph-zoom", "Graph", [
+    { key: "+", label: "Zoom in", hidden: true, handler: panZoom.zoomIn },
+    { key: "=", label: "Zoom in", hidden: true, handler: panZoom.zoomIn },
+    { key: "-", label: "Zoom out", hidden: true, handler: panZoom.zoomOut },
+  ]);
 
   const selectedNode = selectedId ? nodeById.get(selectedId) : null;
 
