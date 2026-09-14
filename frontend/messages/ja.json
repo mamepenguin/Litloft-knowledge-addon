@@ -295,6 +295,25 @@
       "ready": "「{title}」をクリップしました",
       "readyUntitled": "Web ページをクリップしました",
       "failed": "Web ページをクリップできませんでした"
+    },
+    "notes": {
+      "heading": "ノート",
+      "description": "このドライブの Markdown とテキストファイル",
+      "newNote": "新規ノート",
+      "findLabel": "ノートを探す",
+      "findPlaceholder": "タイトルやフォルダでノートを探す",
+      "findSubmit": "探す",
+      "continueWriting": "続きを書く",
+      "recent": "最近のノート",
+      "all": "すべてのノート",
+      "allLink": "すべてのノート（{count}）",
+      "empty": "このドライブの Markdown やテキストファイルがここに出ます。",
+      "loadFailed": "ノートを読み込めませんでした。",
+      "resultsFor": "「{query}」に一致するノート",
+      "count": "{count} 件",
+      "noResults": "一致するノートはありません。",
+      "showMore": "もっと見る",
+      "back": "ノートに戻る"
     }
   }
 }

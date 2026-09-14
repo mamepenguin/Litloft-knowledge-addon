@@ -4,7 +4,7 @@ import { useCallback, useEffect, useState, type FormEvent } from "react";
 import { useTranslations } from "next-intl";
 import { Loader2 } from "lucide-react";
 
-import { Button } from "@/components/Button";
+import { Button, type ButtonVariant } from "@/components/Button";
 import { FolderPicker } from "@/components/FolderPicker";
 
 import { createClip, findClipsByUrl, type ClipJob } from "./api";
@@ -21,6 +21,7 @@ interface Props {
   initialUrl?: string;
   initialTitle?: string;
   autoSubmit?: boolean;
+  submitVariant?: ButtonVariant;
   onSubmitted: (submitted: ClipSubmitted) => void;
   onDuplicate: (url: string, subfolder: string, existing: ClipJob[]) => void;
 }
@@ -31,6 +32,7 @@ export default function ClipForm({
   initialUrl = "",
   initialTitle = "",
   autoSubmit = false,
+  submitVariant = "primary",
   onSubmitted,
   onDuplicate,
 }: Props) {
@@ -92,7 +94,7 @@ export default function ClipForm({
         />
         <Button
           type="submit"
-          variant="primary"
+          variant={submitVariant}
           disabled={submitting || !url.trim()}
         >
           {submitting ? (

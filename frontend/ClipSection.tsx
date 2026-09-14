@@ -14,7 +14,6 @@ import {
   Check,
   ClipboardPaste,
   ExternalLink,
-  Library,
   Loader2,
 } from "lucide-react";
 import { useCurrentDrive } from "@/components/CurrentDriveProvider";
@@ -24,8 +23,6 @@ import ClipForm from "./ClipForm";
 import ClipPasteForm from "./ClipPasteForm";
 import BookmarkletDialog from "./BookmarkletDialog";
 import ClipDuplicateDialog from "./ClipDuplicateDialog";
-import ConnectionsGraph from "./ConnectionsGraph";
-import { PageHeader } from "@/components/PageHeader";
 
 // ---- RecentJob -------------------------------------------------------
 
@@ -176,6 +173,7 @@ function CaptureZone({
 
       <ClipForm
         drive={drive}
+        submitVariant="secondary"
         initialSubfolder={readLastSubfolder(drive)}
         initialUrl={initialUrl}
         initialTitle={initialTitle}
@@ -335,13 +333,11 @@ function StatusDot({ status }: { status: RecentJob["status"] }) {
   );
 }
 
-// ---- Zone 3: Connections (graph view, see ConnectionsGraph.tsx) ------
 
 // ---- Root ------------------------------------------------------------
 
-export default function KnowledgeDashboard() {
+export default function ClipSection() {
   const drive = useCurrentDrive() ?? "";
-  const tDash = useTranslations("knowledge.dashboard");
   const searchParams = useSearchParams();
   const prefillUrl = searchParams.get("prefill") ?? "";
   const prefillTitle = searchParams.get("title") ?? "";
@@ -401,39 +397,18 @@ export default function KnowledgeDashboard() {
   }, []);
 
   return (
-    <div className="mx-auto flex w-full max-w-6xl flex-col gap-10 py-10">
-      {/* `PageHeader` is the one header (案 3 / A-1), and it emits the
-          page's `<h1>` — which is why this file holds none of its own. */}
-      <PageHeader
-        titleIcon={Library}
-        title={tDash("heading")}
-        scope={tDash("description")}
+    <div className="flex flex-col gap-10">
+      <CaptureZone
+        drive={drive}
+        initialUrl={prefillUrl}
+        initialTitle={prefillTitle}
+        autoSubmit={autoSubmit}
+        onJobAdded={handleJobAdded}
+        onDuplicate={(url, subfolder, existing) =>
+          setDuplicate({ url, subfolder, existing })
+        }
       />
-      {/* `px-4`, matching `PageHeader`'s own padding, which is `px-4` at
-          every width — `TrashView` and the settings page do the same. And
-          *outside* `max-w-2xl`, not inside it: inside, the box stays 672
-          and the padding comes out of the measure the comment below is
-          about. */}
-      {/* Capture + clip history read better at a comfortable measure;
-          the connections graph gets the full width below (asymmetric). */}
-      <div className="px-4">
-        <div className="mx-auto flex w-full max-w-2xl flex-col gap-10">
-          <CaptureZone
-            drive={drive}
-            initialUrl={prefillUrl}
-            initialTitle={prefillTitle}
-            autoSubmit={autoSubmit}
-            onJobAdded={handleJobAdded}
-            onDuplicate={(url, subfolder, existing) =>
-              setDuplicate({ url, subfolder, existing })
-            }
-          />
-          <ClipQueueZone drive={drive} jobs={jobs} />
-        </div>
-      </div>
-      <div className="px-4">
-        <ConnectionsGraph drive={drive} />
-      </div>
+      <ClipQueueZone drive={drive} jobs={jobs} />
 
       {duplicate && (
         <ClipDuplicateDialog

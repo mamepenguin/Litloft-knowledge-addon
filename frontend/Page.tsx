@@ -6,7 +6,7 @@ import { useCurrentDrive } from "@/components/CurrentDriveProvider";
 import { useOverlaySidebar } from "@/components/SidebarProvider";
 import { isInlineKnowledgeEditorEnabled } from "@/lib/featureFlags";
 import { buildCanonicalFileUrl } from "@/lib/canonicalFileUrl";
-import KnowledgeDashboard from "./KnowledgeDashboard";
+import NotesPage from "./NotesPage";
 
 async function fetchFileMeta(fileId: string) {
   const res = await fetch(`/api/files/${encodeURIComponent(fileId)}`, {
@@ -43,5 +43,5 @@ export default function KnowledgePage() {
     notFound();
   }
 
-  return <KnowledgeDashboard />;
+  return <NotesPage />;
 }

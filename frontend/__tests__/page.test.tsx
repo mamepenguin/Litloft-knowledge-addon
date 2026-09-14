@@ -45,9 +45,8 @@ vi.mock("@/components/MarkdownPreview", () => ({
   MarkdownPreview: () => null,
 }));
 
-// KnowledgeDashboard mocked to a simple stub so Page tests stay focused.
-vi.mock("../KnowledgeDashboard", () => ({
-  default: () => <div data-testid="knowledge-dashboard" />,
+vi.mock("../NotesPage", () => ({
+  default: () => <div data-testid="notes-page" />,
 }));
 
 const fileA = {
@@ -103,10 +102,10 @@ describe("KnowledgePage", () => {
     vi.unstubAllGlobals();
   });
 
-  it("renders KnowledgeDashboard by default", async () => {
+  it("renders the Notes page by default", async () => {
     stubFetch(defaultHandler);
     render(<Page />);
-    expect(await screen.findByTestId("knowledge-dashboard")).toBeTruthy();
+    expect(await screen.findByTestId("notes-page")).toBeTruthy();
   });
 
   it("redirects ?edit={id} to canonical 2-pane URL when inline-editor flag is on", async () => {
@@ -135,7 +134,7 @@ describe("KnowledgePage", () => {
 
     // Wait for any async effects to settle.
     await waitFor(() => {
-      expect(screen.getByTestId("knowledge-dashboard")).toBeTruthy();
+      expect(screen.getByTestId("notes-page")).toBeTruthy();
     });
     expect(_routerReplace).not.toHaveBeenCalled();
   });

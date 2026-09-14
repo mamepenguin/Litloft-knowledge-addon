@@ -295,6 +295,25 @@
       "ready": "Clipped: {title}",
       "readyUntitled": "Web page clipped",
       "failed": "A web page could not be clipped"
+    },
+    "notes": {
+      "heading": "Notes",
+      "description": "Markdown and text files in this drive.",
+      "newNote": "New note",
+      "findLabel": "Find a note",
+      "findPlaceholder": "Find a note by title or folder",
+      "findSubmit": "Find",
+      "continueWriting": "Continue writing",
+      "recent": "Recent notes",
+      "all": "All notes",
+      "allLink": "All notes ({count})",
+      "empty": "Markdown and text files in this drive will appear here.",
+      "loadFailed": "Couldn't load notes.",
+      "resultsFor": "Notes matching “{query}”",
+      "count": "{count, plural, one {# note} other {# notes}}",
+      "noResults": "No notes match.",
+      "showMore": "Show more",
+      "back": "Back to Notes"
     }
   }
 }
