@@ -62,6 +62,8 @@ vi.mock("@/components/FolderPicker", () => ({
 vi.mock("@/hooks/useWebSocket", () => ({ useWebSocket: () => null }));
 vi.mock("../ConnectionsGraph", () => ({ default: () => <div data-testid="graph" /> }));
 
+const CONNECTIONS = "knowledge.notes.connections";
+
 const NotesPage = (await import("../NotesPage")).default;
 
 function note(id: string, folder = "journal"): FileItem {
@@ -99,7 +101,7 @@ beforeEach(() => {
 afterEach(cleanup);
 
 describe("the Notes landing", () => {
-  it("lays out Find, Continue writing, Recent notes, the clip form and the graph in that order", async () => {
+  it("lays out Find, Continue writing, Recent notes, the clip form and the connections link in that order", async () => {
     nickname = "alice";
     getWatchHistory.mockResolvedValue([note("w1")]);
     getDriveFiles.mockResolvedValue(page([note("r1")], 12));
@@ -110,8 +112,9 @@ describe("the Notes landing", () => {
     const recent = screen.getByText("knowledge.notes.recent");
     await screen.findByText("Note r1");
     const clip = screen.getByRole("textbox", { name: CLIP_URL });
-    const graph = screen.getByTestId("graph");
-    expect([before(find, cont), before(cont, recent), before(recent, clip), before(clip, graph)]).toEqual([
+    const connections = screen.getByRole("link", { name: CONNECTIONS });
+    expect(screen.queryByTestId("graph")).toBeNull();
+    expect([before(find, cont), before(cont, recent), before(recent, clip), before(clip, connections)]).toEqual([
       true,
       true,
       true,
@@ -209,7 +212,7 @@ describe("Find and All notes", () => {
     expect(screen.queryByRole("search")).toBeNull();
     expect(screen.queryByText("knowledge.notes.recent")).toBeNull();
     expect(screen.queryByRole("textbox", { name: CLIP_URL })).toBeNull();
-    expect(screen.queryByTestId("graph")).toBeNull();
+    expect(screen.queryByRole("link", { name: CONNECTIONS })).toBeNull();
     expect(screen.getByRole("link", { name: "knowledge.notes.back" }).getAttribute("href")).toBe(PATH);
 
     fireEvent.click(screen.getByRole("button", { name: "knowledge.notes.showMore" }));
@@ -317,7 +320,7 @@ describe("the clip section across in-page navigation", () => {
     const wrapper = input.closest("[hidden]") as HTMLElement;
     expect(wrapper).not.toBeNull();
     expect(getComputedStyle(wrapper).display).toBe("none");
-    expect(screen.queryByTestId("graph")).toBeNull();
+    expect(screen.queryByRole("link", { name: CONNECTIONS })).toBeNull();
     expect(screen.queryByRole("search")).toBeNull();
   });
 
@@ -463,5 +466,20 @@ describe("Continue writing", () => {
     second.rerender(<NotesPage />);
     await screen.findByText("Note bob2");
     expect(screen.queryByRole("alert")).toBeNull();
+  });
+});
+
+describe("the connections entry", () => {
+  it("links to the connections page for this drive, and that page keeps Notes lit in the sidebar", async () => {
+    const { addonUrlFor } = await import("@/lib/addons");
+    const { isAddonNavRowActive } = await import("@/components/sidebar/isSidebarLinkActive");
+    render(<NotesPage />);
+
+    const href = screen.getByRole("link", { name: CONNECTIONS }).getAttribute("href")!;
+    expect(href).toBe("/drive/d/addons/knowledge/connections");
+
+    const knowledge = addonUrlFor("knowledge", { label: "Notes", icon: "notebook-pen", href: "/drive/{drive}/addons/knowledge", scope: "drive" }, "d")!;
+    const intelligence = addonUrlFor("intelligence", { label: "Ask", icon: "message-circle-question", href: "/drive/{drive}/addons/intelligence", scope: "drive" }, "d")!;
+    expect([isAddonNavRowActive(href, knowledge), isAddonNavRowActive(href, intelligence)]).toEqual([true, false]);
   });
 });

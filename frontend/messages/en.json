@@ -313,7 +313,8 @@
       "count": "{count, plural, one {# note} other {# notes}}",
       "noResults": "No notes match.",
       "showMore": "Show more",
-      "back": "Back to Notes"
+      "back": "Back to Notes",
+      "connections": "Note & file connections"
     }
   }
 }

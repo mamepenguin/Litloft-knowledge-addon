@@ -313,7 +313,8 @@
       "count": "{count} 件",
       "noResults": "一致するノートはありません。",
       "showMore": "もっと見る",
-      "back": "ノートに戻る"
+      "back": "ノートに戻る",
+      "connections": "ノートとファイルのつながり"
     }
   }
 }
