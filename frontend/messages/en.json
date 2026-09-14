@@ -222,7 +222,6 @@
       "saveFailed": "Could not save captures"
     },
     "connections": {
-      "title": "Note & file connections",
       "loading": "Loading connections…",
       "loadFailed": "Failed to load connections",
       "emptyGraph": "No connections yet. Cite source files in your notes or add file relations to populate this graph.",
@@ -313,7 +312,8 @@
       "count": "{count, plural, one {# note} other {# notes}}",
       "noResults": "No notes match.",
       "showMore": "Show more",
-      "back": "Back to Notes"
+      "back": "Back to Notes",
+      "connections": "Note & file connections"
     }
   }
 }

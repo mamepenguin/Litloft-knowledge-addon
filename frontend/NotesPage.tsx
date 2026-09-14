@@ -1,15 +1,15 @@
 "use client";
 
+import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { useTranslations } from "next-intl";
-import { FilePlus, NotebookPen } from "lucide-react";
+import { FilePlus, NotebookPen, Waypoints } from "lucide-react";
 
 import { Button } from "@/components/Button";
 import { useCurrentDrive } from "@/components/CurrentDriveProvider";
 import { PageHeader } from "@/components/PageHeader";
 
 import ClipSection from "./ClipSection";
-import ConnectionsGraph from "./ConnectionsGraph";
 import NoteResults from "./NoteResults";
 import { ContinueWriting, FindNote, RecentNotes } from "./NotesLanding";
 import { useNewNote } from "./useNewNote";
@@ -73,7 +73,15 @@ export default function NotesPage() {
       </div>
       {!inResults && (
         <div className="px-4">
-          <ConnectionsGraph drive={drive} />
+          <div className="mx-auto w-full max-w-2xl">
+            <Link
+              href={`/drive/${encodeURIComponent(drive)}/addons/knowledge/connections`}
+              className="inline-flex items-center gap-1.5 text-sm text-text-muted hover:text-text-primary"
+            >
+              <Waypoints size={14} strokeWidth={1.6} />
+              {t("connections")}
+            </Link>
+          </div>
         </div>
       )}
       {newNote.dialog}
