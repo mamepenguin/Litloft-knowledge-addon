@@ -24,7 +24,7 @@ export default function ContinueCard({ file }: { file: FileItem }) {
   return (
     <Link
       href={buildCanonicalFileUrl(file, file.id)}
-      className="group block w-60 shrink-0 snap-start overflow-hidden rounded-2xl bg-bg-card shadow-card transition-colors hover:bg-bg-elevated sm:w-auto"
+      className="group block overflow-hidden rounded-2xl bg-bg-card shadow-card transition-colors hover:bg-bg-elevated"
     >
       <div aria-hidden="true" className="relative h-32 overflow-hidden bg-bg-elevated px-4 pt-4">
         <div className="h-full rounded-t-lg border border-b-0 border-bg-border bg-bg-card px-4 py-3.5">

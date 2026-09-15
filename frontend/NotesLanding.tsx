@@ -7,6 +7,7 @@ import { useTranslations } from "next-intl";
 import { ChevronRight, Clock, PenLine, Search, X } from "lucide-react";
 
 import { useProfile } from "@/components/ProfileProvider";
+import { SectionRow } from "@/components/SectionRow";
 import { getDriveFiles, getWatchHistory } from "@/lib/api";
 import type { FileItem } from "@/types";
 
@@ -117,16 +118,11 @@ export function ContinueWriting({ drive }: { drive: string }) {
       {failed ? (
         <p role="alert" className="text-xs text-danger">{t("loadFailed")}</p>
       ) : (
-        <ul
-          role="list"
-          className="-mr-4 flex snap-x gap-3 overflow-x-auto pb-1 pr-4 sm:mr-0 sm:grid sm:grid-cols-3 sm:gap-4 sm:overflow-visible sm:pb-0 sm:pr-0"
-        >
+        <SectionRow>
           {(rows ?? []).map((file) => (
-            <li key={file.id} className="contents">
-              <ContinueCard file={file} />
-            </li>
+            <ContinueCard key={file.id} file={file} />
           ))}
-        </ul>
+        </SectionRow>
       )}
     </section>
   );
