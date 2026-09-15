@@ -446,6 +446,17 @@ describe("Clip web page when the URL was clipped before", () => {
     expect(mockRouterPush.mock.calls).toEqual([["/files/latest"]]);
   });
 
+  it("offers a clip still fetching as the existing one", async () => {
+    mockFindClipsByUrl.mockResolvedValue([
+      { job_id: 4, file_id: "fetching", status: "fetching" },
+      { job_id: 2, file_id: "failed1", status: "failed" },
+    ]);
+    await reachDuplicate();
+    fireEvent.click(screen.getByRole("button", { name: "Open existing" }));
+    expect(mockCreateClip).not.toHaveBeenCalled();
+    expect(mockRouterPush.mock.calls).toEqual([["/files/fetching"]]);
+  });
+
   it("sends a URL whose every earlier clip failed as a new clip, without asking", async () => {
     mockFindClipsByUrl.mockResolvedValue([
       { job_id: 4, file_id: "failed2", status: "failed" },
