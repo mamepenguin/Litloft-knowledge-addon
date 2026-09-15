@@ -346,9 +346,8 @@
       "findInScopeLabel": "Search the list",
       "removeTag": "Remove the tag filter “{tag}”"
     },
-    "goToNote": {
-      "button": "Go to note",
-      "scope": "Notes"
+    "noteScope": {
+      "label": "Notes"
     }
   }
 }

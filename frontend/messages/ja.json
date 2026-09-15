@@ -346,9 +346,8 @@
       "findInScopeLabel": "一覧から探す",
       "removeTag": "タグ「{tag}」の絞り込みを外す"
     },
-    "goToNote": {
-      "button": "ノートへ移動",
-      "scope": "ノート"
+    "noteScope": {
+      "label": "ノート"
     }
   }
 }
