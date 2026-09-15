@@ -1,3 +1,4 @@
+import { StrictMode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 
@@ -423,7 +424,9 @@ describe("the count on the scope line", () => {
   it("states the total the All notes list reports, in the All notes column", async () => {
     getDriveFiles.mockReset().mockResolvedValue(page([note("a", "Knowledge")], 5));
     render(<NotesPage />);
-    await waitFor(() => expect(scopeLine().textContent).toContain('count\\":5'));
+    await screen.findByText("Note a");
+    await act(async () => {});
+    expect(scopeLine().textContent).toContain('count\\":5');
     expect(screen.getByRole("heading", { level: 1 }).closest("header")!.parentElement?.getAttribute("data-page-frame")).toBe(
       "wide",
     );
@@ -447,6 +450,33 @@ describe("the count on the scope line", () => {
     });
     expect(scopeLine().textContent).toContain('count\\":5');
     expect(scopeLine().textContent).not.toContain("99");
+  });
+
+  it("keeps the count when the URL is respelled but the scope is the same", async () => {
+    params = new URLSearchParams({ view: "all", sort: "updated" });
+    getDriveFiles.mockReset().mockResolvedValue(page([note("a", "Knowledge")], 5));
+    const { rerender } = render(<NotesPage />);
+    await waitFor(() => expect(scopeLine().textContent).toContain('count\\":5'));
+
+    params = new URLSearchParams({ view: "all" });
+    rerender(<NotesPage />);
+    await act(async () => {});
+    expect(scopeLine().textContent).toContain('count\\":5');
+  });
+
+  // `next dev` renders in StrictMode, which mounts, cleans up and mounts again.
+  it("keeps its count and finishes loading under StrictMode", async () => {
+    const first = Array.from({ length: 30 }, (_, i) => note(`n${i}`, "Knowledge"));
+    getDriveFiles.mockReset().mockResolvedValue(page(first, 31));
+    render(
+      <StrictMode>
+        <NotesPage />
+      </StrictMode>,
+    );
+    await screen.findByText("Note n0");
+    await act(async () => {});
+    expect(scopeLine().textContent).toContain('count\\":31');
+    expect(screen.getByRole("button", { name: "knowledge.notes.showMore" })).toBeEnabled();
   });
 
   it("drops the count when the reader leaves All notes for search results", async () => {
@@ -476,8 +506,7 @@ describe("the count on the scope line", () => {
   it("names the drive alone when the first page fails, and keeps the count when a later page does", async () => {
     getDriveFiles.mockReset().mockRejectedValueOnce(new Error("down"));
     const { unmount } = render(<NotesPage />);
-    await screen.findByRole("button", { name: "knowledge.notes.retry" }).catch(() => null);
-    await act(async () => {});
+    await screen.findByText("knowledge.notes.loadFailed");
     expect(scopeLine().textContent).toBe("d");
     unmount();
 
