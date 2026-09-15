@@ -84,7 +84,7 @@ export function FindNote({ initialQuery = "" }: { initialQuery?: string }) {
   );
 }
 
-export function ContinueWriting({ drive }: { drive: string }) {
+export function ContinueWriting({ drive, now }: { drive: string; now: Date }) {
   const t = useTranslations("knowledge.notes");
   const { nickname } = useProfile();
   const [rows, setRows] = useState<FileItem[] | null>(null);
@@ -120,7 +120,7 @@ export function ContinueWriting({ drive }: { drive: string }) {
       ) : (
         <SectionRow>
           {(rows ?? []).map((file) => (
-            <ContinueCard key={file.id} file={file} />
+            <ContinueCard key={file.id} file={file} now={now} />
           ))}
         </SectionRow>
       )}

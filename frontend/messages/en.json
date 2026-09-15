@@ -345,7 +345,7 @@
       },
       "findInScopePlaceholder": "Search this list",
       "findInScopeLabel": "Search the list",
-      "removeTag": "Remove the tag filter “{tag}”"
+      "removeTag": "Remove tag filter"
     },
     "noteScope": {
       "label": "Notes"

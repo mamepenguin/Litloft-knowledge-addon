@@ -11,23 +11,46 @@ import type { FileItem } from "@/types";
 import { formatNoteTime } from "./noteDates";
 import { useNoteExcerpt } from "./useNoteExcerpt";
 
+// Lowercasing can lengthen a character (İ becomes i + a combining dot), so
+// offsets found in the lowercased text are mapped back to the original.
+function lowercaseWithOffsets(text: string): { lower: string; starts: number[]; ends: number[] } {
+  let lower = "";
+  const starts: number[] = [];
+  const ends: number[] = [];
+  let offset = 0;
+  for (const char of text) {
+    const folded = char.toLowerCase();
+    for (let i = 0; i < folded.length; i++) {
+      starts.push(offset);
+      ends.push(offset + char.length);
+    }
+    lower += folded;
+    offset += char.length;
+  }
+  return { lower, starts, ends };
+}
+
 export function markMatches(text: string, query: string | undefined): ReactNode {
   const needle = query?.trim();
   if (!needle) return text;
-  const lower = text.toLowerCase();
+  const { lower, starts, ends } = lowercaseWithOffsets(text);
   const target = needle.toLowerCase();
   const parts: ReactNode[] = [];
   let from = 0;
   let at = lower.indexOf(target);
   while (at >= 0) {
-    if (at > from) parts.push(text.slice(from, at));
-    parts.push(
-      <mark key={at} className="rounded-sm bg-highlight-bg text-inherit">
-        {text.slice(at, at + needle.length)}
-      </mark>,
-    );
-    from = at + needle.length;
-    at = lower.indexOf(target, from);
+    const start = Math.max(starts[at], from);
+    const end = ends[at + target.length - 1];
+    if (end > start) {
+      if (start > from) parts.push(text.slice(from, start));
+      parts.push(
+        <mark key={start} className="rounded-sm bg-highlight-bg text-inherit">
+          {text.slice(start, end)}
+        </mark>,
+      );
+      from = end;
+    }
+    at = lower.indexOf(target, at + target.length);
   }
   if (from < text.length) parts.push(text.slice(from));
   return <>{parts.map((part, i) => <Fragment key={i}>{part}</Fragment>)}</>;

@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 
 import type { FileItem } from "@/types";
 
@@ -128,6 +128,17 @@ describe("the All notes rail", () => {
     expect(tagLink.getAttribute("href")).toBe(`${PATH}?view=all`);
   });
 
+  it("keeps a deep folder's own name apart from its parents, and names the whole path", async () => {
+    getFolderCounts.mockResolvedValue([{ path: "Knowledge/docs/superpowers/specs", count: 1 }]);
+    render(<NotesPage />);
+
+    const link = await within(rail()).findByRole("link", { name: /specs/ });
+    expect(link).toHaveAttribute("title", "Knowledge/docs/superpowers/specs");
+    const leaf = within(link).getByText("specs");
+    expect(leaf).not.toHaveTextContent("Knowledge");
+    expect(leaf.parentElement).toHaveTextContent(/^Knowledge\/docs\/superpowers \/ specs$/);
+  });
+
   it("keeps the list when the rail cannot load", async () => {
     getFolderCounts.mockRejectedValue(new Error("boom"));
     getDriveTags.mockRejectedValue(new Error("boom"));
@@ -245,7 +256,7 @@ describe("tag counts follow the chosen folder", () => {
     await waitFor(() => expect(within(rail()).getAllByRole("link")).toHaveLength(5));
 
     expect(within(rail()).getAllByRole("link", { name: /^AI|^ai/ }).map((a) => a.textContent)).toEqual(["AI4"]);
-    const remove = screen.getByRole("link", { name: 'knowledge.notes.removeTag{"tag":"ai"}' });
+    const remove = screen.getByRole("link", { name: "#ai knowledge.notes.removeTag" });
     expect(remove.getAttribute("href")).toBe(`${PATH}?view=all&folder=Inbox`);
   });
 
@@ -255,9 +266,25 @@ describe("tag counts follow the chosen folder", () => {
     params = new URLSearchParams({ view: "all", tag: "AI", sort: "created", q: "kyoto" });
     render(<NotesPage />);
 
-    const remove = await screen.findByRole("link", { name: 'knowledge.notes.removeTag{"tag":"AI"}' });
+    const remove = await screen.findByRole("link", { name: "#AI knowledge.notes.removeTag" });
     expect(remove.getAttribute("href")).toBe(`${PATH}?view=all&sort=created&q=kyoto`);
     expect(screen.queryByText("Note a")).toBeNull();
+  });
+
+  it("moves focus to the list when the tag is taken off from the heading", async () => {
+    params = new URLSearchParams({ view: "all", tag: "AI" });
+    const { rerender } = render(<NotesPage />);
+    await screen.findByText("Note a");
+    const remove = screen.getByRole("link", { name: /^#AI/ });
+    remove.focus();
+    fireEvent.click(remove);
+
+    params = new URLSearchParams({ view: "all" });
+    rerender(<NotesPage />);
+    const row = await screen.findByRole("link", { name: /^Note a/ });
+    expect(document.activeElement).not.toBe(document.body);
+    expect(document.activeElement).toContainElement(row);
+    expect(rail()).not.toContainElement(document.activeElement as HTMLElement);
   });
 
   it("shows the tags of the folder chosen last, even when the earlier answer arrives later", async () => {
@@ -353,6 +380,19 @@ describe("the All notes list", () => {
     expect(
       screen.queryAllByRole("heading", { level: 2 }).filter((h) => !rail().contains(h)),
     ).toEqual([]);
+  });
+
+  it("does not list a note twice when the list shifts before the next page", async () => {
+    const first = Array.from({ length: 30 }, (_, i) => note(`n${i}`, "Knowledge"));
+    getDriveFiles.mockResolvedValueOnce(page(first, 31)).mockResolvedValueOnce(page([note("n29", "Knowledge")], 31));
+    render(<NotesPage />);
+    await screen.findByText("Note n29");
+
+    fireEvent.click(screen.getByRole("button", { name: "knowledge.notes.showMore" }));
+    await waitFor(() => expect(getDriveFiles).toHaveBeenCalledTimes(2));
+    await act(async () => {});
+    expect(screen.getAllByRole("link", { name: /^Note n/ })).toHaveLength(30);
+    expect(screen.queryByRole("button", { name: "knowledge.notes.showMore" })).toBeNull();
   });
 
   it("offers a way back to the Notes landing and titles the page All notes", async () => {

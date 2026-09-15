@@ -73,4 +73,19 @@ describe("NoteRows", () => {
     const marks = screen.getAllByText((_, el) => el?.tagName === "MARK").map((m) => m.textContent);
     expect(marks).toEqual(["AI", "ai", "AI", "AI"]);
   });
+
+  it("marks the matched letters in a title whose lowercase form is longer", () => {
+    respondWith("");
+    render(<NoteRows files={[note("a", "İstanbul ai", "")]} now={NOW} query="ai" />);
+    const marks = screen.getAllByText((_, el) => el?.tagName === "MARK").map((m) => m.textContent);
+    expect(marks).toEqual(["ai"]);
+    expect(screen.getByRole("link")).toHaveTextContent(/^İstanbul ai/);
+  });
+
+  it("marks a query whose own lowercase form is longer", () => {
+    respondWith("");
+    render(<NoteRows files={[note("a", "In İstanbul", "")]} now={NOW} query="İst" />);
+    const marks = screen.getAllByText((_, el) => el?.tagName === "MARK").map((m) => m.textContent);
+    expect(marks).toEqual(["İst"]);
+  });
 });

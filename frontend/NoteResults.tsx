@@ -10,6 +10,7 @@ import { Button } from "@/components/Button";
 import { getDriveFiles } from "@/lib/api";
 import type { FileItem } from "@/types";
 
+import { appendUnseen } from "./notePages";
 import { NoteRows } from "./NoteRow";
 
 const PAGE_SIZE = 30;
@@ -43,7 +44,7 @@ export default function NoteResults({ drive, now, query }: Props) {
         page: nextPage,
         limit: PAGE_SIZE,
       });
-      setFiles((prev) => (nextPage === 1 ? res.data : [...prev, ...res.data]));
+      setFiles((prev) => (nextPage === 1 ? res.data : appendUnseen(prev, res.data)));
       setTotal(res.meta.total);
       setNextPage(nextPage + 1);
     } catch {
@@ -59,7 +60,9 @@ export default function NoteResults({ drive, now, query }: Props) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const more = total === null ? failed : files.length < total;
+  // Rows repeated by a shifted list are dropped, so how far the list has been
+  // read is counted in pages, not in rows shown.
+  const more = total === null ? failed : (nextPage - 1) * PAGE_SIZE < total;
 
   return (
     <section className="flex flex-col gap-3">
