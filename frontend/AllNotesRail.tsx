@@ -21,22 +21,40 @@ export function FolderLabel({ path, rootLabel }: { path: string; rootLabel: stri
   );
 }
 
+/** Gives up the parent path before the folder's own name when the rail is narrow. */
+function RailFolderLabel({ path, rootLabel }: { path: string; rootLabel: string }) {
+  const slash = path.lastIndexOf("/");
+  if (slash < 0) return <span className="truncate">{path === "" ? rootLabel : path}</span>;
+  return (
+    <span className="flex min-w-0">
+      <span className="min-w-0 truncate text-warm-silver">
+        {path.slice(0, slash)}
+        <span className="whitespace-pre"> / </span>
+      </span>
+      <span className="max-w-full shrink-0 truncate">{path.slice(slash + 1)}</span>
+    </span>
+  );
+}
+
 function RailLink({
   href,
   selected,
   icon,
   label,
   count,
+  title,
 }: {
   href: string;
   selected: boolean;
   icon: ReactNode;
   label: ReactNode;
   count: number;
+  title?: string;
 }) {
   return (
     <Link
       href={href}
+      title={title}
       aria-current={selected ? "true" : undefined}
       className={`flex min-w-0 items-center gap-2.5 rounded-2xl px-3 py-1.5 text-sm transition-colors pointer-coarse:min-h-11 ${
         selected
@@ -82,7 +100,8 @@ export default function AllNotesRail({ pathname, scope, folders, tags }: Props) 
             href={at({ folder: f.path })}
             selected={scope.folder === f.path}
             icon={<Folder size={16} strokeWidth={1.8} />}
-            label={<FolderLabel path={f.path} rootLabel={t("rootFolder")} />}
+            label={<RailFolderLabel path={f.path} rootLabel={t("rootFolder")} />}
+            title={f.path === "" ? undefined : f.path}
             count={f.count}
           />
         ))}

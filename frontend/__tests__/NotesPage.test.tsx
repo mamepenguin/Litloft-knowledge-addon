@@ -201,6 +201,138 @@ describe("the Notes landing", () => {
     }
   });
 
+  it("dates a Continue writing card the way a row dates a note", async () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    const now = new Date(2026, 8, 14, 15, 0);
+    vi.setSystemTime(now);
+    try {
+      const { formatNoteTime } = await import("../noteDates");
+      nickname = "alice";
+      const earlier = { ...note("w1"), updated_at: new Date(2026, 8, 2, 10, 0).toISOString() };
+      const today = { ...note("w2"), updated_at: new Date(2026, 8, 14, 9, 5).toISOString() };
+      getWatchHistory.mockResolvedValue([earlier, today]);
+      render(<NotesPage />);
+
+      const card = await screen.findByRole("link", { name: /^Note w1/ });
+      expect(card).toHaveTextContent(new RegExp(`${formatNoteTime(earlier.updated_at, now, "en")}$`));
+      expect(screen.getByRole("link", { name: /^Note w2/ })).toHaveTextContent(/09:05$/);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("moves today's notes out of Today at midnight without a reload", async () => {
+    vi.useFakeTimers({ toFake: ["Date", "setTimeout", "clearTimeout"] });
+    vi.setSystemTime(new Date(2026, 8, 14, 23, 50));
+    try {
+      getDriveFiles.mockResolvedValue(page([{ ...note("r1"), updated_at: new Date(2026, 8, 14, 23, 30).toISOString() }], 1));
+      render(<NotesPage />);
+      await act(async () => {});
+      const recent = screen.getByText("knowledge.notes.recent").closest("section")!;
+      expect(within(recent).getByRole("heading", { level: 3 })).toHaveTextContent("knowledge.notes.age.today");
+      expect(within(recent).getByRole("link", { name: /^Note r1/ })).toHaveTextContent(/23:30$/);
+
+      await act(async () => {
+        vi.advanceTimersByTime(11 * 60_000);
+      });
+      expect(within(recent).getByRole("heading", { level: 3 })).toHaveTextContent("knowledge.notes.age.week");
+      expect(within(recent).getByRole("link", { name: /^Note r1/ })).not.toHaveTextContent(/23:30$/);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("rolls over again at the next midnight", async () => {
+    vi.useFakeTimers({ toFake: ["Date", "setTimeout", "clearTimeout"] });
+    vi.setSystemTime(new Date(2026, 8, 14, 23, 50));
+    try {
+      getDriveFiles.mockResolvedValue(page([{ ...note("r1"), updated_at: new Date(2026, 8, 15, 12, 0).toISOString() }], 1));
+      render(<NotesPage />);
+      await act(async () => {});
+      await act(async () => {
+        vi.advanceTimersByTime(11 * 60_000);
+      });
+      const recent = screen.getByText("knowledge.notes.recent").closest("section")!;
+      expect(within(recent).getByRole("heading", { level: 3 })).toHaveTextContent("knowledge.notes.age.today");
+
+      await act(async () => {
+        vi.advanceTimersByTime(24 * 60 * 60_000);
+      });
+      expect(within(recent).getByRole("heading", { level: 3 })).toHaveTextContent("knowledge.notes.age.week");
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("leaves no timer or listener behind when the page goes away", async () => {
+    vi.useFakeTimers({ toFake: ["Date", "setTimeout", "clearTimeout"] });
+    vi.setSystemTime(new Date(2026, 8, 14, 23, 50));
+    const docAdd = vi.spyOn(document, "addEventListener");
+    const docRemove = vi.spyOn(document, "removeEventListener");
+    const winAdd = vi.spyOn(window, "addEventListener");
+    const winRemove = vi.spyOn(window, "removeEventListener");
+    try {
+      const { unmount } = render(<NotesPage />);
+      await act(async () => {});
+      const added = (spy: typeof docAdd, type: string) => spy.mock.calls.filter(([t]) => t === type).map(([, fn]) => fn);
+      const visibility = added(docAdd, "visibilitychange");
+      const focus = added(winAdd, "focus");
+      expect(visibility).toHaveLength(1);
+      expect(focus).toHaveLength(1);
+
+      unmount();
+      expect(added(docRemove, "visibilitychange")).toEqual(visibility);
+      expect(added(winRemove, "focus")).toEqual(focus);
+      expect(vi.getTimerCount()).toBe(0);
+    } finally {
+      docAdd.mockRestore();
+      docRemove.mockRestore();
+      winAdd.mockRestore();
+      winRemove.mockRestore();
+      vi.useRealTimers();
+    }
+  });
+
+  it.each([
+    ["focus", () => window.dispatchEvent(new Event("focus"))],
+    ["visibilitychange", () => document.dispatchEvent(new Event("visibilitychange"))],
+  ])("leaves no timer behind after a %s and then leaving the page", async (_, fire) => {
+    vi.useFakeTimers({ toFake: ["Date", "setTimeout", "clearTimeout"] });
+    vi.setSystemTime(new Date(2026, 8, 14, 23, 50));
+    try {
+      const { unmount } = render(<NotesPage />);
+      await act(async () => {});
+      await act(async () => {
+        fire();
+      });
+
+      unmount();
+      expect(vi.getTimerCount()).toBe(0);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("catches up on the day when the page is shown again after sleeping past midnight", async () => {
+    vi.useFakeTimers({ toFake: ["Date", "setTimeout", "clearTimeout"] });
+    vi.setSystemTime(new Date(2026, 8, 14, 23, 50));
+    try {
+      getDriveFiles.mockResolvedValue(page([{ ...note("r1"), updated_at: new Date(2026, 8, 14, 23, 30).toISOString() }], 1));
+      render(<NotesPage />);
+      await act(async () => {});
+      const recent = screen.getByText("knowledge.notes.recent").closest("section")!;
+      expect(within(recent).getByRole("heading", { level: 3 })).toHaveTextContent("knowledge.notes.age.today");
+
+      vi.setSystemTime(new Date(2026, 8, 15, 8, 0));
+      await act(async () => {
+        document.dispatchEvent(new Event("visibilitychange"));
+      });
+      expect(within(recent).getByRole("heading", { level: 3 })).toHaveTextContent("knowledge.notes.age.week");
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it("explains an empty drive without hiding New note", async () => {
     render(<NotesPage />);
     expect(await screen.findByText("knowledge.notes.empty")).toBeInTheDocument();
@@ -302,6 +434,38 @@ describe("Find and All notes", () => {
     ]);
     expect(screen.getAllByRole("link", { name: /^Note q/ })).toHaveLength(31);
     expect(screen.queryByRole("button", { name: "knowledge.notes.showMore" })).toBeNull();
+  });
+
+  it("does not list a note twice when the results shift before the next page", async () => {
+    params = new URLSearchParams({ q: "kyoto" });
+    const first = Array.from({ length: 30 }, (_, i) => note(`q${i}`));
+    getDriveFiles.mockResolvedValueOnce(page(first, 31)).mockResolvedValueOnce(page([note("q29")], 31));
+    render(<NotesPage />);
+    await screen.findByText("Note q29");
+
+    fireEvent.click(screen.getByRole("button", { name: "knowledge.notes.showMore" }));
+    await waitFor(() => expect(getDriveFiles).toHaveBeenCalledTimes(2));
+    await act(async () => {});
+    expect(screen.getAllByRole("link", { name: /^Note q/ })).toHaveLength(30);
+    expect(screen.queryByRole("button", { name: "knowledge.notes.showMore" })).toBeNull();
+  });
+
+  it.each([
+    [60, false],
+    [61, true],
+  ])("after two pages of a search totalling %i, offers Show more: %s", async (total, offered) => {
+    params = new URLSearchParams({ q: "kyoto" });
+    const all = Array.from({ length: 60 }, (_, i) => note(`q${i}`));
+    getDriveFiles
+      .mockResolvedValueOnce(page(all.slice(0, 30), total))
+      .mockResolvedValueOnce(page(all.slice(30, 60), total));
+    render(<NotesPage />);
+    await screen.findByText("Note q29");
+
+    fireEvent.click(screen.getByRole("button", { name: "knowledge.notes.showMore" }));
+    await screen.findByText("Note q59");
+    await act(async () => {});
+    expect(screen.queryByRole("button", { name: "knowledge.notes.showMore" }) !== null).toBe(offered);
   });
 
   it("lists every note for view=all without a search term", async () => {

@@ -1,6 +1,6 @@
 "use client";
 
-import { useId, useMemo, useState, type ReactNode } from "react";
+import { useId, useState, type ReactNode } from "react";
 import Link from "next/link";
 import { usePathname, useSearchParams } from "next/navigation";
 import { useTranslations } from "next-intl";
@@ -16,6 +16,7 @@ import { readAllNotesScope } from "./allNotesParams";
 import ClipSection from "./ClipSection";
 import NoteResults from "./NoteResults";
 import { ContinueWriting, FindNote, RecentNotes } from "./NotesLanding";
+import { useNoteClock } from "./useNoteClock";
 
 function Tile({
   icon,
@@ -64,7 +65,7 @@ export default function NotesPage() {
   const clipRegionId = useId();
   const quickNote = useQuickNote();
   // One clock for the whole render, so every row agrees on what "today" is.
-  const now = useMemo(() => new Date(), []);
+  const now = useNoteClock();
 
   const inResults = Boolean(query) || showAll;
 
@@ -96,7 +97,7 @@ export default function NotesPage() {
   ) : (
     <div key="landing" className="flex flex-col">
       <div className="mt-11 empty:hidden">
-        <ContinueWriting drive={drive} />
+        <ContinueWriting drive={drive} now={now} />
       </div>
       <div className="mt-11">
         <RecentNotes drive={drive} now={now} />

@@ -3,10 +3,10 @@
 import Link from "next/link";
 import { useLocale, useTranslations } from "next-intl";
 
-import { formatRelativeDate } from "@/lib/format";
 import { buildCanonicalFileUrl } from "@/lib/canonicalFileUrl";
 import type { FileItem } from "@/types";
 
+import { formatNoteTime } from "./noteDates";
 import { useNoteExcerpt } from "./useNoteExcerpt";
 
 function extensionOf(filename: string): string {
@@ -14,7 +14,7 @@ function extensionOf(filename: string): string {
   return dot > 0 ? filename.slice(dot + 1) : "";
 }
 
-export default function ContinueCard({ file }: { file: FileItem }) {
+export default function ContinueCard({ file, now }: { file: FileItem; now: Date }) {
   const t = useTranslations("knowledge.notes");
   const locale = useLocale();
   const title = file.title || file.filename;
@@ -46,7 +46,7 @@ export default function ContinueCard({ file }: { file: FileItem }) {
         <span className="mt-1 flex min-w-0 gap-1.5 text-xs text-text-muted">
           <span className="truncate">{file.folder_path || t("rootFolder")}</span>
           <span aria-hidden="true" className="opacity-40">·</span>
-          <span className="shrink-0 tabular-nums">{formatRelativeDate(file.updated_at, locale)}</span>
+          <span className="shrink-0 tabular-nums">{formatNoteTime(file.updated_at, now, locale)}</span>
         </span>
       </div>
     </Link>

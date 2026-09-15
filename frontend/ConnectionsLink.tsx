@@ -20,7 +20,7 @@ export default function ConnectionsLink({ drive, fileId, filename, mimeType }: P
   return (
     <Link
       href={`/drive/${encodeURIComponent(drive)}/addons/knowledge/connections?focus=${encodeURIComponent(fileId)}`}
-      className="flex items-center gap-2 text-[13px] text-text-muted transition-colors hover:text-text-primary"
+      className="flex items-center gap-2 text-[13px] text-text-muted transition-colors hover:text-text-primary pointer-coarse:min-h-11"
     >
       <Waypoints size={14} aria-hidden="true" />
       {t("seeConnections")}

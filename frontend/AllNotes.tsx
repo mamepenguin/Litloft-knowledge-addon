@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState, type FormEvent, type ReactNode } from "react";
+import { useCallback, useEffect, useRef, useState, type FormEvent, type ReactNode } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
 import Link from "next/link";
@@ -14,6 +14,7 @@ import type { FileItem, FolderCount, Tag } from "@/types";
 import AllNotesRail, { FolderLabel } from "./AllNotesRail";
 import { ALL_NOTES_SORTS, SORT_REQUEST, allNotesHref, type AllNotesScope } from "./allNotesParams";
 import { groupNotesByAge } from "./noteDates";
+import { appendUnseen } from "./notePages";
 import { NoteRows } from "./NoteRow";
 
 const PAGE_SIZE = 30;
@@ -84,7 +85,7 @@ function AllNotesList({
         page: nextPage,
         limit: PAGE_SIZE,
       });
-      setFiles((prev) => (nextPage === 1 ? res.data : [...prev, ...res.data]));
+      setFiles((prev) => (nextPage === 1 ? res.data : appendUnseen(prev, res.data)));
       setTotal(res.meta.total);
       setNextPage(nextPage + 1);
     } catch {
@@ -100,7 +101,9 @@ function AllNotesList({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const more = total === null ? failed : files.length < total;
+  // Rows repeated by a shifted list are dropped, so how far the list has been
+  // read is counted in pages, not in rows shown.
+  const more = total === null ? failed : (nextPage - 1) * PAGE_SIZE < total;
   const showTags = scope.folder !== null;
   const query = scope.query || undefined;
 
@@ -145,6 +148,9 @@ export default function AllNotes({ drive, scope, now }: { drive: string; scope: 
   const router = useRouter();
   const [folders, setFolders] = useState<FolderCount[]>([]);
   const [tags, setTags] = useState<Tag[]>([]);
+  // Outlives the keyed list, so focus has somewhere to stay when the heading
+  // link that moved it is replaced.
+  const listRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     setFolders([]);
@@ -188,10 +194,13 @@ export default function AllNotes({ drive, scope, now }: { drive: string; scope: 
       <Link
         key="tag"
         href={allNotesHref(pathname, { ...scope, tag: null })}
-        aria-label={t("removeTag", { tag: scope.tag })}
+        onClick={(e) => {
+          if (!e.metaKey && !e.ctrlKey && !e.shiftKey && !e.altKey) listRef.current?.focus();
+        }}
         className="inline-flex items-center gap-1 rounded-full bg-accent-teal/15 py-0.5 pl-2.5 pr-1.5 text-sm font-medium text-accent-teal transition-colors hover:bg-accent-teal/25 pointer-coarse:min-h-11"
       >
         #{scope.tag}
+        <span className="sr-only"> {t("removeTag")}</span>
         <X size={14} aria-hidden="true" />
       </Link>
     ) : null,
@@ -259,13 +268,15 @@ export default function AllNotes({ drive, scope, now }: { drive: string; scope: 
             )}
           </ToolbarMenu>
         </div>
-        <AllNotesList
-          key={`${drive}:${allNotesHref("", scope)}`}
-          drive={drive}
-          scope={scope}
-          now={now}
-          heading={heading}
-        />
+        <div ref={listRef} tabIndex={-1} className="focus:outline-none">
+          <AllNotesList
+            key={`${drive}:${allNotesHref("", scope)}`}
+            drive={drive}
+            scope={scope}
+            now={now}
+            heading={heading}
+          />
+        </div>
       </div>
     </div>
   );
