@@ -51,7 +51,7 @@ describe("the knowledge manifest", () => {
     // Exact, not a lower bound. The failure worth catching is an entry
     // nobody remembers declaring — under `>=` a stray one is invisible,
     // and a stray one renders on every file detail page.
-    expect(entries).toHaveLength(11);
+    expect(entries).toHaveLength(12);
   });
 
   it("gives every entry a component to render", () => {
@@ -87,6 +87,7 @@ describe("the knowledge manifest", () => {
       "knowledge-clip-web-page": "ClipWebPageMenuItem",
       "knowledge-clip-notifier": "ClipNotifier",
       "knowledge-connections-link": "ConnectionsLink",
+      "knowledge-go-to-note": "GoToNoteAction",
     });
   });
 
@@ -143,6 +144,13 @@ describe("the knowledge manifest", () => {
       .filter((entry) => entry.id === "knowledge-connections-link")
       .map((entry) => entry.slot);
     expect(slots).toEqual(["file-relations"]);
+  });
+
+  it("puts Go to note in the file's action row", () => {
+    const slots = entries
+      .filter((entry) => entry.id === "knowledge-go-to-note")
+      .map((entry) => entry.slot);
+    expect(slots).toEqual(["file-detail-actions"]);
   });
 
   it("mounts the clip notifier in the header", () => {
