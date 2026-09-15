@@ -136,6 +136,80 @@ describe("the All notes rail", () => {
   });
 });
 
+describe("keeping the rest of the scope", () => {
+  const FULL = { view: "all", folder: "Knowledge", tag: "AI", sort: "title", q: "kyoto" };
+
+  it("changes one part from every rail link and keeps the others", async () => {
+    params = new URLSearchParams(FULL);
+    render(<NotesPage />);
+    await waitFor(() => expect(within(rail()).getAllByRole("link")).toHaveLength(5));
+    const hrefs = Object.fromEntries(
+      within(rail()).getAllByRole("link").map((a) => [a.textContent, a.getAttribute("href")]),
+    );
+    expect(hrefs).toEqual({
+      "knowledge.notes.everyFolder10": `${PATH}?view=all&tag=AI&sort=title&q=kyoto`,
+      "knowledge.notes.rootFolder2": `${PATH}?view=all&folder=&tag=AI&sort=title&q=kyoto`,
+      Knowledge5: `${PATH}?view=all&folder=Knowledge&tag=AI&sort=title&q=kyoto`,
+      "Knowledge / AI3": `${PATH}?view=all&folder=Knowledge%2FAI&tag=AI&sort=title&q=kyoto`,
+      AI4: `${PATH}?view=all&folder=Knowledge&sort=title&q=kyoto`,
+    });
+  });
+
+  it("changes one part from every menu and keeps the others", async () => {
+    params = new URLSearchParams(FULL);
+    render(<NotesPage />);
+    await waitFor(() => expect(within(rail()).getAllByRole("link")).toHaveLength(5));
+
+    fireEvent.click(screen.getByRole("button", { name: "knowledge.notes.tagMenu: #AI" }));
+    fireEvent.click(screen.getByRole("menuitemradio", { name: "knowledge.notes.anyTag" }));
+    fireEvent.click(screen.getByRole("button", { name: "knowledge.notes.folderMenu: Knowledge" }));
+    fireEvent.click(screen.getByRole("menuitemradio", { name: "Knowledge/AI" }));
+    fireEvent.click(screen.getByRole("button", { name: "knowledge.notes.sortMenu: knowledge.notes.sort.title" }));
+    fireEvent.click(screen.getByRole("menuitemradio", { name: "knowledge.notes.sort.updated" }));
+
+    expect(push.mock.calls).toEqual([
+      [`${PATH}?view=all&folder=Knowledge&sort=title&q=kyoto`],
+      [`${PATH}?view=all&folder=Knowledge%2FAI&tag=AI&sort=title&q=kyoto`],
+      [`${PATH}?view=all&folder=Knowledge&tag=AI&q=kyoto`],
+    ]);
+  });
+
+  it("asks again when the scope changes in place", async () => {
+    params = new URLSearchParams({ view: "all" });
+    const { rerender } = render(<NotesPage />);
+    await screen.findByText("Note a");
+
+    params = new URLSearchParams({ view: "all", tag: "AI" });
+    rerender(<NotesPage />);
+    await waitFor(() => expect(getDriveFiles).toHaveBeenCalledTimes(2));
+    params = new URLSearchParams({ view: "all", tag: "AI", sort: "created" });
+    rerender(<NotesPage />);
+    await waitFor(() => expect(getDriveFiles).toHaveBeenCalledTimes(3));
+
+    expect(getDriveFiles.mock.calls.map(([, o]) => o)).toEqual([
+      { type: "text", sort: "updated_at", order: "desc", page: 1, limit: 30 },
+      { type: "text", sort: "updated_at", order: "desc", tag: "AI", page: 1, limit: 30 },
+      { type: "text", sort: "created_at", order: "desc", tag: "AI", page: 1, limit: 30 },
+    ]);
+  });
+
+  it("shows tags in place of the folder at the drive root, and the folder for a tag alone", async () => {
+    getDriveFiles.mockResolvedValue(page([note("r", "", ["AI"])]));
+    params = new URLSearchParams({ view: "all", folder: "" });
+    const { unmount } = render(<NotesPage />);
+    const root = await screen.findByRole("link", { name: /^Note r/ });
+    expect(within(root).getAllByText("AI")).toHaveLength(2);
+    expect(within(root).queryByText("knowledge.notes.rootFolder")).toBeNull();
+    unmount();
+
+    params = new URLSearchParams({ view: "all", tag: "AI" });
+    render(<NotesPage />);
+    const tagged = await screen.findByRole("link", { name: /^Note r/ });
+    expect(within(tagged).getAllByText("knowledge.notes.rootFolder")).toHaveLength(2);
+    expect(within(tagged).queryByText("AI")).toBeNull();
+  });
+});
+
 describe("the All notes list", () => {
   it("asks for the scope in the URL, the drive root as an exact empty path", async () => {
     params = new URLSearchParams({ view: "all", folder: "", tag: "AI", sort: "title", q: "kyoto" });
