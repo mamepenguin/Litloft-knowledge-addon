@@ -5,12 +5,14 @@ export type NoteAgeGroup = "today" | "week" | "month" | "earlier";
 const GROUP_ORDER: NoteAgeGroup[] = ["today", "week", "month", "earlier"];
 const DAY_MS = 86_400_000;
 
-function startOfDay(d: Date): number {
-  return new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
+// The local calendar date as a UTC timestamp: local midnights are not 24 hours
+// apart across a daylight-saving change, UTC midnights always are.
+function calendarDay(d: Date): number {
+  return Date.UTC(d.getFullYear(), d.getMonth(), d.getDate());
 }
 
 export function noteAgeGroup(iso: string, now: Date): NoteAgeGroup {
-  const days = Math.floor((startOfDay(now) - startOfDay(new Date(iso))) / DAY_MS);
+  const days = (calendarDay(now) - calendarDay(new Date(iso))) / DAY_MS;
   if (days <= 0) return "today";
   if (days < 7) return "week";
   if (days < 30) return "month";

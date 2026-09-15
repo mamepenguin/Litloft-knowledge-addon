@@ -238,6 +238,20 @@ describe("the Notes landing", () => {
     expect(screen.getAllByRole("alert")).toHaveLength(1);
   });
 
+  it("keeps the search field on the query in the URL as it changes", async () => {
+    params = new URLSearchParams({ q: "kyoto" });
+    const { rerender } = render(<NotesPage />);
+    expect(screen.getByRole("searchbox")).toHaveValue("kyoto");
+
+    params = new URLSearchParams({ q: "osaka" });
+    rerender(<NotesPage />);
+    expect(screen.getByRole("searchbox")).toHaveValue("osaka");
+
+    params = new URLSearchParams();
+    rerender(<NotesPage />);
+    expect(screen.getByRole("searchbox")).toHaveValue("");
+  });
+
   it("puts Find into the URL", async () => {
     render(<NotesPage />);
     expect(screen.getByRole("searchbox")).toHaveAttribute("maxlength", "200");

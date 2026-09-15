@@ -21,6 +21,25 @@ describe("noteAgeGroup", () => {
   });
 });
 
+describe("noteAgeGroup across a daylight-saving change", () => {
+  it("still counts one calendar day as one", () => {
+    const zone = process.env.TZ;
+    process.env.TZ = "America/New_York";
+    try {
+      const dayAfterSpringForward = new Date(2026, 2, 9, 12);
+      const dayAfterFallBack = new Date(2026, 10, 2, 12);
+      expect([
+        noteAgeGroup(new Date(2026, 2, 8, 12).toISOString(), dayAfterSpringForward),
+        noteAgeGroup(new Date(2026, 2, 3, 12).toISOString(), dayAfterSpringForward),
+        noteAgeGroup(new Date(2026, 10, 1, 12).toISOString(), dayAfterFallBack),
+        noteAgeGroup(new Date(2026, 9, 4, 12).toISOString(), dayAfterFallBack),
+      ]).toEqual(["week", "week", "week", "month"]);
+    } finally {
+      process.env.TZ = zone;
+    }
+  });
+});
+
 describe("groupNotesByAge", () => {
   it("keeps the given order inside each group and omits empty groups", () => {
     const groups = groupNotesByAge(
