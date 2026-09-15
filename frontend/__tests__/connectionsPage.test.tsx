@@ -7,7 +7,11 @@ vi.mock("next-intl", () => ({
     (key: string, params?: Record<string, unknown>) =>
       `${ns ?? ""}.${key}${params ? JSON.stringify(params) : ""}`,
 }));
-vi.mock("next/navigation", () => ({ useRouter: () => ({ push: vi.fn() }) }));
+let search = "";
+vi.mock("next/navigation", () => ({
+  useRouter: () => ({ push: vi.fn() }),
+  useSearchParams: () => new URLSearchParams(search),
+}));
 let drive: string | null = "d";
 vi.mock("@/components/CurrentDriveProvider", () => ({ useCurrentDrive: () => drive }));
 
@@ -38,6 +42,7 @@ describe("the connections page", () => {
   afterEach(() => {
     cleanup();
     vi.unstubAllGlobals();
+    search = "";
   });
 
   it("draws the graph under one page heading, with a way back to Notes for this drive", async () => {
@@ -53,6 +58,28 @@ describe("the connections page", () => {
       "/drive/%E5%8B%95%E7%94%BB%20d/addons/knowledge",
     );
     drive = "d";
+  });
+
+  it("centres the graph on the file named in the focus query", async () => {
+    search = "focus=fB";
+    stubGraph(200, GRAPH);
+    render(<ConnectionsPage />);
+
+    const label = await screen.findByText(/^knowledge\.connections\.focus\.label/);
+    expect(label.parentElement).toHaveTextContent("Source B");
+  });
+
+  it.each([
+    ["no focus query", ""],
+    ["an empty focus query", "focus="],
+  ])("shows the whole graph without a notice for %s", async (_label, query) => {
+    search = query;
+    stubGraph(200, GRAPH);
+    render(<ConnectionsPage />);
+    await screen.findByText("Note A");
+
+    expect(screen.queryByText(/^knowledge\.connections\.focus\.label/)).toBeNull();
+    expect(screen.queryByText("knowledge.connections.focus.notInGraph")).toBeNull();
   });
 
   it.each([

@@ -14,13 +14,15 @@ describe("the connections link in the Related tab", () => {
     ["a Markdown note", "note.md", "text/markdown"],
     ["a Markdown file with no recorded mime", "note.markdown", null],
     ["a plain text file", "todo.txt", "text/plain"],
-  ])("links %s to this drive's connections graph", (_, filename, mimeType) => {
-    render(<ConnectionsLink drive="動画 d" filename={filename} mimeType={mimeType} />);
+  ])("links %s to this drive's connections graph, centred on the file", (_, filename, mimeType) => {
+    render(
+      <ConnectionsLink drive="動画 d" fileId="ab/c d" filename={filename} mimeType={mimeType} />,
+    );
 
     const link = screen.getByRole("link", { name: "knowledge.related.seeConnections" });
     expect(link).toHaveAttribute(
       "href",
-      `/drive/${encodeURIComponent("動画 d")}/addons/knowledge/connections`,
+      `/drive/${encodeURIComponent("動画 d")}/addons/knowledge/connections?focus=${encodeURIComponent("ab/c d")}`,
     );
   });
 
@@ -31,7 +33,7 @@ describe("the connections link in the Related tab", () => {
     ["an HTML file", "page.html", "text/html"],
   ])("renders nothing for %s", (_, filename, mimeType) => {
     const { container } = render(
-      <ConnectionsLink drive="d" filename={filename} mimeType={mimeType} />,
+      <ConnectionsLink drive="d" fileId="f1" filename={filename} mimeType={mimeType} />,
     );
 
     expect(container).toBeEmptyDOMElement();
