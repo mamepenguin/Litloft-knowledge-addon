@@ -14,6 +14,7 @@ interface Props {
   existing: ClipJob[];
   onOpenExisting: (fileId: string) => void;
   onCreated: (job: ClipJob) => void;
+  onFailed?: () => void;
   onClose: () => void;
 }
 
@@ -24,6 +25,7 @@ export default function ClipDuplicateDialog({
   existing,
   onOpenExisting,
   onCreated,
+  onFailed,
   onClose,
 }: Props) {
   const t = useTranslations("knowledge.clip.duplicate");
@@ -44,6 +46,7 @@ export default function ClipDuplicateDialog({
     } catch (e) {
       setError((e as Error).message);
       setSubmitting(false);
+      onFailed?.();
     }
   };
 

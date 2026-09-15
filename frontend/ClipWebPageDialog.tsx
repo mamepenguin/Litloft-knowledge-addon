@@ -7,6 +7,7 @@ import { useTranslations } from "next-intl";
 import { X } from "lucide-react";
 
 import { useDialogPortalTarget } from "@/components/DialogPortal";
+import { useToast } from "@/components/ToastProvider";
 import { useShortcuts } from "@/hooks/useShortcuts";
 import { OVERLAY_PRIORITY } from "@/lib/shortcuts";
 
@@ -37,6 +38,8 @@ interface Duplicate {
 export default function ClipWebPageDialog({ drive, path, onCancel, onDone }: Props) {
   const t = useTranslations("knowledge.clipWebPage");
   const tc = useTranslations("common");
+  const tNotifier = useTranslations("knowledge.clipNotifier");
+  const { error: toastError } = useToast();
   const host = useDialogPortalTarget();
   const router = useRouter();
   const [duplicate, setDuplicate] = useState<Duplicate | null>(null);
@@ -73,6 +76,10 @@ export default function ClipWebPageDialog({ drive, path, onCancel, onDone }: Pro
     if (openRef.current) onDone();
   };
 
+  const failed = () => {
+    if (!openRef.current) toastError(tNotifier("failed"));
+  };
+
   if (duplicate) {
     return createPortal(
       <ClipDuplicateDialog
@@ -85,6 +92,7 @@ export default function ClipWebPageDialog({ drive, path, onCancel, onDone }: Pro
           router.push(`/files/${fileId}`);
         }}
         onCreated={accepted}
+        onFailed={failed}
         onClose={onCancel}
       />,
       host,
@@ -119,6 +127,7 @@ export default function ClipWebPageDialog({ drive, path, onCancel, onDone }: Pro
             drive={drive}
             initialSubfolder={path}
             onSubmitted={({ job }) => accepted(job)}
+            onFailed={failed}
             onDuplicate={(url, subfolder, existing) =>
               setDuplicate({ url, subfolder, existing })
             }

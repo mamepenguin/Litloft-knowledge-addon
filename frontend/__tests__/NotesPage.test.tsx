@@ -762,3 +762,53 @@ describe("the connections entry on a drive whose name needs encoding", () => {
     );
   });
 });
+
+describe("clip dialogs opened on the landing, after the reader moves to results", () => {
+  const PASTE_HTML = "knowledge.clip.paste.placeholder";
+
+  function openClipSection() {
+    const { rerender } = render(<NotesPage />);
+    fireEvent.click(screen.getByRole("button", { name: CLIP_TILE }));
+    return rerender;
+  }
+
+  it.each<Record<string, string>>([{ q: "kyoto" }, { view: "all" }])("closes the bookmarklet instructions and the paste form for %o", async (away) => {
+    const rerender = openClipSection();
+    fireEvent.click(screen.getByRole("button", { name: "knowledge.dashboard.bookmarklet" }));
+    fireEvent.click(screen.getByRole("button", { name: "knowledge.dashboard.pasteHtml" }));
+    expect(screen.getByRole("dialog")).toBeInTheDocument();
+    expect(screen.getByRole("textbox", { name: PASTE_HTML })).toBeInTheDocument();
+
+    params = new URLSearchParams(away);
+    rerender(<NotesPage />);
+    await act(async () => {});
+    expect(screen.queryByRole("dialog", { hidden: true })).toBeNull();
+    expect(screen.queryByRole("textbox", { name: PASTE_HTML, hidden: true })).toBeNull();
+
+    params = new URLSearchParams();
+    rerender(<NotesPage />);
+    await act(async () => {});
+    expect(screen.queryByRole("dialog")).toBeNull();
+    expect(screen.queryByRole("textbox", { name: PASTE_HTML })).toBeNull();
+    expect(screen.getByRole("textbox", { name: CLIP_URL })).toBeInTheDocument();
+  });
+
+  it("closes the duplicate notice", async () => {
+    findClipsByUrl.mockResolvedValue([{ job_id: 1, file_id: "c1", status: "ready" }]);
+    const rerender = openClipSection();
+    fireEvent.change(screen.getByRole("textbox", { name: CLIP_URL }), { target: { value: "https://example.com/a" } });
+    fireEvent.click(screen.getByRole("button", { name: "knowledge.clip.submit" }));
+    expect(await screen.findByRole("dialog")).toBeInTheDocument();
+
+    params = new URLSearchParams({ view: "all" });
+    rerender(<NotesPage />);
+    await act(async () => {});
+    expect(screen.queryByRole("dialog", { hidden: true })).toBeNull();
+
+    params = new URLSearchParams();
+    rerender(<NotesPage />);
+    await act(async () => {});
+    expect(screen.queryByRole("dialog")).toBeNull();
+    expect(createClip).not.toHaveBeenCalled();
+  });
+});
