@@ -1,30 +1,51 @@
 "use client";
 
-import { useEffect, useState, type FormEvent } from "react";
+import { useEffect, useState, type FormEvent, type ReactNode } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
-import { Search } from "lucide-react";
+import { ChevronRight, Clock, PenLine, Search, X } from "lucide-react";
 
-import { Button } from "@/components/Button";
 import { useProfile } from "@/components/ProfileProvider";
 import { getDriveFiles, getWatchHistory } from "@/lib/api";
 import type { FileItem } from "@/types";
 
-import NoteList from "./NoteList";
+import ContinueCard from "./ContinueCard";
+import { groupNotesByAge } from "./noteDates";
+import { NoteRows } from "./NoteRow";
 
-const CONTINUE_LIMIT = 6;
+const CONTINUE_LIMIT = 3;
 const RECENT_LIMIT = 8;
 
-function SectionHeading({ children }: { children: React.ReactNode }) {
-  return <h2 className="text-[11px] font-semibold text-text-muted">{children}</h2>;
+export function SectionHeading({
+  icon,
+  children,
+  action,
+}: {
+  icon: ReactNode;
+  children: ReactNode;
+  action?: ReactNode;
+}) {
+  return (
+    <div className="mb-3 flex items-center justify-between gap-3">
+      <h2 className="flex items-center gap-2 text-lg font-bold text-text-primary">
+        {icon}
+        {children}
+      </h2>
+      {action}
+    </div>
+  );
 }
 
-export function FindNote() {
+export function FindNote({ initialQuery = "" }: { initialQuery?: string }) {
   const t = useTranslations("knowledge.notes");
   const router = useRouter();
   const pathname = usePathname();
-  const [query, setQuery] = useState("");
+  const [query, setQuery] = useState(initialQuery);
+
+  useEffect(() => {
+    setQuery(initialQuery);
+  }, [initialQuery]);
 
   const onSubmit = (e: FormEvent) => {
     e.preventDefault();
@@ -34,7 +55,12 @@ export function FindNote() {
   };
 
   return (
-    <form role="search" onSubmit={onSubmit} className="flex items-center gap-2">
+    <form
+      role="search"
+      onSubmit={onSubmit}
+      className="flex h-12 items-center gap-2.5 rounded-2xl border border-warm-silver/40 bg-bg-card px-4 focus-within:border-focus-ring focus-within:ring-1 focus-within:ring-focus-ring"
+    >
+      <Search size={18} strokeWidth={1.8} className="shrink-0 text-text-muted" aria-hidden="true" />
       <input
         type="search"
         maxLength={200}
@@ -42,12 +68,17 @@ export function FindNote() {
         onChange={(e) => setQuery(e.target.value)}
         placeholder={t("findPlaceholder")}
         aria-label={t("findLabel")}
-        className="flex-1 rounded-2xl border border-bg-border bg-bg-card px-4 py-2 text-sm text-text-primary placeholder:text-text-muted focus:border-focus-ring focus:outline-none focus:ring-1 focus:ring-focus-ring"
+        className="min-w-0 flex-1 bg-transparent text-[15px] text-text-primary placeholder:text-warm-silver focus:outline-none [&::-webkit-search-cancel-button]:hidden"
       />
-      <Button type="submit" variant="secondary" disabled={!query.trim()}>
-        <Search size={14} strokeWidth={1.6} />
-        {t("findSubmit")}
-      </Button>
+      {initialQuery && (
+        <Link
+          href={pathname}
+          aria-label={t("clearFind")}
+          className="flex size-7 shrink-0 items-center justify-center rounded-full bg-bg-elevated text-text-muted hover:text-text-primary pointer-coarse:size-11"
+        >
+          <X size={14} strokeWidth={2} />
+        </Link>
+      )}
     </form>
   );
 }
@@ -79,18 +110,29 @@ export function ContinueWriting({ drive }: { drive: string }) {
   if (!failed && (rows === null || rows.length === 0)) return null;
 
   return (
-    <section className="flex flex-col gap-3">
-      <SectionHeading>{t("continueWriting")}</SectionHeading>
+    <section>
+      <SectionHeading icon={<PenLine size={18} strokeWidth={1.8} aria-hidden="true" />}>
+        {t("continueWriting")}
+      </SectionHeading>
       {failed ? (
         <p role="alert" className="text-xs text-danger">{t("loadFailed")}</p>
       ) : (
-        <NoteList files={rows ?? []} />
+        <ul
+          role="list"
+          className="-mr-4 flex snap-x gap-3 overflow-x-auto pb-1 pr-4 sm:mr-0 sm:grid sm:grid-cols-3 sm:gap-4 sm:overflow-visible sm:pb-0 sm:pr-0"
+        >
+          {(rows ?? []).map((file) => (
+            <li key={file.id} className="contents">
+              <ContinueCard file={file} />
+            </li>
+          ))}
+        </ul>
       )}
     </section>
   );
 }
 
-export function RecentNotes({ drive }: { drive: string }) {
+export function RecentNotes({ drive, now }: { drive: string; now: Date }) {
   const t = useTranslations("knowledge.notes");
   const pathname = usePathname();
   const [page, setPage] = useState<{ files: FileItem[]; total: number } | null>(null);
@@ -113,21 +155,33 @@ export function RecentNotes({ drive }: { drive: string }) {
     };
   }, [drive]);
 
+  const allLink =
+    page && page.total > 0 ? (
+      <Link
+        href={`${pathname}?${new URLSearchParams({ view: "all" })}`}
+        className="flex items-center gap-0.5 text-sm text-text-muted transition-colors hover:text-accent"
+      >
+        {t("allLink", { count: page.total })}
+        <ChevronRight size={16} aria-hidden="true" />
+      </Link>
+    ) : undefined;
+
   return (
-    <section className="flex flex-col gap-3">
-      <SectionHeading>{t("recent")}</SectionHeading>
+    <section>
+      <SectionHeading icon={<Clock size={18} strokeWidth={1.8} aria-hidden="true" />} action={allLink}>
+        {t("recent")}
+      </SectionHeading>
       {failed && <p role="alert" className="text-xs text-danger">{t("loadFailed")}</p>}
       {page && page.total === 0 && <p className="text-sm text-text-muted">{t("empty")}</p>}
       {page && page.total > 0 && (
-        <>
-          <NoteList files={page.files} />
-          <Link
-            href={`${pathname}?${new URLSearchParams({ view: "all" })}`}
-            className="self-start text-xs font-medium text-accent hover:underline"
-          >
-            {t("allLink", { count: page.total })}
-          </Link>
-        </>
+        <div className="flex flex-col gap-4">
+          {groupNotesByAge(page.files, now).map(({ group, files }) => (
+            <div key={group}>
+              <h3 className="px-1 pb-1 text-xs font-semibold text-text-muted sm:px-3">{t(`age.${group}`)}</h3>
+              <NoteRows files={files} now={now} />
+            </div>
+          ))}
+        </div>
       )}
     </section>
   );

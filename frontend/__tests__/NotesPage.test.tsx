@@ -5,6 +5,7 @@ import { accentFills } from "@/__tests__/helpers/accentFills";
 import type { FileItem } from "@/types";
 
 vi.mock("next-intl", () => ({
+  useLocale: () => "en",
   useTranslations:
     (ns?: string) =>
     (key: string, values?: Record<string, unknown>) =>
@@ -71,7 +72,8 @@ vi.mock("@/components/FolderPicker", () => ({
 vi.mock("@/hooks/useWebSocket", () => ({ useWebSocket: () => null }));
 vi.mock("../ConnectionsGraph", () => ({ default: () => <div data-testid="graph" /> }));
 
-const CONNECTIONS = "knowledge.notes.connections";
+const CONNECTIONS = /^knowledge\.notes\.connections/;
+const CLIP_TILE = /^knowledge\.notes\.clipTile/;
 
 const NotesPage = (await import("../NotesPage")).default;
 
@@ -83,6 +85,7 @@ function note(id: string, folder = "journal"): FileItem {
     drive: "d",
     folder_path: folder,
     mime_type: "text/markdown",
+    updated_at: "2026-09-14T09:00:00Z",
   } as FileItem;
 }
 
@@ -111,7 +114,7 @@ beforeEach(() => {
 afterEach(cleanup);
 
 describe("the Notes landing", () => {
-  it("lays out Find, Continue writing, Recent notes, the clip form and the connections link in that order", async () => {
+  it("lays out Find, Continue writing, Recent notes, then the clip and connections entries", async () => {
     nickname = "alice";
     getWatchHistory.mockResolvedValue([note("w1")]);
     getDriveFiles.mockResolvedValue(page([note("r1")], 12));
@@ -121,15 +124,32 @@ describe("the Notes landing", () => {
     const cont = await screen.findByText("knowledge.notes.continueWriting");
     const recent = screen.getByText("knowledge.notes.recent");
     await screen.findByText("Note r1");
-    const clip = screen.getByRole("textbox", { name: CLIP_URL });
+    const clipTile = screen.getByRole("button", { name: CLIP_TILE });
     const connections = screen.getByRole("link", { name: CONNECTIONS });
     expect(screen.queryByTestId("graph")).toBeNull();
-    expect([before(find, cont), before(cont, recent), before(recent, clip), before(clip, connections)]).toEqual([
+    expect(screen.queryByRole("textbox", { name: CLIP_URL })).toBeNull();
+    expect([before(find, cont), before(cont, recent), before(recent, clipTile), before(clipTile, connections)]).toEqual([
       true,
       true,
       true,
       true,
     ]);
+  });
+
+  it("opens and closes the clip section from its entry, below the entries", async () => {
+    render(<NotesPage />);
+    const tile = screen.getByRole("button", { name: CLIP_TILE });
+    expect(tile).toHaveAttribute("aria-expanded", "false");
+
+    fireEvent.click(tile);
+    const clip = screen.getByRole("textbox", { name: CLIP_URL });
+    expect(tile).toHaveAttribute("aria-expanded", "true");
+    expect(document.getElementById(tile.getAttribute("aria-controls")!)).toContainElement(clip);
+    expect(before(screen.getByRole("link", { name: CONNECTIONS }), clip)).toBe(true);
+
+    fireEvent.click(tile);
+    expect(tile).toHaveAttribute("aria-expanded", "false");
+    expect(screen.queryByRole("textbox", { name: CLIP_URL })).toBeNull();
   });
 
   it("asks for recent notes by modification time and opens them at their plain canonical URL", async () => {
@@ -147,6 +167,32 @@ describe("the Notes landing", () => {
     expect(
       screen.getByRole("link", { name: 'knowledge.notes.allLink{"count":12}' }).getAttribute("href"),
     ).toBe(`${PATH}?view=all`);
+  });
+
+  it("groups recent notes under the age of their last change", async () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date(2026, 8, 14, 15, 0));
+    try {
+      const at = (d: number) => ({ ...note(`r${d}`), updated_at: new Date(2026, 8, d, 9).toISOString() });
+      getDriveFiles.mockResolvedValue(page([at(14), at(10), at(1)], 3));
+      render(<NotesPage />);
+      await screen.findByText("Note r14");
+
+      const recent = screen.getByText("knowledge.notes.recent").closest("section")!;
+      const headings = within(recent).getAllByRole("heading", { level: 3 });
+      expect(headings.map((h) => h.textContent)).toEqual([
+        "knowledge.notes.age.today",
+        "knowledge.notes.age.week",
+        "knowledge.notes.age.month",
+      ]);
+      expect(headings.map((h) => within(h.parentElement!).getAllByRole("link").map((a) => a.textContent?.match(/^Note r\d+/)?.[0]))).toEqual([
+        ["Note r14"],
+        ["Note r10"],
+        ["Note r1"],
+      ]);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it("explains an empty drive without hiding New note", async () => {
@@ -168,7 +214,7 @@ describe("the Notes landing", () => {
     getWatchHistory.mockResolvedValueOnce([note("w1")]);
     render(<NotesPage />);
     await screen.findByText("Note w1");
-    expect(getWatchHistory.mock.calls).toEqual([["d", 6, "all", "text"]]);
+    expect(getWatchHistory.mock.calls).toEqual([["d", 3, "all", "text"]]);
     expect(screen.getByRole("link", { name: /Note w1/ }).getAttribute("href")).toBe("/drive/d/journal?file=w1");
 
     cleanup();
@@ -179,7 +225,7 @@ describe("the Notes landing", () => {
     expect(screen.queryByText("knowledge.notes.continueWriting")).toBeNull();
   });
 
-  it("keeps the clip form and Continue writing when the note list fails", async () => {
+  it("keeps the clip entry and Continue writing when the note list fails", async () => {
     nickname = "alice";
     getWatchHistory.mockResolvedValue([note("w1")]);
     getDriveFiles.mockRejectedValue(new Error("boom"));
@@ -188,7 +234,7 @@ describe("the Notes landing", () => {
     const recent = screen.getByText("knowledge.notes.recent").closest("section")!;
     expect(await within(recent).findByRole("alert")).toHaveTextContent("knowledge.notes.loadFailed");
     expect(await screen.findByText("Note w1")).toBeInTheDocument();
-    expect(screen.getByRole("textbox", { name: CLIP_URL })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: CLIP_TILE })).toBeInTheDocument();
     expect(screen.getAllByRole("alert")).toHaveLength(1);
   });
 
@@ -200,12 +246,14 @@ describe("the Notes landing", () => {
     expect(push.mock.calls).toEqual([[`${PATH}?q=kyoto+trip`]]);
   });
 
-  it("puts the clip form first when a bookmarklet lands, and submits it once", async () => {
+  it("opens the clip form right under Find when a bookmarklet lands, and submits it once", async () => {
     params = new URLSearchParams({ prefill: "https://example.com/a", title: "A", autosubmit: "1" });
     render(<NotesPage />);
 
     const clip = screen.getByRole("textbox", { name: CLIP_URL });
-    expect(before(clip, screen.getByRole("search"))).toBe(true);
+    expect(before(screen.getByRole("search"), clip)).toBe(true);
+    expect(before(clip, screen.getByText("knowledge.notes.recent"))).toBe(true);
+    expect(screen.getByRole("button", { name: CLIP_TILE })).toHaveAttribute("aria-expanded", "true");
     await waitFor(() => expect(createClip).toHaveBeenCalledTimes(1));
     expect(createClip.mock.calls[0]).toEqual(["d", { url: "https://example.com/a", subfolder: null, title: "A" }]);
   });
@@ -219,7 +267,8 @@ describe("Find and All notes", () => {
     render(<NotesPage />);
 
     expect(await screen.findByText('knowledge.notes.count{"count":31}')).toBeInTheDocument();
-    expect(screen.queryByRole("search")).toBeNull();
+    expect(screen.getByRole("searchbox")).toHaveValue("kyoto");
+    expect(screen.getByRole("link", { name: "knowledge.notes.clearFind" }).getAttribute("href")).toBe(PATH);
     expect(screen.queryByText("knowledge.notes.recent")).toBeNull();
     expect(screen.queryByRole("textbox", { name: CLIP_URL })).toBeNull();
     expect(screen.queryByRole("link", { name: CONNECTIONS })).toBeNull();
@@ -321,9 +370,11 @@ describe("the clip section across in-page navigation", () => {
     expect(stored.map(([id]) => id)).toEqual(["c1"]);
   });
 
-  it("hides the clip form, out of reach, on the results pages", async () => {
+  it("hides an open clip form, out of reach, on the results pages", async () => {
+    params = new URLSearchParams({ prefill: "https://example.com/a" });
+    const { container, rerender } = render(<NotesPage />);
     params = new URLSearchParams({ view: "all" });
-    const { container } = render(<NotesPage />);
+    rerender(<NotesPage />);
     await screen.findByText("knowledge.notes.all");
 
     const input = container.querySelector<HTMLInputElement>(`input[aria-label="${CLIP_URL}"]`)!;
@@ -331,14 +382,15 @@ describe("the clip section across in-page navigation", () => {
     expect(wrapper).not.toBeNull();
     expect(getComputedStyle(wrapper).display).toBe("none");
     expect(screen.queryByRole("link", { name: CONNECTIONS })).toBeNull();
-    expect(screen.queryByRole("search")).toBeNull();
+    expect(screen.queryByRole("button", { name: CLIP_TILE })).toBeNull();
   });
 
-  it("puts the clip form first for a prefill without autosubmit, and sends nothing", async () => {
+  it("opens the clip form under Find for a prefill without autosubmit, and sends nothing", async () => {
     params = new URLSearchParams({ prefill: "https://example.com/a" });
     render(<NotesPage />);
     const clip = screen.getByRole("textbox", { name: CLIP_URL });
-    expect(before(clip, screen.getByRole("search"))).toBe(true);
+    expect(before(screen.getByRole("search"), clip)).toBe(true);
+    expect(before(clip, screen.getByText("knowledge.notes.recent"))).toBe(true);
     expect(clip).toHaveValue("https://example.com/a");
     await act(async () => {});
     expect(createClip).not.toHaveBeenCalled();
@@ -376,8 +428,8 @@ describe("Show more", () => {
     await screen.findByText("Note n89");
 
     expect(getDriveFiles.mock.calls.map(([, o]) => (o as { page: number }).page)).toEqual([1, 2, 3]);
-    expect(screen.getAllByRole("link", { name: /^Note n/ }).map((a) => a.textContent)).toEqual(
-      all.map((f) => `${f.title}${f.folder_path}`),
+    expect(screen.getAllByRole("link", { name: /^Note n/ }).map((a) => a.textContent?.match(/^Note n\d+/)?.[0])).toEqual(
+      all.map((f) => f.title),
     );
     expect(screen.queryByRole("button", { name: "knowledge.notes.showMore" })).toBeNull();
   });
@@ -431,7 +483,7 @@ describe("New note on the landing", () => {
 });
 
 describe("Continue writing", () => {
-  it("fails on its own, leaving Recent notes and the clip form", async () => {
+  it("fails on its own, leaving Recent notes and the clip entry", async () => {
     nickname = "alice";
     getWatchHistory.mockRejectedValue(new Error("boom"));
     getDriveFiles.mockResolvedValue(page([note("r1")], 1));
@@ -440,7 +492,7 @@ describe("Continue writing", () => {
     const heading = await screen.findByText("knowledge.notes.continueWriting");
     expect(within(heading.closest("section")!).getByRole("alert")).toHaveTextContent("knowledge.notes.loadFailed");
     expect(await screen.findByText("Note r1")).toBeInTheDocument();
-    expect(screen.getByRole("textbox", { name: CLIP_URL })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: CLIP_TILE })).toBeInTheDocument();
     expect(screen.getAllByRole("alert")).toHaveLength(1);
   });
 
