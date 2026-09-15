@@ -34,6 +34,9 @@
         "file-detail-sections": [
             {"id": "knowledge-edit", "label": "Edit Note", "priority": 5}
         ],
+        "file-relations": [
+            {"id": "knowledge-connections-link", "label": "See connections as a graph", "priority": 90}
+        ],
         "active-summary-view": [
             {"id": "knowledge-active-summary", "label": "Summary Note", "priority": 10}
         ]

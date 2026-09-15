@@ -295,6 +295,9 @@
       "readyUntitled": "Web page clipped",
       "failed": "A web page could not be clipped"
     },
+    "related": {
+      "seeConnections": "See connections as a graph"
+    },
     "notes": {
       "heading": "Notes",
       "description": "Markdown and text files in this drive.",
