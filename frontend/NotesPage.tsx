@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useId, useState, type ReactNode } from "react";
+import { useId, useState, type ReactNode } from "react";
 import Link from "next/link";
 import { usePathname, useSearchParams } from "next/navigation";
 import { useTranslations } from "next-intl";
@@ -72,13 +72,9 @@ export default function NotesPage() {
 
   const inResults = Boolean(query) || showAll;
 
-  // Reported by the list the page is showing, so the scope line and the list
-  // under it state the same number. Search results report none.
+  // Reported by the list on screen, which withdraws it when it goes, so the
+  // scope line never states another list's number. Search results report none.
   const [total, setTotal] = useState<number | null>(null);
-  const listKey = showAll ? `all:${drive}:${searchParams.toString()}` : query ? "results" : `landing:${drive}`;
-  useEffect(() => {
-    setTotal(null);
-  }, [listKey]);
 
   const openNewNote = () =>
     quickNote.open(showAll && allScope.folder !== null ? { drive, folder: allScope.folder } : { drive });
@@ -190,7 +186,7 @@ export default function NotesPage() {
           drive
             ? total === null
               ? drive
-              : tCommon("driveScope", { drive, detail: tCommon("items", { count: total }) })
+              : tCommon("driveScope", { drive, detail: t("count", { count: total }) })
             : undefined
         }
         actions={

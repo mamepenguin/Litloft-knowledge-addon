@@ -7,8 +7,8 @@ vi.mock("next-intl", () => ({
   useTranslations: (ns?: string) => (key: string, values?: Record<string, unknown>) =>
     key === "driveScope"
       ? `${values!.drive} · ${values!.detail}`
-      : key === "items"
-        ? `${values!.count} items`
+      : key === "count"
+        ? `${values!.count} notes`
         : `${ns ?? ""}.${key}`,
 }));
 vi.mock("@/components/CurrentDriveProvider", () => ({
@@ -61,7 +61,7 @@ describe("the Notes page header", () => {
     api.getDriveFiles.mockResolvedValueOnce({ data: [], meta: { total: 42, page: 1, limit: 12 } });
     render(<NotesPage />);
     const heading = screen.getByRole("heading", { level: 1 });
-    await vi.waitFor(() => expect(heading.nextElementSibling?.textContent).toBe("test-drive · 42 items"));
+    await vi.waitFor(() => expect(heading.nextElementSibling?.textContent).toBe("test-drive · 42 notes"));
   });
 
   it("names the drive alone when the list fails", async () => {

@@ -156,10 +156,10 @@ export function RecentNotes({
       .catch(() => {
         if (cancelled) return;
         setFailed(true);
-        onTotal?.(null);
       });
     return () => {
       cancelled = true;
+      onTotal?.(null);
     };
   }, [drive]);
 
