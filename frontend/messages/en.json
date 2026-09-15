@@ -325,7 +325,23 @@
         "week": "Past 7 days",
         "month": "Past 30 days",
         "earlier": "Earlier"
-      }
+      },
+      "filtersLabel": "Filter notes",
+      "foldersHeading": "Folders",
+      "tagsHeading": "Tags",
+      "everyFolder": "All",
+      "folderMenu": "Folder",
+      "tagMenu": "Tag",
+      "anyTag": "Any tag",
+      "sortMenu": "Sort",
+      "sort": {
+        "updated": "Updated",
+        "title": "Title",
+        "created": "Created"
+      },
+      "findInScopePlaceholder": "Search this list",
+      "findInScopeLabel": "Search the list",
+      "removeTag": "Remove the tag filter “{tag}”"
     }
   }
 }

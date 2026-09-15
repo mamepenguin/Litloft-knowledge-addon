@@ -325,7 +325,23 @@
         "week": "過去 7 日",
         "month": "過去 30 日",
         "earlier": "それ以前"
-      }
+      },
+      "filtersLabel": "ノートの絞り込み",
+      "foldersHeading": "フォルダ",
+      "tagsHeading": "タグ",
+      "everyFolder": "すべて",
+      "folderMenu": "フォルダ",
+      "tagMenu": "タグ",
+      "anyTag": "すべてのタグ",
+      "sortMenu": "並び",
+      "sort": {
+        "updated": "更新日",
+        "title": "タイトル",
+        "created": "作成日"
+      },
+      "findInScopePlaceholder": "この一覧から探す",
+      "findInScopeLabel": "一覧から探す",
+      "removeTag": "タグ「{tag}」の絞り込みを外す"
     }
   }
 }
