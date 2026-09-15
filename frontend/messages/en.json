@@ -340,7 +340,8 @@
         "created": "Created"
       },
       "findInScopePlaceholder": "Search this list",
-      "findInScopeLabel": "Search the list"
+      "findInScopeLabel": "Search the list",
+      "removeTag": "Remove the tag filter “{tag}”"
     }
   }
 }

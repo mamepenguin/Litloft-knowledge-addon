@@ -238,16 +238,32 @@ describe("tag counts follow the chosen folder", () => {
     expect(getFolderCounts).toHaveBeenCalledTimes(1);
   });
 
-  it("keeps a chosen tag that the folder does not carry, so it can be taken off", async () => {
+  it("lists only tags the folder carries, and the chosen tag comes off from the heading", async () => {
     getDriveTags.mockResolvedValue([{ name: "AI", count: 4 }]);
-    params = new URLSearchParams({ view: "all", folder: "Inbox", tag: "Old" });
+    params = new URLSearchParams({ view: "all", folder: "Inbox", tag: "ai" });
     render(<NotesPage />);
-    await waitFor(() => expect(within(rail()).getAllByRole("link")).toHaveLength(6));
+    await waitFor(() => expect(within(rail()).getAllByRole("link")).toHaveLength(5));
 
-    const old = within(rail()).getByRole("link", { name: /^Old/ });
-    expect(old).toHaveTextContent("Old0");
-    expect(old).toHaveAttribute("aria-current", "true");
-    expect(old.getAttribute("href")).toBe(`${PATH}?view=all&folder=Inbox`);
+    expect(within(rail()).getAllByRole("link", { name: /^AI|^ai/ }).map((a) => a.textContent)).toEqual(["AI4"]);
+    const remove = screen.getByRole("link", { name: 'knowledge.notes.removeTag{"tag":"ai"}' });
+    expect(remove.getAttribute("href")).toBe(`${PATH}?view=all&folder=Inbox`);
+  });
+
+  it("shows the tags of the folder chosen last, even when the earlier answer arrives later", async () => {
+    let answerEarlier!: (rows: { name: string; count: number }[]) => void;
+    getDriveTags
+      .mockReturnValueOnce(new Promise((resolve) => (answerEarlier = resolve)))
+      .mockResolvedValueOnce([{ name: "Later", count: 1 }]);
+    params = new URLSearchParams({ view: "all", folder: "A" });
+    const { rerender } = render(<NotesPage />);
+    params = new URLSearchParams({ view: "all", folder: "B" });
+    rerender(<NotesPage />);
+    await waitFor(() => expect(within(rail()).queryByRole("link", { name: /^Later/ })).not.toBeNull());
+
+    answerEarlier([{ name: "Earlier", count: 9 }]);
+    await new Promise((r) => setTimeout(r, 0));
+    expect(within(rail()).queryByRole("link", { name: /^Earlier/ })).toBeNull();
+    expect(within(rail()).getByRole("link", { name: /^Later/ })).toBeInTheDocument();
   });
 });
 
@@ -313,7 +329,10 @@ describe("the All notes list", () => {
     params = new URLSearchParams({ view: "all", folder: "Knowledge/AI", tag: "AI" });
     const { unmount } = render(<NotesPage />);
     await screen.findByText("Note a");
-    expect(screen.getByRole("heading", { level: 2, name: /AI.*#AI/ })).toHaveTextContent("Knowledge / AI#AI");
+    const scopeHeading = screen
+      .getAllByRole("heading", { level: 2 })
+      .find((h) => !rail().contains(h))!;
+    expect(scopeHeading).toHaveTextContent("Knowledge / AI#AI");
     unmount();
 
     params = new URLSearchParams({ view: "all" });

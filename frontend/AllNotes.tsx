@@ -3,7 +3,8 @@
 import { useCallback, useEffect, useState, type FormEvent, type ReactNode } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
-import { ArrowUpDown, Folder, Search, Tag as TagIcon } from "lucide-react";
+import Link from "next/link";
+import { ArrowUpDown, Folder, Search, Tag as TagIcon, X } from "lucide-react";
 
 import { Button } from "@/components/Button";
 import { MenuRadioGroup, ToolbarMenu } from "@/components/ToolbarMenu";
@@ -174,9 +175,6 @@ export default function AllNotes({ drive, scope, now }: { drive: string; scope: 
     };
   }, [drive, scope.folder]);
 
-  // The chosen tag stays listed with nothing under it, so it can always be taken off.
-  const shownTags =
-    scope.tag && !tags.some((tag) => tag.name === scope.tag) ? [...tags, { name: scope.tag, count: 0 }] : tags;
 
   const go = (next: Partial<AllNotesScope>) => router.push(allNotesHref(pathname, { ...scope, ...next }));
   const sortLabel = (sort: AllNotesScope["sort"]) => t(`sort.${sort}`);
@@ -186,13 +184,23 @@ export default function AllNotes({ drive, scope, now }: { drive: string; scope: 
     scope.folder !== null ? (
       <FolderLabel key="folder" path={scope.folder} rootLabel={t("rootFolder")} />
     ) : null,
-    scope.tag ? <span key="tag">#{scope.tag}</span> : null,
+    scope.tag ? (
+      <Link
+        key="tag"
+        href={allNotesHref(pathname, { ...scope, tag: null })}
+        aria-label={t("removeTag", { tag: scope.tag })}
+        className="inline-flex items-center gap-1 rounded-full bg-accent-teal/15 py-0.5 pl-2.5 pr-1.5 text-sm font-medium text-accent-teal transition-colors hover:bg-accent-teal/25 pointer-coarse:min-h-11"
+      >
+        #{scope.tag}
+        <X size={14} aria-hidden="true" />
+      </Link>
+    ) : null,
   ].filter(Boolean);
 
   return (
     <div className="flex items-start gap-8">
       <div className="hidden w-[15.5rem] shrink-0 md:block">
-        <AllNotesRail pathname={pathname} scope={scope} folders={folders} tags={shownTags} />
+        <AllNotesRail pathname={pathname} scope={scope} folders={folders} tags={tags} />
       </div>
       <div className="flex min-w-0 flex-1 flex-col gap-4">
         <div className="flex flex-wrap items-center gap-2">
@@ -213,7 +221,7 @@ export default function AllNotes({ drive, scope, now }: { drive: string; scope: 
               />
             )}
           </ToolbarMenu>
-          {shownTags.length > 0 && (
+          {tags.length > 0 && (
             <ToolbarMenu
               label={t("tagMenu")}
               value={scope.tag ? `#${scope.tag}` : t("anyTag")}
@@ -224,7 +232,7 @@ export default function AllNotes({ drive, scope, now }: { drive: string; scope: 
               {(close) => (
                 <MenuRadioGroup
                   heading={t("tagsHeading")}
-                  options={[{ value: null as string | null, label: t("anyTag") }, ...shownTags.map((tag) => ({
+                  options={[{ value: null as string | null, label: t("anyTag") }, ...tags.map((tag) => ({
                     value: tag.name as string | null,
                     label: `#${tag.name}`,
                   }))]}
