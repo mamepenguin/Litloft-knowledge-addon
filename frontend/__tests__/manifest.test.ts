@@ -87,7 +87,7 @@ describe("the knowledge manifest", () => {
       "knowledge-clip-web-page": "ClipWebPageMenuItem",
       "knowledge-clip-notifier": "ClipNotifier",
       "knowledge-connections-link": "ConnectionsLink",
-      "knowledge-go-to-note": "GoToNoteAction",
+      "knowledge-note-search-scope": "NoteSearchScope",
     });
   });
 
@@ -146,9 +146,9 @@ describe("the knowledge manifest", () => {
     expect(slots).toEqual(["file-relations"]);
   });
 
-  it("puts Go to note in the file's action row", () => {
+  it("mounts the note search scope in the file's action row", () => {
     const slots = entries
-      .filter((entry) => entry.id === "knowledge-go-to-note")
+      .filter((entry) => entry.id === "knowledge-note-search-scope")
       .map((entry) => entry.slot);
     expect(slots).toEqual(["file-detail-actions"]);
   });
