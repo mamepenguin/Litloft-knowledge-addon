@@ -147,7 +147,6 @@ export default function AllNotes({ drive, scope, now }: { drive: string; scope: 
 
   useEffect(() => {
     setFolders([]);
-    setTags([]);
     if (!drive) return;
     let cancelled = false;
     getFolderCounts(drive, "text")
@@ -155,7 +154,17 @@ export default function AllNotes({ drive, scope, now }: { drive: string; scope: 
         if (!cancelled) setFolders(rows);
       })
       .catch(() => {});
-    getDriveTags(drive, null, "text")
+    return () => {
+      cancelled = true;
+    };
+  }, [drive]);
+
+  // Counted within the chosen folder, so a count is what choosing the tag shows.
+  useEffect(() => {
+    setTags([]);
+    if (!drive) return;
+    let cancelled = false;
+    getDriveTags(drive, null, "text", scope.folder)
       .then((rows) => {
         if (!cancelled) setTags(rows);
       })
@@ -163,7 +172,11 @@ export default function AllNotes({ drive, scope, now }: { drive: string; scope: 
     return () => {
       cancelled = true;
     };
-  }, [drive]);
+  }, [drive, scope.folder]);
+
+  // The chosen tag stays listed with nothing under it, so it can always be taken off.
+  const shownTags =
+    scope.tag && !tags.some((tag) => tag.name === scope.tag) ? [...tags, { name: scope.tag, count: 0 }] : tags;
 
   const go = (next: Partial<AllNotesScope>) => router.push(allNotesHref(pathname, { ...scope, ...next }));
   const sortLabel = (sort: AllNotesScope["sort"]) => t(`sort.${sort}`);
@@ -179,7 +192,7 @@ export default function AllNotes({ drive, scope, now }: { drive: string; scope: 
   return (
     <div className="flex items-start gap-8">
       <div className="hidden w-[15.5rem] shrink-0 md:block">
-        <AllNotesRail pathname={pathname} scope={scope} folders={folders} tags={tags} />
+        <AllNotesRail pathname={pathname} scope={scope} folders={folders} tags={shownTags} />
       </div>
       <div className="flex min-w-0 flex-1 flex-col gap-4">
         <div className="flex flex-wrap items-center gap-2">
@@ -200,7 +213,7 @@ export default function AllNotes({ drive, scope, now }: { drive: string; scope: 
               />
             )}
           </ToolbarMenu>
-          {tags.length > 0 && (
+          {shownTags.length > 0 && (
             <ToolbarMenu
               label={t("tagMenu")}
               value={scope.tag ? `#${scope.tag}` : t("anyTag")}
@@ -211,7 +224,7 @@ export default function AllNotes({ drive, scope, now }: { drive: string; scope: 
               {(close) => (
                 <MenuRadioGroup
                   heading={t("tagsHeading")}
-                  options={[{ value: null as string | null, label: t("anyTag") }, ...tags.map((tag) => ({
+                  options={[{ value: null as string | null, label: t("anyTag") }, ...shownTags.map((tag) => ({
                     value: tag.name as string | null,
                     label: `#${tag.name}`,
                   }))]}

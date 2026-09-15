@@ -117,7 +117,7 @@ describe("the All notes rail", () => {
       ["AI4", `${PATH}?view=all&folder=Knowledge%2FAI&tag=AI&sort=title`, null],
     ]);
     expect(getFolderCounts.mock.calls).toEqual([["d", "text"]]);
-    expect(getDriveTags.mock.calls).toEqual([["d", null, "text"]]);
+    expect(getDriveTags.mock.calls).toEqual([["d", null, "text", "Knowledge/AI"]]);
   });
 
   it("takes a selected tag off when it is chosen again", async () => {
@@ -207,6 +207,39 @@ describe("keeping the rest of the scope", () => {
     const tagged = await screen.findByRole("link", { name: /^Note r/ });
     expect(within(tagged).getAllByText("knowledge.notes.rootFolder")).toHaveLength(2);
     expect(within(tagged).queryByText("AI")).toBeNull();
+  });
+});
+
+describe("tag counts follow the chosen folder", () => {
+  it("counts tags within the chosen folder and asks again when the folder changes", async () => {
+    params = new URLSearchParams({ view: "all" });
+    const { rerender } = render(<NotesPage />);
+    await waitFor(() => expect(getDriveTags).toHaveBeenCalledTimes(1));
+
+    params = new URLSearchParams({ view: "all", folder: "" });
+    rerender(<NotesPage />);
+    await waitFor(() => expect(getDriveTags).toHaveBeenCalledTimes(2));
+    params = new URLSearchParams({ view: "all", folder: "", sort: "title" });
+    rerender(<NotesPage />);
+    await screen.findByText("Note a");
+
+    expect(getDriveTags.mock.calls).toEqual([
+      ["d", null, "text", null],
+      ["d", null, "text", ""],
+    ]);
+    expect(getFolderCounts).toHaveBeenCalledTimes(1);
+  });
+
+  it("keeps a chosen tag that the folder does not carry, so it can be taken off", async () => {
+    getDriveTags.mockResolvedValue([{ name: "AI", count: 4 }]);
+    params = new URLSearchParams({ view: "all", folder: "Inbox", tag: "Old" });
+    render(<NotesPage />);
+    await waitFor(() => expect(within(rail()).getAllByRole("link")).toHaveLength(6));
+
+    const old = within(rail()).getByRole("link", { name: /^Old/ });
+    expect(old).toHaveTextContent("Old0");
+    expect(old).toHaveAttribute("aria-current", "true");
+    expect(old.getAttribute("href")).toBe(`${PATH}?view=all&folder=Inbox`);
   });
 });
 
