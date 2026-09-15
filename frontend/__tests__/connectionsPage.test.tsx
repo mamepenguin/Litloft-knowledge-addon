@@ -70,6 +70,19 @@ describe("the connections page", () => {
   });
 
   it.each([
+    ["no focus query", ""],
+    ["an empty focus query", "focus="],
+  ])("shows the whole graph without a notice for %s", async (_label, query) => {
+    search = query;
+    stubGraph(200, GRAPH);
+    render(<ConnectionsPage />);
+    await screen.findByText("Note A");
+
+    expect(screen.queryByText(/^knowledge\.connections\.focus\.label/)).toBeNull();
+    expect(screen.queryByText("knowledge.connections.focus.notInGraph")).toBeNull();
+  });
+
+  it.each([
     [
       "the graph",
       () => stubGraph(200, GRAPH),

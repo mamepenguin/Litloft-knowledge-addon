@@ -12,7 +12,7 @@ import ConnectionsGraph from "../ConnectionsGraph";
 
 export default function ConnectionsPage() {
   const drive = useCurrentDrive() ?? "";
-  const focusId = useSearchParams()?.get("focus") ?? null;
+  const focusId = useSearchParams()?.get("focus") || null;
   const t = useTranslations("knowledge.notes");
 
   return (

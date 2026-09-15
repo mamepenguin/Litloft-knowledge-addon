@@ -193,7 +193,25 @@ describe("ConnectionsGraph", () => {
       expect(screen.queryByText(/^focus\.label/)).toBeNull();
     });
 
-    it("says the file has no connections and draws the whole graph when it is not in it", async () => {
+    it("returns to the whole graph on Escape", async () => {
+      stubGraphFetch(withSecondCluster);
+      render(
+        <ShortcutsProvider>
+          <ConnectionsGraph drive="test-drive" initialFocusId="fB" />
+        </ShortcutsProvider>,
+      );
+      await screen.findByText(/^focus\.label/);
+      await new Promise<void>((r) => requestAnimationFrame(() => requestAnimationFrame(() => r())));
+
+      fireEvent.keyDown(document.body, { key: "Escape" });
+
+      await waitFor(() => {
+        expect(findGraphSvg().querySelectorAll("[data-node-id]")).toHaveLength(5);
+      });
+      expect(screen.queryByText(/^focus\.label/)).toBeNull();
+    });
+
+    it("says the file is not in the graph and draws the whole graph", async () => {
       stubGraphFetch(withSecondCluster);
       render(<ConnectionsGraph drive="test-drive" initialFocusId="fOrphan" />);
 
