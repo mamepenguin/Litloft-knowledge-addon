@@ -36,7 +36,7 @@ export default function GoToNoteAction({ drive, filename, mimeType }: Props) {
   return (
     <button
       type="button"
-      onClick={() => search.open({ scope })}
+      onClick={() => search.open()}
       className="inline-flex items-center gap-2 rounded-2xl border border-bg-border py-1.5 pr-2.5 pl-3 text-[13px] whitespace-nowrap text-text-muted transition-colors hover:bg-bg-elevated hover:text-text-primary pointer-coarse:min-h-11"
     >
       <FileSearch size={14} aria-hidden="true" />

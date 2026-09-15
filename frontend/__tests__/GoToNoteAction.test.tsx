@@ -1,9 +1,10 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
-import { useState } from "react";
+import { useRef, useState } from "react";
 
 import {
   GlobalSearchProvider,
+  useActiveSearchScope,
   useRegisterGlobalSearch,
   type SearchScope,
 } from "@/components/search/GlobalSearchProvider";
@@ -16,13 +17,14 @@ const GoToNoteAction = (await import("../GoToNoteAction")).default;
 
 const opened: (SearchScope | null)[] = [];
 
-/** Stands in for the header's modal: records the scope each opening would use. */
+/** Stands in for the header's modal: records the scope each opening shows. */
 function SearchHost() {
-  const { defaultScope } = useRegisterGlobalSearch((options) => {
-    opened.push(options?.scope ?? defaultScope());
-  });
+  const scope = useActiveSearchScope();
+  const scopeRef = useRef(scope);
+  scopeRef.current = scope;
+  useRegisterGlobalSearch(() => opened.push(scopeRef.current));
   return (
-    <button type="button" onClick={() => opened.push(defaultScope())}>
+    <button type="button" onClick={() => opened.push(scope)}>
       header-search
     </button>
   );
