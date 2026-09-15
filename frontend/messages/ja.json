@@ -295,6 +295,9 @@
       "readyUntitled": "Web ページをクリップしました",
       "failed": "Web ページをクリップできませんでした"
     },
+    "related": {
+      "seeConnections": "つながりをグラフで見る"
+    },
     "notes": {
       "heading": "ノート",
       "description": "このドライブの Markdown とテキストファイル",

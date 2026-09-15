@@ -12,4 +12,5 @@ export const slotComponents: Record<string, React.LazyExoticComponent<React.Comp
   "knowledge-clip-web-page": lazy(() => import("./ClipWebPageMenuItem")),
   "knowledge-clip-notifier": lazy(() => import("./ClipNotifier")),
   "knowledge-search-capture": lazy(() => import("./SearchCaptureActions")),
+  "knowledge-connections-link": lazy(() => import("./ConnectionsLink")),
 };
