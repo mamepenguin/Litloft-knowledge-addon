@@ -9,13 +9,13 @@ import { ChevronDown, ChevronLeft, ChevronRight, FilePlus, Link2, NotebookPen, W
 import { Button } from "@/components/Button";
 import { useCurrentDrive } from "@/components/CurrentDriveProvider";
 import { PageHeader } from "@/components/PageHeader";
+import { useQuickNote } from "@/components/quick-note";
 
 import AllNotes from "./AllNotes";
 import { readAllNotesScope } from "./allNotesParams";
 import ClipSection from "./ClipSection";
 import NoteResults from "./NoteResults";
 import { ContinueWriting, FindNote, RecentNotes } from "./NotesLanding";
-import { useNewNote } from "./useNewNote";
 
 function Tile({
   icon,
@@ -62,11 +62,14 @@ export default function NotesPage() {
   const [clipOpen, setClipOpen] = useState(prefilled);
   const [clipMounted, setClipMounted] = useState(prefilled);
   const clipRegionId = useId();
-  const newNote = useNewNote({ drive });
+  const quickNote = useQuickNote();
   // One clock for the whole render, so every row agrees on what "today" is.
   const now = useMemo(() => new Date(), []);
 
   const inResults = Boolean(query) || showAll;
+
+  const openNewNote = () =>
+    quickNote.open(showAll && allScope.folder !== null ? { drive, folder: allScope.folder } : { drive });
 
   const toggleClip = () => {
     setClipMounted(true);
@@ -171,16 +174,13 @@ export default function NotesPage() {
         title={showAll ? t("all") : t("heading")}
         scope={t("description")}
         actions={
-          newNote.available ? (
-            <Button variant="primary" onClick={newNote.open}>
-              <FilePlus size={14} strokeWidth={1.8} />
-              {t("newNote")}
-            </Button>
-          ) : undefined
+          <Button variant="primary" onClick={openNewNote}>
+            <FilePlus size={14} strokeWidth={1.8} />
+            {t("newNote")}
+          </Button>
         }
       />
       <div className="flex flex-col px-4">{body}</div>
-      {newNote.dialog}
     </div>
   );
 }

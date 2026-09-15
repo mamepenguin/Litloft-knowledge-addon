@@ -66,6 +66,11 @@ vi.mock("../api", async () => {
   };
 });
 
+const openQuickNote = vi.fn();
+vi.mock("@/components/quick-note", () => ({
+  useQuickNote: () => ({ open: openQuickNote }),
+}));
+
 vi.mock("@/components/FolderPicker", () => ({
   FolderPicker: () => <div data-testid="folder-picker" />,
 }));
@@ -103,6 +108,7 @@ beforeEach(() => {
   nickname = null;
   editorEnabled = true;
   push.mockReset();
+  openQuickNote.mockReset();
   getDriveFiles.mockReset().mockResolvedValue(page([]));
   getWatchHistory.mockReset().mockResolvedValue([]);
   createClip.mockReset().mockResolvedValue({ job_id: 1, file_id: "c1", status: "fetching" });
@@ -322,14 +328,13 @@ describe("the landing's accent budget", () => {
     expect(accentFills(container)).toEqual([screen.getByRole("button", { name: "knowledge.notes.newNote" })]);
   });
 
-  it("fills nothing when the editor is off, and offers no New note", async () => {
+  it("still offers and fills New note when the editor is off", async () => {
     editorEnabled = false;
     getDriveFiles.mockResolvedValue(page([note("r1")], 12));
     const { container } = render(<NotesPage />);
     await screen.findByText("Note r1");
 
-    expect(screen.queryByRole("button", { name: "knowledge.notes.newNote" })).toBeNull();
-    expect(accentFills(container)).toEqual([]);
+    expect(accentFills(container)).toEqual([screen.getByRole("button", { name: "knowledge.notes.newNote" })]);
   });
 });
 
@@ -479,20 +484,42 @@ describe("Show more", () => {
   });
 });
 
-describe("New note on the landing", () => {
-  it("opens the dialog, creates nothing on cancel, and opens the created note in the editor", async () => {
+describe("New note", () => {
+  async function pressNewNote() {
     render(<NotesPage />);
-    fireEvent.click(screen.getByRole("button", { name: "knowledge.notes.newNote" }));
-    const dialog = await screen.findByRole("dialog", { name: "knowledge.newNote.dialogTitle" });
-    fireEvent.click(within(dialog).getByRole("button", { name: "common.cancel" }));
+    fireEvent.click(await screen.findByRole("button", { name: "knowledge.notes.newNote" }));
+  }
+
+  it("opens Quick Note on this drive from the landing and creates nothing itself", async () => {
+    await pressNewNote();
+    expect(openQuickNote.mock.calls).toEqual([[{ drive: "d" }]]);
     expect(screen.queryByRole("dialog")).toBeNull();
     expect(createTextFile).not.toHaveBeenCalled();
+    expect(push).not.toHaveBeenCalled();
+  });
 
-    fireEvent.click(screen.getByRole("button", { name: "knowledge.notes.newNote" }));
-    const again = await screen.findByRole("dialog", { name: "knowledge.newNote.dialogTitle" });
-    fireEvent.click(within(again).getByRole("button", { name: "common.save" }));
-    await waitFor(() => expect(push.mock.calls).toEqual([["/files/n1?edit=1"]]));
-    expect(createTextFile).toHaveBeenCalledTimes(1);
+  it("does not pass a folder from the landing or find results", async () => {
+    params = new URLSearchParams({ q: "kyoto", folder: "journal" });
+    await pressNewNote();
+    expect(openQuickNote.mock.calls).toEqual([[{ drive: "d" }]]);
+  });
+
+  it("passes no folder on All notes when every folder is listed", async () => {
+    params = new URLSearchParams({ view: "all" });
+    await pressNewNote();
+    expect(openQuickNote.mock.calls).toEqual([[{ drive: "d" }]]);
+  });
+
+  it("passes the chosen folder on All notes", async () => {
+    params = new URLSearchParams({ view: "all", folder: "journal/2026" });
+    await pressNewNote();
+    expect(openQuickNote.mock.calls).toEqual([[{ drive: "d", folder: "journal/2026" }]]);
+  });
+
+  it("passes the drive root when it is the chosen folder on All notes", async () => {
+    params = new URLSearchParams({ view: "all", folder: "" });
+    await pressNewNote();
+    expect(openQuickNote.mock.calls).toEqual([[{ drive: "d", folder: "" }]]);
   });
 });
 
