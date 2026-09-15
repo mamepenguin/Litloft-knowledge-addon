@@ -313,7 +313,19 @@
       "noResults": "一致するノートはありません。",
       "showMore": "もっと見る",
       "back": "ノートに戻る",
-      "connections": "ノートとファイルのつながり"
+      "connections": "ノートとファイルのつながり",
+      "rootFolder": "ドライブ直下",
+      "clearFind": "検索をクリア",
+      "toolsHeading": "ノートを集める・たどる",
+      "clipTile": "Web クリップ",
+      "clipTileDescription": "URL や HTML から記事をノートとして保存",
+      "connectionsDescription": "リンクと関連をグラフでたどる",
+      "age": {
+        "today": "今日",
+        "week": "過去 7 日",
+        "month": "過去 30 日",
+        "earlier": "それ以前"
+      }
     }
   }
 }

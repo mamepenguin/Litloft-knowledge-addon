@@ -313,7 +313,19 @@
       "noResults": "No notes match.",
       "showMore": "Show more",
       "back": "Back to Notes",
-      "connections": "Note & file connections"
+      "connections": "Note & file connections",
+      "rootFolder": "Drive root",
+      "clearFind": "Clear search",
+      "toolsHeading": "Collect and explore",
+      "clipTile": "Web clip",
+      "clipTileDescription": "Save an article as a note from a URL or HTML",
+      "connectionsDescription": "Follow links and relations as a graph",
+      "age": {
+        "today": "Today",
+        "week": "Past 7 days",
+        "month": "Past 30 days",
+        "earlier": "Earlier"
+      }
     }
   }
 }
