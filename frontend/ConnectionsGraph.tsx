@@ -41,9 +41,10 @@ const TOO_BIG_THRESHOLD = 200;
 
 interface Props {
   drive: string;
+  initialFocusId?: string | null;
 }
 
-export default function ConnectionsGraph({ drive }: Props) {
+export default function ConnectionsGraph({ drive, initialFocusId = null }: Props) {
   const t = useTranslations("knowledge.connections");
   const router = useRouter();
 
@@ -112,6 +113,13 @@ export default function ConnectionsGraph({ drive }: Props) {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [focusedId, setFocusedId] = useState<string | null>(null);
   const [depth, setDepth] = useState(2);
+
+  useEffect(() => {
+    if (!initialFocusId || !data) return;
+    if (!data.nodes.some((n) => n.id === initialFocusId)) return;
+    setFocusedId(initialFocusId);
+    setSelectedId(initialFocusId);
+  }, [data, initialFocusId]);
 
   const focusScope = useMemo(() => {
     if (!focusedId) return null;
@@ -275,6 +283,8 @@ export default function ConnectionsGraph({ drive }: Props) {
     !loading &&
     !error &&
     (nodes.length > 0 || (data?.orphan_count ?? 0) > 0);
+  const initialFocusMissing =
+    hasAnyContent && initialFocusId !== null && !nodeById.has(initialFocusId);
 
   return (
     <section className="flex flex-col gap-3">
@@ -288,6 +298,9 @@ export default function ConnectionsGraph({ drive }: Props) {
       )}
       {!loading && !error && !hasAnyContent && (
         <p className="text-xs text-text-muted">{t("emptyGraph")}</p>
+      )}
+      {initialFocusMissing && (
+        <p className="text-xs text-text-muted">{t("focus.notInGraph")}</p>
       )}
 
       {hasGraph && (

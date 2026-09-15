@@ -157,6 +157,76 @@ describe("ConnectionsGraph", () => {
     expect(svg!.querySelector('[data-node-id="fC"]')).toBeTruthy();
   });
 
+  describe("opened on a file", () => {
+    const withSecondCluster = {
+      ...baseGraph,
+      nodes: [
+        ...baseGraph.nodes,
+        { id: "fX", title: "Other X", path: "x.md", mime_kind: "md", folder: "notes", tags: [], relation_count: 1 },
+        { id: "fY", title: "Other Y", path: "y.md", mime_kind: "md", folder: "notes", tags: [], relation_count: 1 },
+      ],
+      edges: [...baseGraph.edges, { a: "fX", b: "fY", kind: "related" }],
+    };
+
+    it("centres on that file, selects it, and hides what is out of reach", async () => {
+      stubGraphFetch(withSecondCluster);
+      render(<ConnectionsGraph drive="test-drive" initialFocusId="fB" />);
+
+      await screen.findByText(/^focus\.label/);
+      const svg = findGraphSvg();
+      expect(
+        [...svg.querySelectorAll("[data-node-id]")].map((n) => n.getAttribute("data-node-id")).sort(),
+      ).toEqual(["fA", "fB", "fC"]);
+      expect(screen.getByText("focus.centerHere")).toBeTruthy();
+      expect(screen.queryByText("focus.notInGraph")).toBeNull();
+    });
+
+    it("returns to the whole graph when the focus is reset", async () => {
+      stubGraphFetch(withSecondCluster);
+      render(<ConnectionsGraph drive="test-drive" initialFocusId="fB" />);
+
+      fireEvent.click(await screen.findByText("focus.reset"));
+
+      await waitFor(() => {
+        expect(findGraphSvg().querySelectorAll("[data-node-id]")).toHaveLength(5);
+      });
+      expect(screen.queryByText(/^focus\.label/)).toBeNull();
+    });
+
+    it("says the file has no connections and draws the whole graph when it is not in it", async () => {
+      stubGraphFetch(withSecondCluster);
+      render(<ConnectionsGraph drive="test-drive" initialFocusId="fOrphan" />);
+
+      await screen.findByText("focus.notInGraph");
+      expect(findGraphSvg().querySelectorAll("[data-node-id]")).toHaveLength(5);
+      expect(screen.queryByText(/^focus\.label/)).toBeNull();
+    });
+
+    it("says so even when the drive has only unlinked notes", async () => {
+      stubGraphFetch({ nodes: [], edges: [], orphan_count: 1, orphans: baseGraph.orphans });
+      render(<ConnectionsGraph drive="test-drive" initialFocusId="fOrphan" />);
+
+      expect(await screen.findByText("focus.notInGraph")).toBeTruthy();
+    });
+
+    it("adds nothing to the empty state of a drive with no connections at all", async () => {
+      stubGraphFetch({ nodes: [], edges: [], orphan_count: 0, orphans: [] });
+      render(<ConnectionsGraph drive="test-drive" initialFocusId="fOrphan" />);
+
+      await screen.findByText("emptyGraph");
+      expect(screen.queryByText("focus.notInGraph")).toBeNull();
+    });
+
+    it("stays unfocused when no file is given", async () => {
+      stubGraphFetch(withSecondCluster);
+      render(<ConnectionsGraph drive="test-drive" />);
+
+      await screen.findByText("Note A");
+      expect(screen.queryByText(/^focus\.label/)).toBeNull();
+      expect(screen.queryByText("focus.notInGraph")).toBeNull();
+    });
+  });
+
   // Pan/zoom writes geometry through CSS custom properties instead of
   // re-rendering (design spec §3). Nothing else fails if the writer and
   // the stylesheet stop agreeing on a name — node sizes just silently

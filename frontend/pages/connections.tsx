@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { Waypoints } from "lucide-react";
 
@@ -11,6 +12,7 @@ import ConnectionsGraph from "../ConnectionsGraph";
 
 export default function ConnectionsPage() {
   const drive = useCurrentDrive() ?? "";
+  const focusId = useSearchParams()?.get("focus") ?? null;
   const t = useTranslations("knowledge.notes");
 
   return (
@@ -28,7 +30,7 @@ export default function ConnectionsPage() {
         }
       />
       <div className="px-4">
-        <ConnectionsGraph drive={drive} />
+        <ConnectionsGraph drive={drive} initialFocusId={focusId} />
       </div>
     </div>
   );

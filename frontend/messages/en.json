@@ -253,7 +253,8 @@
         "label": "Center",
         "depthLabel": "Depth",
         "reset": "Reset to full view",
-        "centerHere": "Center on this"
+        "centerHere": "Center on this",
+        "notInGraph": "This file has no connections yet, so the whole drive's graph is shown."
       },
       "detail": {
         "open": "→ Open",

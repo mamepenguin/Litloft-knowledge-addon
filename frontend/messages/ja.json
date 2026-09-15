@@ -253,7 +253,8 @@
         "label": "中心",
         "depthLabel": "深さ",
         "reset": "全体に戻す",
-        "centerHere": "ここを中心に表示"
+        "centerHere": "ここを中心に表示",
+        "notInGraph": "このファイルにはまだつながりがないため、ドライブ全体のグラフを表示しています。"
       },
       "detail": {
         "open": "→ 開く",
