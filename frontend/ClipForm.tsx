@@ -24,6 +24,7 @@ interface Props {
   submitVariant?: ButtonVariant;
   onSubmitted: (submitted: ClipSubmitted) => void;
   onDuplicate: (url: string, subfolder: string, existing: ClipJob[]) => void;
+  onFailed?: () => void;
 }
 
 export default function ClipForm({
@@ -35,6 +36,7 @@ export default function ClipForm({
   submitVariant = "primary",
   onSubmitted,
   onDuplicate,
+  onFailed,
 }: Props) {
   const tClip = useTranslations("knowledge.clip");
   const tDash = useTranslations("knowledge.dashboard");
@@ -50,7 +52,7 @@ export default function ClipForm({
     setSubmitting(true);
     setError(null);
     try {
-      const existing = await findClipsByUrl(drive, targetUrl);
+      const existing = (await findClipsByUrl(drive, targetUrl)).filter((job) => job.status !== "failed");
       if (existing.length > 0) {
         onDuplicate(targetUrl, subfolder, existing);
         return;
@@ -64,10 +66,11 @@ export default function ClipForm({
       onSubmitted({ job, url: targetUrl, subfolder });
     } catch (e) {
       setError((e as Error).message);
+      onFailed?.();
     } finally {
       setSubmitting(false);
     }
-  }, [drive, url, subfolder, titleHint, onSubmitted, onDuplicate]);
+  }, [drive, url, subfolder, titleHint, onSubmitted, onDuplicate, onFailed]);
 
   useEffect(() => {
     if (autoSubmit && initialUrl) void submit(initialUrl);

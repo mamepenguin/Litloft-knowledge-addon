@@ -325,6 +325,7 @@ describe("Clip web page dialog", () => {
     submitClip();
 
     expect(await screen.findByText("URL rejected: private address")).toBeInTheDocument();
+    expect(toasts()).toEqual({ success: [], error: [] });
     expect(screen.getByRole("dialog", { name: CLIP })).toBeInTheDocument();
     expect(screen.getByRole("textbox", { name: URL_FIELD })).toHaveValue(PAGE);
     expect(screen.getByLabelText("folder")).toHaveValue("web/news");
@@ -433,6 +434,30 @@ describe("Clip web page when the URL was clipped before", () => {
     await waitFor(() => expect(onRequestClose).toHaveBeenCalledTimes(1));
     expect(mockCreateClip.mock.calls).toEqual([["d", { url: PAGE, subfolder: "web/news" }]]);
     expect(mockRouterPush).not.toHaveBeenCalled();
+  });
+
+  it("offers only a clip that did not fail as the existing one", async () => {
+    mockFindClipsByUrl.mockResolvedValue([
+      { job_id: 4, file_id: "failed-newer", status: "failed" },
+      { job_id: 3, file_id: "latest", status: "ready" },
+    ]);
+    await reachDuplicate();
+    fireEvent.click(screen.getByRole("button", { name: "Open existing" }));
+    expect(mockRouterPush.mock.calls).toEqual([["/files/latest"]]);
+  });
+
+  it("sends a URL whose every earlier clip failed as a new clip, without asking", async () => {
+    mockFindClipsByUrl.mockResolvedValue([
+      { job_id: 4, file_id: "failed2", status: "failed" },
+      { job_id: 2, file_id: "failed1", status: "failed" },
+    ]);
+    const { onRequestClose } = renderRow({ path: "web" });
+    openClip();
+    submitClip();
+
+    await waitFor(() => expect(onRequestClose).toHaveBeenCalledTimes(1));
+    expect(screen.queryByRole("button", { name: "Open existing" })).not.toBeInTheDocument();
+    expect(mockCreateClip.mock.calls).toEqual([["d", { url: PAGE, subfolder: "web", title: null }]]);
   });
 
   it("announces a clip created from the duplicate prompt", async () => {
@@ -644,6 +669,48 @@ describe("Clip web page when the user leaves before the clip is accepted", () =>
 
     emit("knowledge.clip.ready", { job_id: 7, file_id: "clip7", title: "First" });
     expect(toasts()).toEqual({ success: ["Clipped: First"], error: [] });
+  });
+
+  it("reports a clip refused after the dialog was closed", async () => {
+    let refuse!: (e: Error) => void;
+    mockCreateClip.mockReturnValueOnce(
+      new Promise((_, reject) => {
+        refuse = reject;
+      }),
+    );
+    renderRow({ path: "web" });
+    openClip();
+    submitClip();
+    await waitFor(() => expect(mockCreateClip).toHaveBeenCalledTimes(1));
+    fireEvent.click(screen.getByRole("button", { name: "Close" }));
+
+    await act(async () => {
+      refuse(new Error("URL rejected: private address"));
+    });
+
+    expect(toasts()).toEqual({ success: [], error: ["A web page could not be clipped"] });
+  });
+
+  it("reports a Create new refused after Escape", async () => {
+    mockFindClipsByUrl.mockResolvedValue([{ job_id: 3, file_id: "latest", status: "ready" }]);
+    let refuse!: (e: Error) => void;
+    mockCreateClip.mockReturnValueOnce(
+      new Promise((_, reject) => {
+        refuse = reject;
+      }),
+    );
+    renderRow({ path: "web" });
+    openClip();
+    submitClip();
+    fireEvent.click(await screen.findByRole("button", { name: "Create new" }));
+    await waitFor(() => expect(mockCreateClip).toHaveBeenCalledTimes(1));
+    fireEvent.keyDown(document.body, { key: "Escape" });
+
+    await act(async () => {
+      refuse(new Error("URL rejected"));
+    });
+
+    expect(toasts()).toEqual({ success: [], error: ["A web page could not be clipped"] });
   });
 
   it("does not close the menu when Create new is accepted after Escape", async () => {

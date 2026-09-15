@@ -142,6 +142,7 @@ interface CaptureZoneProps {
   initialUrl?: string;
   initialTitle?: string;
   autoSubmit?: boolean;
+  search: string;
   onJobAdded: (fileId: string, job: RecentJob) => void;
   onDuplicate: (url: string, subfolder: string, existing: ClipJob[]) => void;
 }
@@ -151,6 +152,7 @@ function CaptureZone({
   initialUrl,
   initialTitle,
   autoSubmit,
+  search,
   onJobAdded,
   onDuplicate,
 }: CaptureZoneProps) {
@@ -158,6 +160,11 @@ function CaptureZone({
   const [pasteOpen, setPasteOpen] = useState(false);
   const [pasteUrl, setPasteUrl] = useState("");
   const [bookmarkletOpen, setBookmarkletOpen] = useState(false);
+
+  useEffect(() => {
+    setPasteOpen(false);
+    setBookmarkletOpen(false);
+  }, [search]);
 
   return (
     <section className="flex flex-col gap-3">
@@ -342,6 +349,9 @@ export default function ClipSection() {
   const prefillUrl = searchParams.get("prefill") ?? "";
   const prefillTitle = searchParams.get("title") ?? "";
   const autoSubmit = searchParams.get("autosubmit") === "1";
+  // The page keeps this section mounted but hidden while it shows results,
+  // so an overlay left open there would be invisible and still take Escape.
+  const search = searchParams.toString();
 
   const [jobs, dispatch] = useReducer(jobsReducer, undefined, () =>
     loadJobs(drive),
@@ -355,6 +365,10 @@ export default function ClipSection() {
   useEffect(() => {
     saveJobs(drive, jobs);
   }, [drive, jobs]);
+
+  useEffect(() => {
+    setDuplicate(null);
+  }, [search]);
 
   const clipReady = useWebSocket("knowledge.clip.ready");
   useEffect(() => {
@@ -403,6 +417,7 @@ export default function ClipSection() {
         initialUrl={prefillUrl}
         initialTitle={prefillTitle}
         autoSubmit={autoSubmit}
+        search={search}
         onJobAdded={handleJobAdded}
         onDuplicate={(url, subfolder, existing) =>
           setDuplicate({ url, subfolder, existing })
