@@ -2,14 +2,16 @@
 
 import { useId, useMemo, useState, type ReactNode } from "react";
 import Link from "next/link";
-import { useSearchParams } from "next/navigation";
+import { usePathname, useSearchParams } from "next/navigation";
 import { useTranslations } from "next-intl";
-import { ChevronDown, ChevronRight, FilePlus, Link2, NotebookPen, Waypoints } from "lucide-react";
+import { ChevronDown, ChevronLeft, ChevronRight, FilePlus, Link2, NotebookPen, Waypoints } from "lucide-react";
 
 import { Button } from "@/components/Button";
 import { useCurrentDrive } from "@/components/CurrentDriveProvider";
 import { PageHeader } from "@/components/PageHeader";
 
+import AllNotes from "./AllNotes";
+import { readAllNotesScope } from "./allNotesParams";
 import ClipSection from "./ClipSection";
 import NoteResults from "./NoteResults";
 import { ContinueWriting, FindNote, RecentNotes } from "./NotesLanding";
@@ -50,8 +52,10 @@ export default function NotesPage() {
   const drive = useCurrentDrive() ?? "";
   const t = useTranslations("knowledge.notes");
   const searchParams = useSearchParams();
+  const pathname = usePathname();
   const query = searchParams.get("q")?.trim() ?? "";
   const showAll = searchParams.get("view") === "all";
+  const allScope = readAllNotesScope(searchParams);
   // A bookmarklet landing submits the clip form on mount, so the form is
   // open from the start.
   const prefilled = Boolean(searchParams.get("prefill"));
@@ -78,13 +82,13 @@ export default function NotesPage() {
     </div>
   ) : null;
 
-  const main = inResults ? (
+  const main = showAll ? (
+    <div key="all" className="mt-6">
+      <AllNotes drive={drive} scope={allScope} now={now} />
+    </div>
+  ) : query ? (
     <div key="results" className="mt-8">
-      {query ? (
-        <NoteResults key={`q:${drive}:${query}`} drive={drive} now={now} query={query} />
-      ) : (
-        <NoteResults key={`all:${drive}`} drive={drive} now={now} />
-      )}
+      <NoteResults key={`q:${drive}:${query}`} drive={drive} now={now} query={query} />
     </div>
   ) : (
     <div key="landing" className="flex flex-col">
@@ -144,15 +148,27 @@ export default function NotesPage() {
 
   // Keyed siblings are reordered by React rather than remounted, so the
   // bookmarklet's clip section can lead without being a second instance.
+  const leading = showAll ? [] : [find];
   const body = prefilled
-    ? [find, clipRegion, main, tools]
-    : [find, main, tools, clipRegion];
+    ? [...leading, clipRegion, main, tools]
+    : [...leading, main, tools, clipRegion];
 
   return (
-    <div className="mx-auto flex w-full max-w-list-row flex-col py-10">
+    <div className={`mx-auto flex w-full flex-col py-10 ${showAll ? "max-w-6xl" : "max-w-list-row"}`}>
       <PageHeader
-        titleIcon={NotebookPen}
-        title={t("heading")}
+        breadcrumb={
+          showAll ? (
+            <Link
+              href={pathname}
+              className="-ml-1 flex items-center gap-0.5 text-sm text-text-muted transition-colors hover:text-text-primary"
+            >
+              <ChevronLeft size={16} aria-hidden="true" />
+              {t("heading")}
+            </Link>
+          ) : undefined
+        }
+        titleIcon={showAll ? undefined : NotebookPen}
+        title={showAll ? t("all") : t("heading")}
         scope={t("description")}
         actions={
           newNote.available ? (
