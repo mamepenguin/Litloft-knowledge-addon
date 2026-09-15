@@ -185,11 +185,19 @@ describe("keeping the rest of the scope", () => {
     params = new URLSearchParams({ view: "all", tag: "AI", sort: "created" });
     rerender(<NotesPage />);
     await waitFor(() => expect(getDriveFiles).toHaveBeenCalledTimes(3));
+    params = new URLSearchParams({ view: "all", folder: "Inbox", tag: "AI", sort: "created" });
+    rerender(<NotesPage />);
+    await waitFor(() => expect(getDriveFiles).toHaveBeenCalledTimes(4));
+    params = new URLSearchParams({ view: "all", folder: "Inbox", tag: "AI", sort: "created", q: "kyoto" });
+    rerender(<NotesPage />);
+    await waitFor(() => expect(getDriveFiles).toHaveBeenCalledTimes(5));
 
     expect(getDriveFiles.mock.calls.map(([, o]) => o)).toEqual([
       { type: "text", sort: "updated_at", order: "desc", page: 1, limit: 30 },
       { type: "text", sort: "updated_at", order: "desc", tag: "AI", page: 1, limit: 30 },
       { type: "text", sort: "created_at", order: "desc", tag: "AI", page: 1, limit: 30 },
+      { type: "text", sort: "created_at", order: "desc", path: "Inbox", tag: "AI", page: 1, limit: 30 },
+      { type: "text", sort: "created_at", order: "desc", path: "Inbox", tag: "AI", search: "kyoto", page: 1, limit: 30 },
     ]);
   });
 
