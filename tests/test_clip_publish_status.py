@@ -165,7 +165,7 @@ async def test_a_written_clip_is_ready_before_its_event_and_not_before_the_write
 @pytest.mark.parametrize(
     "get_status, put_status", [(None, 412), (401, None), (None, 500)]
 )
-async def test_a_clip_whose_body_was_not_written_reads_failed_without_an_event(
+async def test_a_clip_whose_body_was_not_written_reads_failed_and_announces_it(
     monkeypatch, knowledge_db, client, viewer_cookie, get_status, put_status
 ):
     vid = viewer_id_for_nickname("alice")
@@ -181,7 +181,20 @@ async def test_a_clip_whose_body_was_not_written_reads_failed_without_an_event(
         recorder,
     )
 
-    assert recorder.events == []
+    assert recorder.events == [
+        (
+            "knowledge.clip.failed",
+            {
+                "job_id": job_id,
+                "file_id": "f1",
+                "viewer_id": vid,
+                "url": URL,
+                "error": "publish: article body was not written",
+            },
+            DRIVE,
+            "failed",
+        )
+    ]
     assert _search(client, viewer_cookie) == [("f1", "failed")]
 
 
@@ -239,6 +252,11 @@ async def test_a_publish_hook_that_raises_before_the_write_leaves_the_job_failed
     async def on_done(task, article, mark_ready):
         raise RuntimeError("core unreachable")
 
+    failures = []
+
+    async def on_fail(task, reason):
+        failures.append((task.job_id, reason))
+
     async def fake_fetch(url, **kwargs):
         return FetchResult(url, "text/html", b"<html></html>")
 
@@ -248,7 +266,7 @@ async def test_a_publish_hook_that_raises_before_the_write_leaves_the_job_failed
         "extract_article",
         lambda html, url=None: ExtractedArticle(title="t", markdown="body. " * 40),
     )
-    w = ClipWorker(on_done=on_done, session_factory=knowledge_db)
+    w = ClipWorker(on_done=on_done, on_fail=on_fail, session_factory=knowledge_db)
     await w.enqueue(ClipTask(job_id, "f1", "v1", URL, ""))
     w.start()
     for _ in range(60):
@@ -258,6 +276,7 @@ async def test_a_publish_hook_that_raises_before_the_write_leaves_the_job_failed
     await w.stop()
 
     assert _db_status(knowledge_db, job_id) == "failed"
+    assert failures == [(job_id, "publish: article body was not written")]
 
 
 @pytest.mark.asyncio
@@ -268,6 +287,11 @@ async def test_a_failure_after_the_write_keeps_the_job_ready(monkeypatch, knowle
         mark_ready()
         raise RuntimeError("event bridge down")
 
+    failures = []
+
+    async def on_fail(task, reason):
+        failures.append((task.job_id, reason))
+
     async def fake_fetch(url, **kwargs):
         return FetchResult(url, "text/html", b"<html></html>")
 
@@ -277,7 +301,7 @@ async def test_a_failure_after_the_write_keeps_the_job_ready(monkeypatch, knowle
         "extract_article",
         lambda html, url=None: ExtractedArticle(title="t", markdown="body. " * 40),
     )
-    w = ClipWorker(on_done=on_done, session_factory=knowledge_db)
+    w = ClipWorker(on_done=on_done, on_fail=on_fail, session_factory=knowledge_db)
     await w.enqueue(ClipTask(job_id, "f1", "v1", URL, ""))
     w.start()
     for _ in range(60):
@@ -287,3 +311,4 @@ async def test_a_failure_after_the_write_keeps_the_job_ready(monkeypatch, knowle
     await w.stop()
 
     assert _db_status(knowledge_db, job_id) == "ready"
+    assert failures == []

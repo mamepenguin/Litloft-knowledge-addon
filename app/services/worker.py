@@ -51,6 +51,7 @@ logger = logging.getLogger(__name__)
 _LEASE_DURATION = timedelta(minutes=10)
 _MAX_RETRIES = 3
 _PER_HOST_DELAY_SEC = 2.0
+_PUBLISH_FAILED = "publish: article body was not written"
 
 
 @dataclass
@@ -225,6 +226,7 @@ class ClipWorker:
         finally:
             if not marked:
                 self._mark_publish_failed(task.job_id)
+                await self._on_fail(task, _PUBLISH_FAILED)
 
     def _claim_lease(self, job_id: int) -> bool:
         """Set lease_until to now+10min if not already held. Atomic enough
@@ -266,7 +268,7 @@ class ClipWorker:
                 return
             job.status = "failed"
             job.lease_until = None
-            job.error = "publish: article body was not written"
+            job.error = _PUBLISH_FAILED
             session.commit()
         finally:
             session.close()
