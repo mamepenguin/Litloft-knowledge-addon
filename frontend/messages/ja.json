@@ -301,7 +301,6 @@
     },
     "notes": {
       "heading": "ノート",
-      "description": "このドライブの Markdown とテキストファイル",
       "newNote": "新規ノート",
       "findLabel": "ノートを探す",
       "findPlaceholder": "タイトルやフォルダでノートを探す",

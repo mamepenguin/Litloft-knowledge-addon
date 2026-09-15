@@ -1,3 +1,4 @@
+import { StrictMode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 
@@ -414,5 +415,108 @@ describe("the All notes list", () => {
     expect(screen.getByRole("link", { name: "knowledge.notes.heading" }).getAttribute("href")).toBe(PATH);
     expect(screen.queryByRole("search", { name: undefined })).not.toBeNull();
     expect(screen.queryByRole("searchbox", { name: "knowledge.notes.findLabel" })).toBeNull();
+  });
+});
+
+describe("the count on the scope line", () => {
+  const scopeLine = () => screen.getByRole("heading", { level: 1 }).closest("header")!.querySelector("h1 + div")!;
+
+  it("states the total the All notes list reports, in the All notes column", async () => {
+    getDriveFiles.mockReset().mockResolvedValue(page([note("a", "Knowledge")], 5));
+    render(<NotesPage />);
+    await screen.findByText("Note a");
+    await act(async () => {});
+    expect(scopeLine().textContent).toContain('count\\":5');
+    expect(screen.getByRole("heading", { level: 1 }).closest("header")!.parentElement?.getAttribute("data-page-frame")).toBe(
+      "wide",
+    );
+  });
+
+  it("ignores an answer for a folder the reader has already left", async () => {
+    let answerA: (v: unknown) => void = () => {};
+    getDriveFiles
+      .mockReset()
+      .mockReturnValueOnce(new Promise((r) => { answerA = r; }))
+      .mockResolvedValue(page([note("b", "B")], 5));
+    params = new URLSearchParams({ view: "all", folder: "A" });
+    const { rerender } = render(<NotesPage />);
+
+    params = new URLSearchParams({ view: "all", folder: "B" });
+    rerender(<NotesPage />);
+    await waitFor(() => expect(scopeLine().textContent).toContain('count\\":5'));
+
+    await act(async () => {
+      answerA(page([note("a", "A")], 99));
+    });
+    expect(scopeLine().textContent).toContain('count\\":5');
+    expect(scopeLine().textContent).not.toContain("99");
+  });
+
+  it("keeps the count when the URL is respelled but the scope is the same", async () => {
+    params = new URLSearchParams({ view: "all", sort: "updated" });
+    getDriveFiles.mockReset().mockResolvedValue(page([note("a", "Knowledge")], 5));
+    const { rerender } = render(<NotesPage />);
+    await waitFor(() => expect(scopeLine().textContent).toContain('count\\":5'));
+
+    params = new URLSearchParams({ view: "all" });
+    rerender(<NotesPage />);
+    await act(async () => {});
+    expect(scopeLine().textContent).toContain('count\\":5');
+  });
+
+  // `next dev` renders in StrictMode, which mounts, cleans up and mounts again.
+  it("keeps its count and finishes loading under StrictMode", async () => {
+    const first = Array.from({ length: 30 }, (_, i) => note(`n${i}`, "Knowledge"));
+    getDriveFiles.mockReset().mockResolvedValue(page(first, 31));
+    render(
+      <StrictMode>
+        <NotesPage />
+      </StrictMode>,
+    );
+    await screen.findByText("Note n0");
+    await act(async () => {});
+    expect(scopeLine().textContent).toContain('count\\":31');
+    expect(screen.getByRole("button", { name: "knowledge.notes.showMore" })).toBeEnabled();
+  });
+
+  it("drops the count when the reader leaves All notes for search results", async () => {
+    getDriveFiles.mockReset().mockResolvedValue(page([note("a", "Knowledge")], 5));
+    const { rerender } = render(<NotesPage />);
+    await waitFor(() => expect(scopeLine().textContent).toContain('count\\":5'));
+
+    params = new URLSearchParams({ q: "cats" });
+    rerender(<NotesPage />);
+    expect(scopeLine().textContent).toBe("d");
+  });
+
+  it("drops the landing's count when the reader moves to search results", async () => {
+    params = new URLSearchParams();
+    getDriveFiles.mockReset().mockResolvedValue(page([note("a", "Knowledge")], 7));
+    const { rerender } = render(<NotesPage />);
+    await waitFor(() => expect(scopeLine().textContent).toContain('count\\":7'));
+    expect(screen.getByRole("heading", { level: 1 }).closest("header")!.parentElement?.getAttribute("data-page-frame")).toBe(
+      "list",
+    );
+
+    params = new URLSearchParams({ q: "cats" });
+    rerender(<NotesPage />);
+    expect(scopeLine().textContent).toBe("d");
+  });
+
+  it("names the drive alone when the first page fails, and keeps the count when a later page does", async () => {
+    getDriveFiles.mockReset().mockRejectedValueOnce(new Error("down"));
+    const { unmount } = render(<NotesPage />);
+    await screen.findByText("knowledge.notes.loadFailed");
+    expect(scopeLine().textContent).toBe("d");
+    unmount();
+
+    const first = Array.from({ length: 30 }, (_, i) => note(`n${i}`, "Knowledge"));
+    getDriveFiles.mockReset().mockResolvedValueOnce(page(first, 31)).mockRejectedValueOnce(new Error("down"));
+    render(<NotesPage />);
+    await waitFor(() => expect(scopeLine().textContent).toContain('count\\":31'));
+    fireEvent.click(screen.getByRole("button", { name: "knowledge.notes.showMore" }));
+    await waitFor(() => expect(getDriveFiles).toHaveBeenCalledTimes(2));
+    await act(async () => {});
+    expect(scopeLine().textContent).toContain('count\\":31');
   });
 });

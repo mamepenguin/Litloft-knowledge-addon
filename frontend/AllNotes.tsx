@@ -59,11 +59,13 @@ function AllNotesList({
   scope,
   now,
   heading,
+  onTotal,
 }: {
   drive: string;
   scope: AllNotesScope;
   now: Date;
   heading: ReactNode[];
+  onTotal?: (total: number | null) => void;
 }) {
   const t = useTranslations("knowledge.notes");
   const [files, setFiles] = useState<FileItem[]>([]);
@@ -71,6 +73,16 @@ function AllNotesList({
   const [nextPage, setNextPage] = useState(1);
   const [loading, setLoading] = useState(false);
   const [failed, setFailed] = useState(false);
+  // The list is keyed on its drive and scope, so a new scope is a new
+  // instance; an answer for the one that left must not reach the header.
+  const mounted = useRef(true);
+  useEffect(() => {
+    mounted.current = true;
+    return () => {
+      mounted.current = false;
+      onTotal?.(null);
+    };
+  }, [onTotal]);
 
   const loadNext = useCallback(async () => {
     setLoading(true);
@@ -85,15 +97,18 @@ function AllNotesList({
         page: nextPage,
         limit: PAGE_SIZE,
       });
+      if (!mounted.current) return;
       setFiles((prev) => (nextPage === 1 ? res.data : appendUnseen(prev, res.data)));
       setTotal(res.meta.total);
+      onTotal?.(res.meta.total);
       setNextPage(nextPage + 1);
     } catch {
+      if (!mounted.current) return;
       setFailed(true);
     } finally {
-      setLoading(false);
+      if (mounted.current) setLoading(false);
     }
-  }, [drive, scope, nextPage]);
+  }, [drive, scope, nextPage, onTotal]);
 
   useEffect(() => {
     if (drive) void loadNext();
@@ -142,7 +157,17 @@ function AllNotesList({
   );
 }
 
-export default function AllNotes({ drive, scope, now }: { drive: string; scope: AllNotesScope; now: Date }) {
+export default function AllNotes({
+  drive,
+  scope,
+  now,
+  onTotal,
+}: {
+  drive: string;
+  scope: AllNotesScope;
+  now: Date;
+  onTotal?: (total: number | null) => void;
+}) {
   const t = useTranslations("knowledge.notes");
   const pathname = usePathname();
   const router = useRouter();
@@ -275,6 +300,7 @@ export default function AllNotes({ drive, scope, now }: { drive: string; scope: 
             scope={scope}
             now={now}
             heading={heading}
+            onTotal={onTotal}
           />
         </div>
       </div>

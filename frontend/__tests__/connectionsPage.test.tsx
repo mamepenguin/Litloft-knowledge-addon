@@ -39,6 +39,12 @@ function body(container: HTMLElement): HTMLElement {
 }
 
 describe("the connections page", () => {
+  it("wears the wide column", () => {
+    stubGraph(200, GRAPH);
+    const { container } = render(<ConnectionsPage />);
+    expect(container.querySelector("header")!.parentElement?.getAttribute("data-page-frame")).toBe("wide");
+  });
+
   afterEach(() => {
     cleanup();
     vi.unstubAllGlobals();

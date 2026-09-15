@@ -6,6 +6,7 @@ import { useTranslations } from "next-intl";
 import { Waypoints } from "lucide-react";
 
 import { useCurrentDrive } from "@/components/CurrentDriveProvider";
+import { PageFrame } from "@/components/PageFrame";
 import { PageHeader } from "@/components/PageHeader";
 
 import ConnectionsGraph from "../ConnectionsGraph";
@@ -16,7 +17,9 @@ export default function ConnectionsPage() {
   const t = useTranslations("knowledge.notes");
 
   return (
-    <div className="mx-auto flex w-full max-w-6xl flex-col gap-6 py-10">
+    <PageFrame
+      width="wide"
+      header={
       <PageHeader
         titleIcon={Waypoints}
         title={t("connections")}
@@ -29,9 +32,11 @@ export default function ConnectionsPage() {
           </Link>
         }
       />
-      <div className="px-4">
+      }
+    >
+      <div className="px-4 pb-10 pt-4">
         <ConnectionsGraph drive={drive} initialFocusId={focusId} />
       </div>
-    </div>
+    </PageFrame>
   );
 }

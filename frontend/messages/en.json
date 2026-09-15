@@ -301,7 +301,6 @@
     },
     "notes": {
       "heading": "Notes",
-      "description": "Markdown and text files in this drive.",
       "newNote": "New note",
       "findLabel": "Find a note",
       "findPlaceholder": "Find a note by title or folder",
