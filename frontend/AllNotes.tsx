@@ -59,11 +59,13 @@ function AllNotesList({
   scope,
   now,
   heading,
+  onTotal,
 }: {
   drive: string;
   scope: AllNotesScope;
   now: Date;
   heading: ReactNode[];
+  onTotal?: (total: number | null) => void;
 }) {
   const t = useTranslations("knowledge.notes");
   const [files, setFiles] = useState<FileItem[]>([]);
@@ -87,13 +89,15 @@ function AllNotesList({
       });
       setFiles((prev) => (nextPage === 1 ? res.data : appendUnseen(prev, res.data)));
       setTotal(res.meta.total);
+      onTotal?.(res.meta.total);
       setNextPage(nextPage + 1);
     } catch {
       setFailed(true);
+      if (nextPage === 1) onTotal?.(null);
     } finally {
       setLoading(false);
     }
-  }, [drive, scope, nextPage]);
+  }, [drive, scope, nextPage, onTotal]);
 
   useEffect(() => {
     if (drive) void loadNext();
@@ -142,7 +146,17 @@ function AllNotesList({
   );
 }
 
-export default function AllNotes({ drive, scope, now }: { drive: string; scope: AllNotesScope; now: Date }) {
+export default function AllNotes({
+  drive,
+  scope,
+  now,
+  onTotal,
+}: {
+  drive: string;
+  scope: AllNotesScope;
+  now: Date;
+  onTotal?: (total: number | null) => void;
+}) {
   const t = useTranslations("knowledge.notes");
   const pathname = usePathname();
   const router = useRouter();
@@ -275,6 +289,7 @@ export default function AllNotes({ drive, scope, now }: { drive: string; scope: 
             scope={scope}
             now={now}
             heading={heading}
+            onTotal={onTotal}
           />
         </div>
       </div>

@@ -128,7 +128,15 @@ export function ContinueWriting({ drive, now }: { drive: string; now: Date }) {
   );
 }
 
-export function RecentNotes({ drive, now }: { drive: string; now: Date }) {
+export function RecentNotes({
+  drive,
+  now,
+  onTotal,
+}: {
+  drive: string;
+  now: Date;
+  onTotal?: (total: number | null) => void;
+}) {
   const t = useTranslations("knowledge.notes");
   const pathname = usePathname();
   const [page, setPage] = useState<{ files: FileItem[]; total: number } | null>(null);
@@ -141,10 +149,14 @@ export function RecentNotes({ drive, now }: { drive: string; now: Date }) {
     let cancelled = false;
     getDriveFiles(drive, { type: "text", sort: "updated_at", order: "desc", limit: RECENT_LIMIT })
       .then((res) => {
-        if (!cancelled) setPage({ files: res.data, total: res.meta.total });
+        if (cancelled) return;
+        setPage({ files: res.data, total: res.meta.total });
+        onTotal?.(res.meta.total);
       })
       .catch(() => {
-        if (!cancelled) setFailed(true);
+        if (cancelled) return;
+        setFailed(true);
+        onTotal?.(null);
       });
     return () => {
       cancelled = true;

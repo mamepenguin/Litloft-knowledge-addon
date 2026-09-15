@@ -1,6 +1,6 @@
 "use client";
 
-import { useId, useState, type ReactNode } from "react";
+import { useEffect, useId, useState, type ReactNode } from "react";
 import Link from "next/link";
 import { usePathname, useSearchParams } from "next/navigation";
 import { useTranslations } from "next-intl";
@@ -8,6 +8,7 @@ import { ChevronDown, ChevronLeft, ChevronRight, FilePlus, Link2, NotebookPen, W
 
 import { Button } from "@/components/Button";
 import { useCurrentDrive } from "@/components/CurrentDriveProvider";
+import { PageFrame } from "@/components/PageFrame";
 import { PageHeader } from "@/components/PageHeader";
 import { useQuickNote } from "@/components/quick-note";
 
@@ -52,6 +53,8 @@ const TILE_CLASS =
 export default function NotesPage() {
   const drive = useCurrentDrive() ?? "";
   const t = useTranslations("knowledge.notes");
+  const tNav = useTranslations("knowledge.nav");
+  const tCommon = useTranslations("common");
   const searchParams = useSearchParams();
   const pathname = usePathname();
   const query = searchParams.get("q")?.trim() ?? "";
@@ -68,6 +71,14 @@ export default function NotesPage() {
   const now = useNoteClock();
 
   const inResults = Boolean(query) || showAll;
+
+  // Reported by the list the page is showing, so the scope line and the list
+  // under it state the same number. Search results report none.
+  const [total, setTotal] = useState<number | null>(null);
+  const listKey = showAll ? `all:${drive}:${searchParams.toString()}` : query ? "results" : `landing:${drive}`;
+  useEffect(() => {
+    setTotal(null);
+  }, [listKey]);
 
   const openNewNote = () =>
     quickNote.open(showAll && allScope.folder !== null ? { drive, folder: allScope.folder } : { drive });
@@ -88,7 +99,7 @@ export default function NotesPage() {
 
   const main = showAll ? (
     <div key="all" className="mt-6">
-      <AllNotes drive={drive} scope={allScope} now={now} />
+      <AllNotes drive={drive} scope={allScope} now={now} onTotal={setTotal} />
     </div>
   ) : query ? (
     <div key="results" className="mt-8">
@@ -100,7 +111,7 @@ export default function NotesPage() {
         <ContinueWriting drive={drive} now={now} />
       </div>
       <div className="mt-11">
-        <RecentNotes drive={drive} now={now} />
+        <RecentNotes drive={drive} now={now} onTotal={setTotal} />
       </div>
     </div>
   );
@@ -158,7 +169,9 @@ export default function NotesPage() {
     : [...leading, main, tools, clipRegion];
 
   return (
-    <div className={`mx-auto flex w-full flex-col py-10 ${showAll ? "max-w-6xl" : "max-w-list-row"}`}>
+    <PageFrame
+      width={showAll ? "wide" : "list"}
+      header={
       <PageHeader
         breadcrumb={
           showAll ? (
@@ -172,8 +185,14 @@ export default function NotesPage() {
           ) : undefined
         }
         titleIcon={showAll ? undefined : NotebookPen}
-        title={showAll ? t("all") : t("heading")}
-        scope={t("description")}
+        title={showAll ? t("all") : tNav("label")}
+        scope={
+          drive
+            ? total === null
+              ? drive
+              : tCommon("driveScope", { drive, detail: tCommon("items", { count: total }) })
+            : undefined
+        }
         actions={
           <Button variant="primary" onClick={openNewNote}>
             <FilePlus size={14} strokeWidth={1.8} />
@@ -181,7 +200,9 @@ export default function NotesPage() {
           </Button>
         }
       />
-      <div className="flex flex-col px-4">{body}</div>
-    </div>
+      }
+    >
+      <div className="flex flex-col px-4 pb-10">{body}</div>
+    </PageFrame>
   );
 }
