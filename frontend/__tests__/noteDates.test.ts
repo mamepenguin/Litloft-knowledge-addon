@@ -22,20 +22,29 @@ describe("noteAgeGroup", () => {
 });
 
 describe("noteAgeGroup across a daylight-saving change", () => {
-  it("still counts one calendar day as one", () => {
+  it("still counts one calendar day as one, at every boundary", () => {
     const zone = process.env.TZ;
     process.env.TZ = "America/New_York";
     try {
-      const dayAfterSpringForward = new Date(2026, 2, 9, 12);
-      const dayAfterFallBack = new Date(2026, 10, 2, 12);
+      const age = (from: Date, to: Date) => noteAgeGroup(from.toISOString(), to);
+      const afterSpringForward = new Date(2026, 2, 9, 12);
+      const afterFallBack = new Date(2026, 10, 2, 12);
       expect([
-        noteAgeGroup(new Date(2026, 2, 8, 12).toISOString(), dayAfterSpringForward),
-        noteAgeGroup(new Date(2026, 2, 3, 12).toISOString(), dayAfterSpringForward),
-        noteAgeGroup(new Date(2026, 10, 1, 12).toISOString(), dayAfterFallBack),
-        noteAgeGroup(new Date(2026, 9, 4, 12).toISOString(), dayAfterFallBack),
-      ]).toEqual(["week", "week", "week", "month"]);
+        age(new Date(2026, 2, 9, 0, 30), afterSpringForward),
+        age(new Date(2026, 2, 8, 12), afterSpringForward),
+        age(new Date(2026, 2, 3, 12), afterSpringForward),
+        age(new Date(2026, 2, 2, 12), afterSpringForward),
+        age(new Date(2026, 1, 19, 12), new Date(2026, 2, 20, 12)),
+        age(new Date(2026, 1, 18, 12), new Date(2026, 2, 20, 12)),
+        age(new Date(2026, 10, 1, 12), afterFallBack),
+        age(new Date(2026, 9, 27, 12), afterFallBack),
+        age(new Date(2026, 9, 26, 12), afterFallBack),
+        age(new Date(2026, 9, 4, 12), afterFallBack),
+        age(new Date(2026, 9, 3, 12), afterFallBack),
+      ]).toEqual(["today", "week", "week", "month", "month", "earlier", "week", "week", "month", "month", "earlier"]);
     } finally {
-      process.env.TZ = zone;
+      if (zone === undefined) delete process.env.TZ;
+      else process.env.TZ = zone;
     }
   });
 });
