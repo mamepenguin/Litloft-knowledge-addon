@@ -50,7 +50,7 @@ const ADDON_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
  * silence. `toBe`, per `review-workflow.md` rule 1: a floor tolerates
  * losing most of the tree and still reads as a guard.
  */
-const FILE_COUNT = 55;
+const FILE_COUNT = 56;
 const SELF = fileURLToPath(import.meta.url);
 
 function sourceFiles(dir: string): string[] {
