@@ -293,6 +293,26 @@ describe("the Notes landing", () => {
     }
   });
 
+  it.each([
+    ["focus", () => window.dispatchEvent(new Event("focus"))],
+    ["visibilitychange", () => document.dispatchEvent(new Event("visibilitychange"))],
+  ])("leaves no timer behind after a %s and then leaving the page", async (_, fire) => {
+    vi.useFakeTimers({ toFake: ["Date", "setTimeout", "clearTimeout"] });
+    vi.setSystemTime(new Date(2026, 8, 14, 23, 50));
+    try {
+      const { unmount } = render(<NotesPage />);
+      await act(async () => {});
+      await act(async () => {
+        fire();
+      });
+
+      unmount();
+      expect(vi.getTimerCount()).toBe(0);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it("catches up on the day when the page is shown again after sleeping past midnight", async () => {
     vi.useFakeTimers({ toFake: ["Date", "setTimeout", "clearTimeout"] });
     vi.setSystemTime(new Date(2026, 8, 14, 23, 50));

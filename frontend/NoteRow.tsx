@@ -27,14 +27,6 @@ function lowercaseWithOffsets(text: string): { lower: string; starts: number[]; 
     }
     offset += char.length;
   }
-  if (starts.length !== lower.length) {
-    const clamp = (i: number) => Math.min(i, text.length);
-    return {
-      lower,
-      starts: Array.from({ length: lower.length }, (_, i) => clamp(i)),
-      ends: Array.from({ length: lower.length }, (_, i) => clamp(i + 1)),
-    };
-  }
   return { lower, starts, ends };
 }
 
