@@ -249,6 +249,17 @@ describe("tag counts follow the chosen folder", () => {
     expect(remove.getAttribute("href")).toBe(`${PATH}?view=all&folder=Inbox`);
   });
 
+  it("offers taking the tag off without a folder and before the list answers, keeping sort and search", async () => {
+    getDriveFiles.mockReturnValue(new Promise(() => {}));
+    getDriveTags.mockResolvedValue([]);
+    params = new URLSearchParams({ view: "all", tag: "AI", sort: "created", q: "kyoto" });
+    render(<NotesPage />);
+
+    const remove = await screen.findByRole("link", { name: 'knowledge.notes.removeTag{"tag":"AI"}' });
+    expect(remove.getAttribute("href")).toBe(`${PATH}?view=all&sort=created&q=kyoto`);
+    expect(screen.queryByText("Note a")).toBeNull();
+  });
+
   it("shows the tags of the folder chosen last, even when the earlier answer arrives later", async () => {
     let answerEarlier!: (rows: { name: string; count: number }[]) => void;
     getDriveTags
