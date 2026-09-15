@@ -12,20 +12,28 @@ import { formatNoteTime } from "./noteDates";
 import { useNoteExcerpt } from "./useNoteExcerpt";
 
 // Lowercasing can lengthen a character (İ becomes i + a combining dot), so
-// offsets found in the lowercased text are mapped back to the original.
+// offsets found in the lowercased text are mapped back to the original. The
+// text is lowercased whole, as the query is, because some casing depends on
+// context (a word-final Σ becomes ς); only the lengths are taken per character.
 function lowercaseWithOffsets(text: string): { lower: string; starts: number[]; ends: number[] } {
-  let lower = "";
+  const lower = text.toLowerCase();
   const starts: number[] = [];
   const ends: number[] = [];
   let offset = 0;
   for (const char of text) {
-    const folded = char.toLowerCase();
-    for (let i = 0; i < folded.length; i++) {
+    for (let i = 0; i < char.toLowerCase().length; i++) {
       starts.push(offset);
       ends.push(offset + char.length);
     }
-    lower += folded;
     offset += char.length;
+  }
+  if (starts.length !== lower.length) {
+    const clamp = (i: number) => Math.min(i, text.length);
+    return {
+      lower,
+      starts: Array.from({ length: lower.length }, (_, i) => clamp(i)),
+      ends: Array.from({ length: lower.length }, (_, i) => clamp(i + 1)),
+    };
   }
   return { lower, starts, ends };
 }

@@ -287,6 +287,19 @@ describe("tag counts follow the chosen folder", () => {
     expect(rail()).not.toContainElement(document.activeElement as HTMLElement);
   });
 
+  it.each(["metaKey", "ctrlKey", "shiftKey", "altKey"])(
+    "leaves focus on the tag link when it is pressed with %s",
+    async (modifier) => {
+      params = new URLSearchParams({ view: "all", tag: "AI" });
+      render(<NotesPage />);
+      await screen.findByText("Note a");
+      const remove = screen.getByRole("link", { name: /^#AI/ });
+      remove.focus();
+      fireEvent.click(remove, { [modifier]: true });
+      expect(document.activeElement).toBe(remove);
+    },
+  );
+
   it("shows the tags of the folder chosen last, even when the earlier answer arrives later", async () => {
     let answerEarlier!: (rows: { name: string; count: number }[]) => void;
     getDriveTags

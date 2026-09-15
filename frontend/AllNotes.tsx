@@ -194,7 +194,9 @@ export default function AllNotes({ drive, scope, now }: { drive: string; scope: 
       <Link
         key="tag"
         href={allNotesHref(pathname, { ...scope, tag: null })}
-        onClick={() => listRef.current?.focus()}
+        onClick={(e) => {
+          if (!e.metaKey && !e.ctrlKey && !e.shiftKey && !e.altKey) listRef.current?.focus();
+        }}
         className="inline-flex items-center gap-1 rounded-full bg-accent-teal/15 py-0.5 pl-2.5 pr-1.5 text-sm font-medium text-accent-teal transition-colors hover:bg-accent-teal/25 pointer-coarse:min-h-11"
       >
         #{scope.tag}

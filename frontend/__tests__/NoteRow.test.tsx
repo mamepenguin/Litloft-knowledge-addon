@@ -82,6 +82,25 @@ describe("NoteRows", () => {
     expect(screen.getByRole("link")).toHaveTextContent(/^İstanbul ai/);
   });
 
+  it.each([
+    ["ΟΔΟΣ", "ΟΔΟΣ", ["ΟΔΟΣ"]],
+    ["ΟΔΟΣ", "οδος", ["ΟΔΟΣ"]],
+    ["Οδός ΚΑΙ ΟΔΟΣ", "ΟΔΟΣ", ["ΟΔΟΣ"]],
+    ["AI and ai tools", "Ai", ["AI", "ai"]],
+  ])("marks %s for %s the way the whole title lowercases", (title, query, expected) => {
+    respondWith("");
+    render(<NoteRows files={[note("a", title, "")]} now={NOW} query={query} />);
+    const marks = screen.queryAllByText((_, el) => el?.tagName === "MARK").map((m) => m.textContent);
+    expect(marks).toEqual(expected);
+  });
+
+  it("marks the matched letters after a character outside the basic plane", () => {
+    respondWith("");
+    render(<NoteRows files={[note("a", "😀 ai and 😀😀 AI", "")]} now={NOW} query="ai" />);
+    const marks = screen.getAllByText((_, el) => el?.tagName === "MARK").map((m) => m.textContent);
+    expect(marks).toEqual(["ai", "AI"]);
+  });
+
   it("marks a query whose own lowercase form is longer", () => {
     respondWith("");
     render(<NoteRows files={[note("a", "In İstanbul", "")]} now={NOW} query="İst" />);
