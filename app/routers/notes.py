@@ -10,9 +10,8 @@ Flow:
   1. Resolve drive from the ``X-Lit-Drive`` header.
   2. Resolve path, handle collisions.
   3. Write the .md via core ``POST /api/drives/{drive}/files``.
-  4. Register ``file_relations`` for each ``source_file_id`` so citations
-     are immediately visible as related files (subsequent PUT /content
-     edits will keep them in sync via Phase 1 loft:// sync).
+  4. Keep the ``source_file_ids`` that live on this drive. Core derives
+     relations from the note's own content, not from this list.
   5. INSERT ``note_origins`` + ``note_origin_sources`` as queryable cache.
   6. Emit ``knowledge.note.created`` WS event.
 """
@@ -95,29 +94,26 @@ async def create_note(
     note_rel_path = created.get("file_path") or _join_path(folder, final_filename)
     approved_at = datetime.now(timezone.utc)
 
-    # Register file_relations for each cited source file.
-    # create_text_file goes through POST /drives/{drive}/files which does
-    # not trigger the Phase 1 loft:// sync (that fires on PUT /content).
-    # We seed the relations explicitly here so citations are immediately
-    # visible; subsequent edits keep them in sync via Phase 1.
-    # Only insert note_origin_sources for IDs whose relation succeeded —
-    # this prevents cross-drive source_file_ids from leaking into the
-    # reverse-lookup index (drive is the security boundary).
+    # Only same-drive sources enter note_origin_sources: drive is the
+    # security boundary and that table is a reverse-lookup index.
     confirmed_source_ids: list[str] = []
-    for src_id in body.source_file_ids:
+    if body.source_file_ids:
         try:
-            await client.create_file_relation(
-                file_id_a=src_id,
-                file_id_b=note_file_id,
-                kind="related",
-                viewer_id=viewer_id,
-            )
-            confirmed_source_ids.append(src_id)
+            state = await client.fetch_bulk_state(body.source_file_ids)
         except InternalAPIError as e:
             logger.warning(
-                "notes: relation registration failed viewer=%s src=%s note=%s: %s",
-                viewer_id, src_id, note_file_id, e,
+                "notes: source lookup failed viewer=%s note=%s: %s",
+                viewer_id, note_file_id, e,
             )
+        else:
+            same_drive = {
+                row["id"] for row in state.get("statuses", [])
+                if row.get("drive") == drive
+            }
+            confirmed_source_ids = [
+                src_id for src_id in dict.fromkeys(body.source_file_ids)
+                if src_id in same_drive
+            ]
 
     origin_row = NoteOrigin(
         drive=drive,

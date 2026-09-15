@@ -7,8 +7,8 @@ Flow:
   3. Compose frontmatter + body markdown.
   4. Resolve path collisions by appending ``-2``, ``-3``, … to the stem
      until ``POST /api/drives/{drive}/files`` stops returning 409.
-  5. Register ``file_relations`` (kind="related") and
-     ``file_active_summaries`` via core Internal API.
+  5. Point ``file_active_summaries`` at the note. Core derives the relation
+     to the source from the ``source_file_ids`` frontmatter.
   6. INSERT ``note_origins`` + ``note_origin_sources`` as a queryable
      cache — the real source of truth is the ``.md`` frontmatter.
 
@@ -186,24 +186,6 @@ async def distill(
 
     note_file_id = created["id"]
     note_rel_path = _join_path(folder, final_filename)
-
-    # Register the relation in core. If it fails after the .md is
-    # already written, surface a 502 — the file is harmless on its own
-    # and can be re-promoted or cleaned up manually. We don't rollback
-    # the .md because it is user-owned data from the moment the write
-    # succeeded.
-    try:
-        await client.create_file_relation(
-            file_id_a=body.source_file_id,
-            file_id_b=note_file_id,
-            kind="related",
-            viewer_id=viewer_id,
-        )
-    except InternalAPIError as e:
-        logger.warning(
-            "distill: .md written but relation registration failed: %s", e
-        )
-        raise HTTPException(status_code=502, detail=str(e))
 
     # active_summary pointer lives in knowledge.db now (spec
     # 2026-04-30-file-active-summary-to-knowledge). UPSERT in the same

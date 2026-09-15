@@ -17,7 +17,7 @@ def _payload(**overrides):
 
 
 class TestNoteFromFileHappyPath:
-    def test_creates_note_and_seeds_relation(self, client, fake_internal, viewer_cookie):
+    def test_creates_note_without_writing_a_relation(self, client, fake_internal, viewer_cookie):
         res = client.post(
             "/note-from-file",
             json=_payload(),
@@ -28,12 +28,7 @@ class TestNoteFromFileHappyPath:
         assert body["note_file_id"]
         assert body["note_path"] == "Untitled.md"
 
-        # Relation registered in core.
-        assert len(fake_internal.captured_relations) == 1
-        rel = fake_internal.captured_relations[0]
-        assert rel["file_id_a"] == "src001"
-        assert rel["file_id_b"] == body["note_file_id"]
-        assert rel["kind"] == "related"
+        assert fake_internal.captured_relations == []
 
     def test_initial_content_has_source_file_ids_frontmatter(
         self, client, fake_internal, viewer_cookie

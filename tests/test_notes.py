@@ -46,7 +46,7 @@ class TestCreateNote:
         assert writes[0]["drive"] == "test-drive"
         assert writes[0]["path"] == "Ask/my-note.md"
 
-    def test_registers_file_relations_for_each_source(
+    def test_writes_no_relation(
         self, client, fake_internal, viewer_cookie, knowledge_db
     ):
         r = _post_note(
@@ -55,12 +55,53 @@ class TestCreateNote:
             source_file_ids=["src000000aa", "src000000bb"],
         )
         assert r.status_code == 201, r.text
-        note_id = r.json()["note_file_id"]
-        rels = fake_internal.captured_relations
-        assert len(rels) == 2
-        related_ids = {(rel["file_id_a"], rel["file_id_b"]) for rel in rels}
-        assert ("src000000aa", note_id) in related_ids
-        assert ("src000000bb", note_id) in related_ids
+        assert fake_internal.captured_relations == []
+
+    def test_only_same_drive_sources_are_recorded(
+        self, client, fake_internal, viewer_cookie, knowledge_db
+    ):
+        fake_internal.bulk_state_drives = {"src000000bb": "media", "src000000cc": None}
+        r = _post_note(
+            client, viewer_cookie,
+            content="body",
+            source_file_ids=["src000000aa", "src000000bb", "src000000cc"],
+        )
+        assert r.status_code == 201, r.text
+
+        verify = knowledge_db()
+        recorded = {s.source_file_id for s in verify.query(NoteOriginSource).all()}
+        verify.close()
+        assert recorded == {"src000000aa"}
+
+    def test_repeated_source_is_recorded_once(
+        self, client, fake_internal, viewer_cookie, knowledge_db
+    ):
+        r = _post_note(
+            client, viewer_cookie,
+            content="body",
+            source_file_ids=["src000000aa", "src000000aa"],
+        )
+        assert r.status_code == 201, r.text
+
+        verify = knowledge_db()
+        assert verify.query(NoteOriginSource).count() == 1
+        verify.close()
+
+    def test_source_lookup_failure_still_creates_the_note(
+        self, client, fake_internal, viewer_cookie, knowledge_db
+    ):
+        fake_internal.raise_on_bulk_state = 500
+        r = _post_note(
+            client, viewer_cookie,
+            content="body",
+            source_file_ids=["src000000aa"],
+        )
+        assert r.status_code == 201, r.text
+
+        verify = knowledge_db()
+        assert verify.query(NoteOrigin).count() == 1
+        assert verify.query(NoteOriginSource).count() == 0
+        verify.close()
 
     def test_inserts_note_origins(
         self, client, fake_internal, viewer_cookie, knowledge_db

@@ -6,14 +6,11 @@ Flow:
   3. Compose initial frontmatter: ``source_file_ids: [source_file_id]``.
   4. Write the ``.md`` via core ``POST /api/drives/{drive}/files`` with
      collision retry (same pattern as ``distill.py``).
-  5. Register ``file_relations`` (kind="related") via Internal API so the
-     relation is immediately visible without waiting for a PUT /content edit
-     to trigger Phase 1 sync.
-  6. Return ``{ note_file_id, note_path }``.
+  5. Return ``{ note_file_id, note_path }``.
 
-The core's ``_sync_md_file_relations`` reads ``source_file_ids`` from
-frontmatter on every ``PUT /content``, so the relation is maintained as long
-as the frontmatter key is present — regardless of body content.
+Core derives the note's relation to the source from the ``source_file_ids``
+frontmatter when the file is created and on every save; this router writes
+no relation itself.
 """
 from __future__ import annotations
 
@@ -96,24 +93,6 @@ async def create_note_from_file(
 
     note_file_id = created["id"]
     note_rel_path = _join_path(folder, final_filename)
-
-    # Seed file_relations immediately. POST /drives/{drive}/files does not
-    # trigger Phase 1 sync (that fires on PUT /content), so we register the
-    # relation explicitly. Subsequent saves keep it in sync via frontmatter.
-    try:
-        await client.create_file_relation(
-            file_id_a=body.source_file_id,
-            file_id_b=note_file_id,
-            kind="related",
-            viewer_id=viewer_id,
-        )
-    except InternalAPIError as e:
-        logger.warning(
-            "note-from-file: .md written but relation seed failed "
-            "source=%s note=%s: %s",
-            body.source_file_id, note_file_id, e,
-        )
-        raise HTTPException(status_code=502, detail=str(e))
 
     await client.emit_addon_event(
         "knowledge.note.created",
