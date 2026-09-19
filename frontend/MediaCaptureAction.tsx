@@ -90,7 +90,7 @@ export default function MediaCaptureAction({
       // has no such rule. `docs/ADDON-DEVELOPMENT.md` states the floor as
       // an obligation of the entry, so the entry keeps it rather than
       // inheriting it from one of the two rows it can land in.
-      className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-bg-border bg-bg-card text-text-muted transition-colors hover:bg-bg-elevated hover:text-text-primary pointer-coarse:h-11 pointer-coarse:w-11"
+      className="inline-flex h-9 w-9 items-center justify-center rounded-lg bg-bg-card text-text-muted transition-colors hover:bg-bg-elevated hover:text-text-primary pointer-coarse:h-11 pointer-coarse:w-11"
     >
       <Quote size={16} />
     </button>
