@@ -12,6 +12,7 @@ import type { FileItem } from "@/types";
 
 import { appendUnseen } from "./notePages";
 import { NoteRows } from "./NoteRow";
+import { useNoteOpenings } from "./useNoteOpenings";
 
 const PAGE_SIZE = 30;
 
@@ -27,6 +28,7 @@ export default function NoteResults({ drive, now, query }: Props) {
   const t = useTranslations("knowledge.notes");
   const pathname = usePathname();
   const [files, setFiles] = useState<FileItem[]>([]);
+  const openings = useNoteOpenings(drive, files.map((f) => f.id));
   const [total, setTotal] = useState<number | null>(null);
   const [nextPage, setNextPage] = useState(1);
   const [loading, setLoading] = useState(false);
@@ -82,7 +84,9 @@ export default function NoteResults({ drive, now, query }: Props) {
         </Link>
       </div>
       {total === 0 && <p className="text-sm text-text-muted sm:px-3">{query ? t("noResults") : t("empty")}</p>}
-      <NoteRows files={files} now={now} query={query} />
+      {openings !== null && (
+        <NoteRows files={files} now={now} openings={openings} query={query} />
+      )}
       {failed && <p role="alert" className="text-xs text-danger">{t("loadFailed")}</p>}
       {more && (
         <Button variant="secondary" className="self-center" disabled={loading} onClick={() => void loadNext()}>

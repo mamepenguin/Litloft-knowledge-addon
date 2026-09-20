@@ -16,6 +16,7 @@ import { ALL_NOTES_SORTS, SORT_REQUEST, allNotesHref, type AllNotesScope } from 
 import { groupNotesByAge } from "./noteDates";
 import { appendUnseen } from "./notePages";
 import { NoteRows } from "./NoteRow";
+import { useNoteOpenings } from "./useNoteOpenings";
 
 const PAGE_SIZE = 30;
 
@@ -69,6 +70,7 @@ function AllNotesList({
 }) {
   const t = useTranslations("knowledge.notes");
   const [files, setFiles] = useState<FileItem[]>([]);
+  const openings = useNoteOpenings(drive, files.map((f) => f.id));
   const [total, setTotal] = useState<number | null>(null);
   const [nextPage, setNextPage] = useState(1);
   const [loading, setLoading] = useState(false);
@@ -135,17 +137,29 @@ function AllNotesList({
         </span>
       </div>
       {total === 0 && <p className="text-sm text-text-muted sm:px-3">{t("noResults")}</p>}
-      {scope.sort === "updated" ? (
+      {openings === null ? null : scope.sort === "updated" ? (
         <div className="flex flex-col gap-4">
           {groupNotesByAge(files, now).map(({ group, files: grouped }) => (
             <div key={group}>
               <h3 className="px-1 pb-1 text-xs font-semibold text-text-muted sm:px-3">{t(`age.${group}`)}</h3>
-              <NoteRows files={grouped} now={now} query={query} showTags={showTags} />
+              <NoteRows
+                files={grouped}
+                now={now}
+                openings={openings}
+                query={query}
+                showTags={showTags}
+              />
             </div>
           ))}
         </div>
       ) : (
-        <NoteRows files={files} now={now} query={query} showTags={showTags} />
+        <NoteRows
+          files={files}
+          now={now}
+          openings={openings}
+          query={query}
+          showTags={showTags}
+        />
       )}
       {failed && <p role="alert" className="text-xs text-danger">{t("loadFailed")}</p>}
       {more && (

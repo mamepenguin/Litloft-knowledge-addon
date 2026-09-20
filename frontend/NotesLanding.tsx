@@ -12,6 +12,7 @@ import { getDriveFiles, getWatchHistory } from "@/lib/api";
 import type { FileItem } from "@/types";
 
 import ContinueCard from "./ContinueCard";
+import { useNoteOpenings } from "./useNoteOpenings";
 import { groupNotesByAge } from "./noteDates";
 import { NoteRows } from "./NoteRow";
 
@@ -107,8 +108,10 @@ export function ContinueWriting({ drive, now }: { drive: string; now: Date }) {
     };
   }, [drive, nickname]);
 
+  const openings = useNoteOpenings(drive, rows?.map((f) => f.id) ?? null);
+
   if (!nickname) return null;
-  if (!failed && (rows === null || rows.length === 0)) return null;
+  if (!failed && (rows === null || rows.length === 0 || openings === null)) return null;
 
   return (
     <section>
@@ -120,7 +123,12 @@ export function ContinueWriting({ drive, now }: { drive: string; now: Date }) {
       ) : (
         <SectionRow>
           {(rows ?? []).map((file) => (
-            <ContinueCard key={file.id} file={file} now={now} />
+            <ContinueCard
+              key={file.id}
+              file={file}
+              now={now}
+              opening={openings?.[file.id]}
+            />
           ))}
         </SectionRow>
       )}
@@ -163,6 +171,9 @@ export function RecentNotes({
     };
   }, [drive]);
 
+  const openings = useNoteOpenings(drive, page?.files.map((f) => f.id) ?? null);
+  const rowsReady = page !== null && openings !== null;
+
   const allLink =
     page && page.total > 0 ? (
       <Link
@@ -181,12 +192,12 @@ export function RecentNotes({
       </SectionHeading>
       {failed && <p role="alert" className="text-xs text-danger">{t("loadFailed")}</p>}
       {page && page.total === 0 && <p className="text-sm text-text-muted">{t("empty")}</p>}
-      {page && page.total > 0 && (
+      {rowsReady && page.total > 0 && (
         <div className="flex flex-col gap-4">
           {groupNotesByAge(page.files, now).map(({ group, files }) => (
             <div key={group}>
               <h3 className="px-1 pb-1 text-xs font-semibold text-text-muted sm:px-3">{t(`age.${group}`)}</h3>
-              <NoteRows files={files} now={now} />
+              <NoteRows files={files} now={now} openings={openings} />
             </div>
           ))}
         </div>

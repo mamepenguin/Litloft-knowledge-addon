@@ -83,6 +83,11 @@
                 "response_filter": null
             },
             {
+                "path": "/note-openings",
+                "methods": ["POST"],
+                "response_filter": null
+            },
+            {
                 "path": "/notes",
                 "methods": ["POST"],
                 "response_filter": null

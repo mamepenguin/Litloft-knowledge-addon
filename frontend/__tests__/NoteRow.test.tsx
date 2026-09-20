@@ -12,7 +12,7 @@ vi.mock("next/link", () => ({
 }));
 
 const { NoteRows } = await import("../NoteRow");
-const { excerptFromText } = await import("../useNoteExcerpt");
+const { excerptFromText } = await import("../noteExcerpt");
 
 const NOW = new Date(2026, 8, 14, 15, 0);
 
@@ -28,16 +28,10 @@ function note(id: string, title: string, folder: string): FileItem {
   } as FileItem;
 }
 
-function respondWith(body: string, ok = true) {
-  vi.stubGlobal(
-    "fetch",
-    vi.fn(async () => ({ ok, text: async () => body })),
-  );
-}
+const OPENINGS = { a: "---\nid: 1\n---\n# Trip\n\nDay one:\nthe market.", b: "Root body." };
 
 afterEach(() => {
   cleanup();
-  vi.unstubAllGlobals();
 });
 
 describe("excerptFromText", () => {
@@ -48,34 +42,40 @@ describe("excerptFromText", () => {
 });
 
 describe("NoteRows", () => {
-  it("shows the body's opening line, the folder or the drive root, and today's time", async () => {
-    respondWith("# Trip\n\nDay one:\nthe market.");
-    render(<NoteRows files={[note("a", "Trip", "Travel"), note("b", "Root note", "")]} now={NOW} />);
+  it("shows the body's opening line, the folder or the drive root, and today's time", () => {
+    render(
+      <NoteRows
+        files={[note("a", "Trip", "Travel"), note("b", "Root note", "")]}
+        now={NOW}
+        openings={OPENINGS}
+      />,
+    );
 
     const [trip, root] = screen.getAllByRole("link");
-    expect(await within(trip).findByTestId("note-excerpt")).toHaveTextContent(/^Day one: the market\.$/);
+    // In the first render: a row that grows later pushes every row under it.
+    expect(within(trip).getByTestId("note-excerpt")).toHaveTextContent(/^Day one: the market\.$/);
     expect(trip).toHaveTextContent("Travel");
     expect(trip).toHaveTextContent("09:05");
     expect(root).toHaveTextContent("knowledge.notes.rootFolder");
     expect(trip.getAttribute("href")).toBe("/drive/d/Travel?file=a");
   });
 
-  it("draws no excerpt line when the body is empty or cannot be read", async () => {
-    respondWith("", false);
-    render(<NoteRows files={[note("a", "Trip", "Travel")]} now={NOW} />);
-    await new Promise((r) => setTimeout(r, 0));
+  it.each([
+    ["the listing brought none", undefined],
+    ["the note has no body", {} as Record<string, string>],
+    ["the body is only its own title", { a: "# Trip\n" }],
+  ])("draws no excerpt line when %s", (_name, openings) => {
+    render(<NoteRows files={[note("a", "Trip", "Travel")]} now={NOW} openings={openings} />);
     expect(screen.queryByTestId("note-excerpt")).toBeNull();
   });
 
   it("marks every case-insensitive match of the query in the title and the folder", () => {
-    respondWith("");
     render(<NoteRows files={[note("a", "AI and ai tools", "Knowledge/AI")]} now={NOW} query="ai" />);
     const marks = screen.getAllByText((_, el) => el?.tagName === "MARK").map((m) => m.textContent);
     expect(marks).toEqual(["AI", "ai", "AI", "AI"]);
   });
 
   it("marks the matched letters in a title whose lowercase form is longer", () => {
-    respondWith("");
     render(<NoteRows files={[note("a", "İstanbul ai", "")]} now={NOW} query="ai" />);
     const marks = screen.getAllByText((_, el) => el?.tagName === "MARK").map((m) => m.textContent);
     expect(marks).toEqual(["ai"]);
@@ -88,21 +88,18 @@ describe("NoteRows", () => {
     ["Οδός ΚΑΙ ΟΔΟΣ", "ΟΔΟΣ", ["ΟΔΟΣ"]],
     ["AI and ai tools", "Ai", ["AI", "ai"]],
   ])("marks %s for %s the way the whole title lowercases", (title, query, expected) => {
-    respondWith("");
     render(<NoteRows files={[note("a", title, "")]} now={NOW} query={query} />);
     const marks = screen.queryAllByText((_, el) => el?.tagName === "MARK").map((m) => m.textContent);
     expect(marks).toEqual(expected);
   });
 
   it("marks the matched letters after a character outside the basic plane", () => {
-    respondWith("");
     render(<NoteRows files={[note("a", "😀 ai and 😀😀 AI", "")]} now={NOW} query="ai" />);
     const marks = screen.getAllByText((_, el) => el?.tagName === "MARK").map((m) => m.textContent);
     expect(marks).toEqual(["ai", "AI"]);
   });
 
   it("marks a query whose own lowercase form is longer", () => {
-    respondWith("");
     render(<NoteRows files={[note("a", "In İstanbul", "")]} now={NOW} query="İst" />);
     const marks = screen.getAllByText((_, el) => el?.tagName === "MARK").map((m) => m.textContent);
     expect(marks).toEqual(["İst"]);

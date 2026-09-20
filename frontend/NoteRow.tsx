@@ -9,7 +9,7 @@ import { buildCanonicalFileUrl } from "@/lib/canonicalFileUrl";
 import type { FileItem } from "@/types";
 
 import { formatNoteTime } from "./noteDates";
-import { useNoteExcerpt } from "./useNoteExcerpt";
+import { excerptFromText } from "./noteExcerpt";
 
 // Lowercasing can lengthen a character (İ becomes i + a combining dot), so
 // offsets found in the lowercased text are mapped back to the original. The
@@ -59,6 +59,8 @@ export function markMatches(text: string, query: string | undefined): ReactNode 
 interface Props {
   file: FileItem;
   now: Date;
+  /** The note's opening text, already in hand when the row is drawn. */
+  opening?: string;
   query?: string;
   /** In place of the folder, for a list already narrowed to one folder. */
   showTags?: boolean;
@@ -76,11 +78,11 @@ function TagChips({ tags }: { tags: string[] }) {
   );
 }
 
-export default function NoteRow({ file, now, query, showTags = false }: Props) {
+export default function NoteRow({ file, now, opening, query, showTags = false }: Props) {
   const t = useTranslations("knowledge.notes");
   const locale = useLocale();
   const title = file.title || file.filename;
-  const excerpt = useNoteExcerpt(file.id, title);
+  const excerpt = opening ? excerptFromText(opening, title) : "";
   const folder = file.folder_path || t("rootFolder");
   const time = formatNoteTime(file.updated_at, now, locale);
 
@@ -142,11 +144,14 @@ export default function NoteRow({ file, now, query, showTags = false }: Props) {
 export function NoteRows({
   files,
   now,
+  openings,
   query,
   showTags,
 }: {
   files: FileItem[];
   now: Date;
+  /** Keyed by file id; a note with no body text has no entry. */
+  openings?: Record<string, string>;
   query?: string;
   showTags?: boolean;
 }) {
@@ -155,7 +160,13 @@ export function NoteRows({
       {files.map((file, i) => (
         <li key={file.id}>
           {i > 0 && <div aria-hidden="true" className="ml-[3.375rem] h-px bg-bg-border sm:ml-[3.875rem] sm:mr-3" />}
-          <NoteRow file={file} now={now} query={query} showTags={showTags} />
+          <NoteRow
+            file={file}
+            now={now}
+            opening={openings?.[file.id]}
+            query={query}
+            showTags={showTags}
+          />
         </li>
       ))}
     </ul>

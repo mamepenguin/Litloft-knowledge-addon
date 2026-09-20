@@ -18,6 +18,7 @@ from app.routers import (
     connections_graph,
     distill,
     note_from_file,
+    note_openings,
     notes,
     search,
     tags,
@@ -174,6 +175,7 @@ app.include_router(captures.router)
 app.include_router(connections_graph.router)
 app.include_router(distill.router)
 app.include_router(note_from_file.router)
+app.include_router(note_openings.router)
 app.include_router(notes.router)
 app.include_router(search.router)
 app.include_router(tags.router)

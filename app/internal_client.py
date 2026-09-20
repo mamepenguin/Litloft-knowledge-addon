@@ -159,6 +159,18 @@ class InternalClient:
             raise InternalAPIError(r.status_code, r.text)
         return list(r.json().get("data", []))
 
+    async def filter_file_ids(self, file_ids: list[str]) -> list[str]:
+        """Keep only the ids this caller may read, as core sees them."""
+        async with httpx.AsyncClient(timeout=10.0) as client:
+            r = await client.post(
+                f"{HOMEVAULT_INTERNAL_URL}/api/internal/filter-file-ids",
+                json={"file_ids": file_ids},
+                headers=self._headers(),
+            )
+        if r.status_code != 200:
+            raise InternalAPIError(r.status_code, r.text)
+        return list(r.json().get("accessible", []))
+
     async def get_file_content(self, file_id: str) -> str:
         """Fetch the raw text content of a file via the core stream route.
 
