@@ -29,6 +29,7 @@ export default function NoteResults({ drive, now, query }: Props) {
   const pathname = usePathname();
   const [files, setFiles] = useState<FileItem[]>([]);
   const openings = useNoteOpenings(drive, files.map((f) => f.id));
+  const drawn = files.filter((file) => openings.answered.has(file.id));
   const [total, setTotal] = useState<number | null>(null);
   const [nextPage, setNextPage] = useState(1);
   const [loading, setLoading] = useState(false);
@@ -84,9 +85,7 @@ export default function NoteResults({ drive, now, query }: Props) {
         </Link>
       </div>
       {total === 0 && <p className="text-sm text-text-muted sm:px-3">{query ? t("noResults") : t("empty")}</p>}
-      {openings !== null && (
-        <NoteRows files={files} now={now} openings={openings} query={query} />
-      )}
+      <NoteRows files={drawn} now={now} openings={openings.text} query={query} />
       {failed && <p role="alert" className="text-xs text-danger">{t("loadFailed")}</p>}
       {more && (
         <Button variant="secondary" className="self-center" disabled={loading} onClick={() => void loadNext()}>

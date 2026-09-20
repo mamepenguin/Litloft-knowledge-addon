@@ -409,6 +409,37 @@ describe("the All notes list", () => {
     expect(screen.queryByRole("button", { name: "knowledge.notes.showMore" })).toBeNull();
   });
 
+  it("keeps the rows it has drawn while a further page's openings are on the way", async () => {
+    const first = Array.from({ length: 30 }, (_, i) => note(`n${i}`, "Knowledge"));
+    getDriveFiles
+      .mockResolvedValueOnce(page(first, 31))
+      .mockResolvedValueOnce(page([note("n30", "Knowledge")], 31));
+    let openingsCalls = 0;
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (url: string) => {
+        if (String(url).endsWith("/note-openings")) {
+          openingsCalls += 1;
+          if (openingsCalls === 1) {
+            return { ok: true, status: 200, json: async () => ({ openings: {} }) };
+          }
+          // The second page's answer never arrives in this test.
+          await new Promise(() => {});
+        }
+        return { ok: false, text: async () => "" };
+      }),
+    );
+
+    render(<NotesPage />);
+    await screen.findByText("Note n29");
+
+    fireEvent.click(screen.getByRole("button", { name: "knowledge.notes.showMore" }));
+    await waitFor(() => expect(getDriveFiles).toHaveBeenCalledTimes(2));
+    await act(async () => {});
+
+    expect(screen.getAllByRole("link", { name: /^Note n/ })).toHaveLength(30);
+  });
+
   it("offers a way back to the Notes landing and titles the page All notes", async () => {
     render(<NotesPage />);
     expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent("knowledge.notes.all");

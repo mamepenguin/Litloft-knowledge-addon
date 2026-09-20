@@ -71,6 +71,9 @@ function AllNotesList({
   const t = useTranslations("knowledge.notes");
   const [files, setFiles] = useState<FileItem[]>([]);
   const openings = useNoteOpenings(drive, files.map((f) => f.id));
+  // Drawn once its own opening is known: a row that arrives complete never
+  // grows, and appending a page leaves the rows above it alone.
+  const drawn = files.filter((file) => openings.answered.has(file.id));
   const [total, setTotal] = useState<number | null>(null);
   const [nextPage, setNextPage] = useState(1);
   const [loading, setLoading] = useState(false);
@@ -137,15 +140,15 @@ function AllNotesList({
         </span>
       </div>
       {total === 0 && <p className="text-sm text-text-muted sm:px-3">{t("noResults")}</p>}
-      {openings === null ? null : scope.sort === "updated" ? (
+      {scope.sort === "updated" ? (
         <div className="flex flex-col gap-4">
-          {groupNotesByAge(files, now).map(({ group, files: grouped }) => (
+          {groupNotesByAge(drawn, now).map(({ group, files: grouped }) => (
             <div key={group}>
               <h3 className="px-1 pb-1 text-xs font-semibold text-text-muted sm:px-3">{t(`age.${group}`)}</h3>
               <NoteRows
                 files={grouped}
                 now={now}
-                openings={openings}
+                openings={openings.text}
                 query={query}
                 showTags={showTags}
               />
@@ -154,9 +157,9 @@ function AllNotesList({
         </div>
       ) : (
         <NoteRows
-          files={files}
+          files={drawn}
           now={now}
-          openings={openings}
+          openings={openings.text}
           query={query}
           showTags={showTags}
         />

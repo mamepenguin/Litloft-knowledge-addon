@@ -1,6 +1,7 @@
 """Note openings, fetched once per listing rather than once per row."""
 from __future__ import annotations
 
+import httpx
 import pytest
 
 from app.internal_client import InternalAPIError
@@ -9,20 +10,34 @@ from tests.conftest import FakeInternalClient
 
 class OpeningsFake(FakeInternalClient):
     accessible_ids: list[str] = []
+    drive_of: dict[str, str] = {}
     contents: dict[str, str] = {}
-    content_failures: set[str] = set()
+    content_failures: dict[str, Exception] = {}
+    filter_failure: Exception | None = None
     filtered: list[list[str]] = []
-    fetched: list[str] = []
+    fetched: list[tuple[str, int]] = []
 
     async def filter_file_ids(self, file_ids):
         OpeningsFake.filtered.append(list(file_ids))
+        if OpeningsFake.filter_failure is not None:
+            raise OpeningsFake.filter_failure
         return [i for i in file_ids if i in OpeningsFake.accessible_ids]
 
-    async def get_file_content(self, file_id: str) -> str:
-        OpeningsFake.fetched.append(file_id)
-        if file_id in OpeningsFake.content_failures:
-            raise InternalAPIError(404, "gone")
-        return OpeningsFake.contents.get(file_id, "")
+    async def fetch_bulk_files(self, file_ids):
+        return {
+            "files": [
+                {"id": i, "drive": OpeningsFake.drive_of.get(i, "test-drive")}
+                for i in file_ids
+            ],
+            "not_found": [],
+        }
+
+    async def get_file_opening(self, file_id: str, max_bytes: int) -> str:
+        OpeningsFake.fetched.append((file_id, max_bytes))
+        failure = OpeningsFake.content_failures.get(file_id)
+        if failure is not None:
+            raise failure
+        return OpeningsFake.contents.get(file_id, "")[:max_bytes]
 
 
 @pytest.fixture()
@@ -30,8 +45,10 @@ def fake_openings(monkeypatch):
     import app.routers.note_openings as router
 
     OpeningsFake.accessible_ids = []
+    OpeningsFake.drive_of = {}
     OpeningsFake.contents = {}
-    OpeningsFake.content_failures = set()
+    OpeningsFake.content_failures = {}
+    OpeningsFake.filter_failure = None
     OpeningsFake.filtered = []
     OpeningsFake.fetched = []
     monkeypatch.setattr(router, "InternalClient", OpeningsFake)
@@ -68,7 +85,7 @@ def test_a_file_the_caller_cannot_read_is_never_fetched_or_returned(
 
     assert res.json()["openings"] == {"mine": "ok"}
     assert OpeningsFake.filtered == [["mine", "locked"]]
-    assert "locked" not in OpeningsFake.fetched
+    assert [i for i, _ in OpeningsFake.fetched] == ["mine"]
 
 
 def test_one_unreadable_file_does_not_take_the_others_down(
@@ -76,7 +93,7 @@ def test_one_unreadable_file_does_not_take_the_others_down(
 ):
     OpeningsFake.accessible_ids = ["a", "b"]
     OpeningsFake.contents = {"b": "Body."}
-    OpeningsFake.content_failures = {"a"}
+    OpeningsFake.content_failures = {"a": InternalAPIError(404, "gone")}
 
     res = post(client, ["a", "b"], viewer_cookie)
 
@@ -84,15 +101,58 @@ def test_one_unreadable_file_does_not_take_the_others_down(
     assert res.json()["openings"] == {"b": "Body."}
 
 
-def test_only_the_opening_is_returned(client, knowledge_db, fake_openings, viewer_cookie):
-    from app.routers.note_openings import OPENING_CHARS
+def test_only_the_opening_is_read_and_returned(
+    client, knowledge_db, fake_openings, viewer_cookie
+):
+    from app.routers.note_openings import OPENING_BYTES, OPENING_CHARS
 
     OpeningsFake.accessible_ids = ["a"]
     OpeningsFake.contents = {"a": "x" * (OPENING_CHARS + 500)}
 
     res = post(client, ["a"], viewer_cookie)
 
+    # The read is bounded at the source: a whole-file read is what turns a
+    # list of ids into hundreds of whole files in memory.
+    assert OpeningsFake.fetched == [("a", OPENING_BYTES)]
     assert res.json()["openings"]["a"] == "x" * OPENING_CHARS
+
+
+def test_a_file_from_another_drive_is_not_read(
+    client, knowledge_db, fake_openings, viewer_cookie
+):
+    OpeningsFake.accessible_ids = ["here", "elsewhere"]
+    OpeningsFake.drive_of = {"here": "test-drive", "elsewhere": "other-drive"}
+    OpeningsFake.contents = {"here": "This drive.", "elsewhere": "Another drive."}
+
+    res = post(client, ["here", "elsewhere"], viewer_cookie)
+
+    assert res.json()["openings"] == {"here": "This drive."}
+    assert [i for i, _ in OpeningsFake.fetched] == ["here"]
+
+
+def test_a_timeout_on_one_file_leaves_the_others(
+    client, knowledge_db, fake_openings, viewer_cookie
+):
+    OpeningsFake.accessible_ids = ["a", "b"]
+    OpeningsFake.contents = {"b": "Body."}
+    OpeningsFake.content_failures = {"a": httpx.ReadTimeout("slow")}
+
+    res = post(client, ["a", "b"], viewer_cookie)
+
+    assert res.status_code == 200
+    assert res.json()["openings"] == {"b": "Body."}
+
+
+def test_when_the_access_filter_fails_nothing_is_read(
+    client, knowledge_db, fake_openings, viewer_cookie
+):
+    OpeningsFake.filter_failure = InternalAPIError(503, "core is down")
+    OpeningsFake.contents = {"a": "secret"}
+
+    res = post(client, ["a"], viewer_cookie)
+
+    assert res.status_code == 502
+    assert OpeningsFake.fetched == []
 
 
 def test_more_ids_than_a_listing_can_hold_are_refused(

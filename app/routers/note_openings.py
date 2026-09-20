@@ -9,7 +9,9 @@ from __future__ import annotations
 import asyncio
 import logging
 from typing import Annotated
+from urllib.parse import unquote
 
+import httpx
 from fastapi import APIRouter, Depends, Header, HTTPException, Request
 
 from app.auth import get_optional_viewer_id
@@ -23,6 +25,9 @@ router = APIRouter(tags=["note-openings"])
 
 MAX_IDS = 200
 OPENING_CHARS = 1024
+# A character is at most four bytes, and the answer is cut to
+# ``OPENING_CHARS`` after decoding.
+OPENING_BYTES = OPENING_CHARS * 4
 _PARALLEL_FETCHES = 8
 
 
@@ -42,23 +47,30 @@ async def note_openings(
     if not body.file_ids:
         return NoteOpeningsResponse(openings={})
 
+    drive = unquote(x_hv_drive)
     client = InternalClient(credential=CallerCredential.from_request(request))
     try:
         readable = await client.filter_file_ids(body.file_ids)
-    except InternalAPIError as e:
+        # The listing this answers is one drive's. A file the caller can
+        # read elsewhere is still not part of it.
+        meta = await client.fetch_bulk_files(readable)
+    except (InternalAPIError, httpx.HTTPError) as e:
         raise HTTPException(status_code=502, detail=str(e))
+    in_drive = [f["id"] for f in meta.get("files", []) if f.get("drive") == drive]
 
     sem = asyncio.Semaphore(_PARALLEL_FETCHES)
 
     async def opening(file_id: str) -> tuple[str, str] | None:
         async with sem:
             try:
-                text = await client.get_file_content(file_id)
-            except InternalAPIError:
+                text = await client.get_file_opening(file_id, OPENING_BYTES)
+            except (InternalAPIError, httpx.HTTPError):
+                # One file nobody can read must not cost the listing its
+                # other openings.
                 return None
         return file_id, text[:OPENING_CHARS]
 
-    results = await asyncio.gather(*(opening(i) for i in readable))
+    results = await asyncio.gather(*(opening(i) for i in in_drive))
     return NoteOpeningsResponse(
         openings={fid: text for pair in results if pair for fid, text in (pair,)}
     )

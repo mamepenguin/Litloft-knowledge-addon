@@ -4,55 +4,63 @@ import { useEffect, useRef, useState } from "react";
 
 import { fetchNoteOpenings } from "./api";
 
-interface Answered {
-  openings: Record<string, string>;
-  asked: Set<string>;
+export interface NoteOpenings {
+  /** The opening text of the notes whose answer is in. */
+  text: Record<string, string>;
+  /** The notes whose opening is known, one way or the other. */
+  answered: ReadonlySet<string>;
 }
 
-const NOTHING_ASKED: Answered = { openings: {}, asked: new Set() };
+const NONE: NoteOpenings = { text: {}, answered: new Set() };
 
 /**
  * The opening text of the notes in a listing, asked for in one request.
  *
- * `null` until every id has an answer, so a caller draws its rows once and
- * at their final height. Each id is asked about once, so a page appended
- * to the listing costs one request for its own ids. A failed request
- * counts as answered: the rows appear without their opening lines rather
- * than waiting for a retry.
+ * A row is drawn once its own opening is known, so a row never grows and a
+ * page appended to the listing leaves the rows already on screen alone.
+ * Each id is asked about once. A failed request counts as answered: those
+ * rows appear without their opening lines rather than waiting for a retry.
  */
-export function useNoteOpenings(
-  drive: string,
-  fileIds: string[] | null,
-): Record<string, string> | null {
-  const [answered, setAnswered] = useState<Answered>(NOTHING_ASKED);
+export function useNoteOpenings(drive: string, fileIds: string[]): NoteOpenings {
+  const [state, setState] = useState<NoteOpenings>(NONE);
+  // A ref, not state: marking ids as asked must not re-run the effect that
+  // is asking about them, which is what would cancel its own request.
+  const asked = useRef<Set<string>>(new Set());
   const askedDrive = useRef(drive);
+  const onScreen = useRef(true);
+
+  useEffect(() => {
+    onScreen.current = true;
+    return () => {
+      onScreen.current = false;
+    };
+  }, []);
+
   if (askedDrive.current !== drive) {
     askedDrive.current = drive;
-    if (answered !== NOTHING_ASKED) setAnswered(NOTHING_ASKED);
+    asked.current = new Set();
+    if (state !== NONE) setState(NONE);
   }
 
-  const missing = (fileIds ?? []).filter((id) => !answered.asked.has(id));
-  const key = missing.join(",");
+  const key = fileIds.filter((id) => !asked.current.has(id)).join(",");
 
   useEffect(() => {
     if (key === "") return;
-    let cancelled = false;
-    const ids = key.split(",");
-    const settle = (openings: Record<string, string>) => {
-      if (cancelled) return;
-      setAnswered((prev) => ({
-        openings: { ...prev.openings, ...openings },
-        asked: new Set([...prev.asked, ...ids]),
+    const ids = key.split(",").filter((id) => !asked.current.has(id));
+    if (ids.length === 0) return;
+    for (const id of ids) asked.current.add(id);
+
+    const settle = (text: Record<string, string>) => {
+      if (!onScreen.current || askedDrive.current !== drive) return;
+      setState((prev) => ({
+        text: { ...prev.text, ...text },
+        answered: new Set([...prev.answered, ...ids]),
       }));
     };
     fetchNoteOpenings(drive, ids)
       .then(settle)
       .catch(() => settle({}));
-    return () => {
-      cancelled = true;
-    };
   }, [drive, key]);
 
-  if (fileIds === null) return null;
-  return missing.length === 0 ? answered.openings : null;
+  return state;
 }

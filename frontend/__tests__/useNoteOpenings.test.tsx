@@ -20,12 +20,13 @@ describe("useNoteOpenings", () => {
     );
 
     const { result } = renderHook(() => useNoteOpenings("d", ["a", "b"]));
-    expect(result.current).toBeNull();
+    expect([...result.current.answered]).toEqual([]);
     expect(api.fetchNoteOpenings).toHaveBeenCalledTimes(1);
     expect(api.fetchNoteOpenings).toHaveBeenCalledWith("d", ["a", "b"]);
 
     answer({ a: "Body." });
-    await waitFor(() => expect(result.current).toEqual({ a: "Body." }));
+    await waitFor(() => expect(result.current.text).toEqual({ a: "Body." }));
+    expect([...result.current.answered].sort()).toEqual(["a", "b"]);
   });
 
   it("asks only about the ids a further page brought", async () => {
@@ -34,10 +35,10 @@ describe("useNoteOpenings", () => {
       ({ ids }: { ids: string[] }) => useNoteOpenings("d", ids),
       { initialProps: { ids: ["a", "b"] } },
     );
-    await waitFor(() => expect(result.current).not.toBeNull());
+    await waitFor(() => expect(result.current.answered.size).toBe(2));
 
     rerender({ ids: ["a", "b", "c"] });
-    await waitFor(() => expect(result.current).not.toBeNull());
+    await waitFor(() => expect(result.current.answered.size).toBe(3));
 
     expect(api.fetchNoteOpenings.mock.calls.map(([, ids]) => ids)).toEqual([
       ["a", "b"],
@@ -48,13 +49,35 @@ describe("useNoteOpenings", () => {
   it("counts a failed request as answered, so the rows still appear", async () => {
     api.fetchNoteOpenings.mockRejectedValue(new Error("nope"));
     const { result } = renderHook(() => useNoteOpenings("d", ["a"]));
-    await waitFor(() => expect(result.current).toEqual({}));
+    await waitFor(() => expect([...result.current.answered]).toEqual(["a"]));
+    expect(result.current.text).toEqual({});
   });
 
-  it("holds nothing back when the listing itself has not arrived", () => {
-    const { result } = renderHook(() => useNoteOpenings("d", null));
-    expect(result.current).toBeNull();
+  it("asks nothing for a listing that has not arrived", () => {
+    const { result } = renderHook(() => useNoteOpenings("d", []));
+    expect([...result.current.answered]).toEqual([]);
     expect(api.fetchNoteOpenings).not.toHaveBeenCalled();
+  });
+
+  it("asks about a page once, even while its answer is on the way", async () => {
+    let answer: (openings: Record<string, string>) => void = () => {};
+    api.fetchNoteOpenings.mockReturnValue(
+      new Promise<Record<string, string>>((resolve) => {
+        answer = resolve;
+      }),
+    );
+    const { result, rerender } = renderHook(
+      ({ ids }: { ids: string[] }) => useNoteOpenings("d", ids),
+      { initialProps: { ids: ["a", "b"] } },
+    );
+    rerender({ ids: ["a", "b", "c"] });
+
+    expect(api.fetchNoteOpenings.mock.calls.map(([, ids]) => ids)).toEqual([
+      ["a", "b"],
+      ["c"],
+    ]);
+    answer({});
+    await waitFor(() => expect(result.current.answered.size).toBeGreaterThan(0));
   });
 
   it("forgets another drive's answers", async () => {
@@ -63,10 +86,10 @@ describe("useNoteOpenings", () => {
       ({ drive }: { drive: string }) => useNoteOpenings(drive, ["a"]),
       { initialProps: { drive: "one" } },
     );
-    await waitFor(() => expect(result.current).toEqual({ a: "First drive." }));
+    await waitFor(() => expect(result.current.text).toEqual({ a: "First drive." }));
 
     api.fetchNoteOpenings.mockResolvedValue({ a: "Second drive." });
     rerender({ drive: "two" });
-    await waitFor(() => expect(result.current).toEqual({ a: "Second drive." }));
+    await waitFor(() => expect(result.current.text).toEqual({ a: "Second drive." }));
   });
 });
