@@ -12,7 +12,7 @@ import type { FileItem } from "@/types";
 
 import { appendUnseen } from "./notePages";
 import { NoteRows } from "./NoteRow";
-import { useNoteOpenings } from "./useNoteOpenings";
+import { notesWithOpenings, useNoteOpenings } from "./useNoteOpenings";
 
 const PAGE_SIZE = 30;
 
@@ -29,7 +29,7 @@ export default function NoteResults({ drive, now, query }: Props) {
   const pathname = usePathname();
   const [files, setFiles] = useState<FileItem[]>([]);
   const openings = useNoteOpenings(drive, files.map((f) => f.id));
-  const drawn = files.filter((file) => openings.answered.has(file.id));
+  const drawn = notesWithOpenings(files, openings);
   const [total, setTotal] = useState<number | null>(null);
   const [nextPage, setNextPage] = useState(1);
   const [loading, setLoading] = useState(false);

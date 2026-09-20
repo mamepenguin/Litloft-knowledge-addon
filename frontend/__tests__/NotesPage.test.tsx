@@ -812,3 +812,70 @@ describe("clip dialogs opened on the landing, after the reader moves to results"
     expect(createClip).not.toHaveBeenCalled();
   });
 });
+
+describe("a row waits for its own opening", () => {
+  /** Holds the listing's openings until the test lets them go. */
+  function holdOpenings() {
+    const waiting: Array<(openings: Record<string, string>) => void> = [];
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (url: string) => {
+        if (String(url).endsWith("/note-openings")) {
+          const openings = await new Promise<Record<string, string>>((resolve) => {
+            waiting.push(resolve);
+          });
+          return { ok: true, status: 200, json: async () => ({ openings }) };
+        }
+        return { ok: false, status: 404, text: async () => "" };
+      }),
+    );
+    return async (openings: Record<string, string> = {}) => {
+      await waitFor(() => expect(waiting.length).toBeGreaterThan(0));
+      await act(async () => {
+        for (const resolve of waiting.splice(0)) resolve(openings);
+      });
+    };
+  }
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it("keeps a recent note off the list until then", async () => {
+    getDriveFiles.mockResolvedValue(page([note("r1")]));
+    const letGo = holdOpenings();
+    render(<NotesPage />);
+    await screen.findByText("knowledge.notes.recent");
+
+    expect(screen.queryByText("Note r1")).toBeNull();
+
+    await letGo({ r1: "The body." });
+    expect(await screen.findByText("Note r1")).toBeInTheDocument();
+  });
+
+  it("keeps the Continue writing section away until then", async () => {
+    nickname = "alice";
+    getWatchHistory.mockResolvedValue([note("w1")]);
+    const letGo = holdOpenings();
+    render(<NotesPage />);
+    await screen.findByText("knowledge.notes.recent");
+
+    expect(screen.queryByText("knowledge.notes.continueWriting")).toBeNull();
+
+    await letGo({ w1: "The body." });
+    expect(await screen.findByText("knowledge.notes.continueWriting")).toBeInTheDocument();
+  });
+
+  it("keeps a search result off the list until then", async () => {
+    params = new URLSearchParams({ q: "kyoto" });
+    getDriveFiles.mockResolvedValue(page([note("q1")]));
+    const letGo = holdOpenings();
+    render(<NotesPage />);
+    await screen.findByText('knowledge.notes.count{"count":1}');
+
+    expect(screen.queryByText("Note q1")).toBeNull();
+
+    await letGo({ q1: "The body." });
+    expect(await screen.findByText("Note q1")).toBeInTheDocument();
+  });
+});

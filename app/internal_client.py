@@ -172,12 +172,10 @@ class InternalClient:
         return list(r.json().get("accessible", []))
 
     async def get_file_opening(self, file_id: str, max_bytes: int) -> str:
-        """Read a file's first ``max_bytes`` bytes, and no more.
+        """Read a file's opening: ``max_bytes`` are asked for, and kept.
 
-        A whole-file read here is what a caller with a list of ids can
-        turn into hundreds of whole-file reads, so the range is asked
-        for and the answer is cut again: a server that ignores `Range`
-        answers with the whole file.
+        The range is what keeps a list of ids from becoming a list of
+        whole files.
         """
         async with httpx.AsyncClient(timeout=15.0) as client:
             r = await client.get(

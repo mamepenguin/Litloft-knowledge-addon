@@ -2,6 +2,8 @@
 
 import { useEffect, useRef, useState } from "react";
 
+import type { FileItem } from "@/types";
+
 import { fetchNoteOpenings } from "./api";
 
 export interface NoteOpenings {
@@ -21,6 +23,14 @@ const NONE: NoteOpenings = { text: {}, answered: new Set() };
  * Each id is asked about once. A failed request counts as answered: those
  * rows appear without their opening lines rather than waiting for a retry.
  */
+/** The notes a listing may draw: the ones whose opening is in hand. */
+export function notesWithOpenings(
+  files: readonly FileItem[],
+  openings: NoteOpenings,
+): FileItem[] {
+  return files.filter((file) => openings.answered.has(file.id));
+}
+
 export function useNoteOpenings(drive: string, fileIds: string[]): NoteOpenings {
   const [state, setState] = useState<NoteOpenings>(NONE);
   // A ref, not state: marking ids as asked must not re-run the effect that

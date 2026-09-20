@@ -12,7 +12,7 @@ import { getDriveFiles, getWatchHistory } from "@/lib/api";
 import type { FileItem } from "@/types";
 
 import ContinueCard from "./ContinueCard";
-import { useNoteOpenings } from "./useNoteOpenings";
+import { notesWithOpenings, useNoteOpenings } from "./useNoteOpenings";
 import { groupNotesByAge } from "./noteDates";
 import { NoteRows } from "./NoteRow";
 
@@ -109,10 +109,12 @@ export function ContinueWriting({ drive, now }: { drive: string; now: Date }) {
   }, [drive, nickname]);
 
   const openings = useNoteOpenings(drive, (rows ?? []).map((f) => f.id));
-  const cards = (rows ?? []).filter((file) => openings.answered.has(file.id));
+  const cards = notesWithOpenings(rows ?? [], openings);
 
   if (!nickname) return null;
-  if (!failed && (rows === null || rows.length === 0)) return null;
+  // Not `rows`: a heading over an empty row, with the cards arriving into
+  // it, pushes everything below the section down.
+  if (!failed && cards.length === 0) return null;
 
   return (
     <section>
@@ -173,7 +175,7 @@ export function RecentNotes({
   }, [drive]);
 
   const openings = useNoteOpenings(drive, page?.files.map((f) => f.id) ?? []);
-  const drawn = (page?.files ?? []).filter((file) => openings.answered.has(file.id));
+  const drawn = notesWithOpenings(page?.files ?? [], openings);
 
   const allLink =
     page && page.total > 0 ? (

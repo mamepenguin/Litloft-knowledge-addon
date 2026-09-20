@@ -11,6 +11,8 @@ from tests.conftest import FakeInternalClient
 class OpeningsFake(FakeInternalClient):
     accessible_ids: list[str] = []
     drive_of: dict[str, str] = {}
+    mime_of: dict[str, str] = {}
+    meta_failure: Exception | None = None
     contents: dict[str, str] = {}
     content_failures: dict[str, Exception] = {}
     filter_failure: Exception | None = None
@@ -24,9 +26,15 @@ class OpeningsFake(FakeInternalClient):
         return [i for i in file_ids if i in OpeningsFake.accessible_ids]
 
     async def fetch_bulk_files(self, file_ids):
+        if OpeningsFake.meta_failure is not None:
+            raise OpeningsFake.meta_failure
         return {
             "files": [
-                {"id": i, "drive": OpeningsFake.drive_of.get(i, "test-drive")}
+                {
+                    "id": i,
+                    "drive": OpeningsFake.drive_of.get(i, "test-drive"),
+                    "mime_type": OpeningsFake.mime_of.get(i, "text/markdown"),
+                }
                 for i in file_ids
             ],
             "not_found": [],
@@ -46,6 +54,8 @@ def fake_openings(monkeypatch):
 
     OpeningsFake.accessible_ids = []
     OpeningsFake.drive_of = {}
+    OpeningsFake.mime_of = {}
+    OpeningsFake.meta_failure = None
     OpeningsFake.contents = {}
     OpeningsFake.content_failures = {}
     OpeningsFake.filter_failure = None
@@ -104,17 +114,16 @@ def test_one_unreadable_file_does_not_take_the_others_down(
 def test_only_the_opening_is_read_and_returned(
     client, knowledge_db, fake_openings, viewer_cookie
 ):
-    from app.routers.note_openings import OPENING_BYTES, OPENING_CHARS
-
     OpeningsFake.accessible_ids = ["a"]
-    OpeningsFake.contents = {"a": "x" * (OPENING_CHARS + 500)}
+    OpeningsFake.contents = {"a": "x" * 2000}
 
     res = post(client, ["a"], viewer_cookie)
 
-    # The read is bounded at the source: a whole-file read is what turns a
-    # list of ids into hundreds of whole files in memory.
-    assert OpeningsFake.fetched == [("a", OPENING_BYTES)]
-    assert res.json()["openings"]["a"] == "x" * OPENING_CHARS
+    # 1024 characters, and the bytes for them: a character outside ASCII
+    # takes up to four, and a read of 1024 bytes would cut a Japanese note
+    # to a third of the opening everyone else gets.
+    assert OpeningsFake.fetched == [("a", 4096)]
+    assert res.json()["openings"]["a"] == "x" * 1024
 
 
 def test_a_file_from_another_drive_is_not_read(
@@ -170,4 +179,44 @@ def test_without_a_drive_it_answers_nothing(client, knowledge_db, fake_openings,
     res = post(client, ["a"], viewer_cookie, drive=None)
 
     assert res.status_code == 400
+    assert OpeningsFake.fetched == []
+
+
+def test_a_percent_encoded_drive_name_is_the_drive_it_names(
+    client, knowledge_db, fake_openings, viewer_cookie
+):
+    # Header values are ISO-8859-1, so the frontend percent-encodes the
+    # drive and the core proxy forwards it as it stands.
+    OpeningsFake.accessible_ids = ["a"]
+    OpeningsFake.drive_of = {"a": "仕事"}
+    OpeningsFake.contents = {"a": "Body."}
+
+    res = post(client, ["a"], viewer_cookie, drive="%E4%BB%95%E4%BA%8B")
+
+    assert res.json()["openings"] == {"a": "Body."}
+
+
+def test_a_file_that_is_not_text_is_not_read(
+    client, knowledge_db, fake_openings, viewer_cookie
+):
+    OpeningsFake.accessible_ids = ["note", "clip"]
+    OpeningsFake.mime_of = {"note": "text/markdown", "clip": "video/mp4"}
+    OpeningsFake.contents = {"note": "Body.", "clip": "\x00\x00"}
+
+    res = post(client, ["note", "clip"], viewer_cookie)
+
+    assert res.json()["openings"] == {"note": "Body."}
+    assert [i for i, _ in OpeningsFake.fetched] == ["note"]
+
+
+def test_when_the_metadata_lookup_fails_nothing_is_read(
+    client, knowledge_db, fake_openings, viewer_cookie
+):
+    OpeningsFake.accessible_ids = ["a"]
+    OpeningsFake.meta_failure = httpx.ReadTimeout("slow")
+    OpeningsFake.contents = {"a": "Body."}
+
+    res = post(client, ["a"], viewer_cookie)
+
+    assert res.status_code == 502
     assert OpeningsFake.fetched == []

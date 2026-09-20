@@ -409,6 +409,23 @@ describe("the All notes list", () => {
     expect(screen.queryByRole("button", { name: "knowledge.notes.showMore" })).toBeNull();
   });
 
+  it("draws no row of its first page before that page's openings are in", async () => {
+    getDriveFiles.mockResolvedValue(page([note("a", "Knowledge")], 1));
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (url: string) => {
+        // The openings never arrive in this test.
+        if (String(url).endsWith("/note-openings")) await new Promise(() => {});
+        return { ok: false, text: async () => "" };
+      }),
+    );
+
+    render(<NotesPage />);
+    await screen.findByText('knowledge.notes.count{"count":1}');
+
+    expect(screen.queryByRole("link", { name: "Note a" })).toBeNull();
+  });
+
   it("keeps the rows it has drawn while a further page's openings are on the way", async () => {
     const first = Array.from({ length: 30 }, (_, i) => note(`n${i}`, "Knowledge"));
     getDriveFiles

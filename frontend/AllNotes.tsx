@@ -16,7 +16,7 @@ import { ALL_NOTES_SORTS, SORT_REQUEST, allNotesHref, type AllNotesScope } from 
 import { groupNotesByAge } from "./noteDates";
 import { appendUnseen } from "./notePages";
 import { NoteRows } from "./NoteRow";
-import { useNoteOpenings } from "./useNoteOpenings";
+import { notesWithOpenings, useNoteOpenings } from "./useNoteOpenings";
 
 const PAGE_SIZE = 30;
 
@@ -73,7 +73,7 @@ function AllNotesList({
   const openings = useNoteOpenings(drive, files.map((f) => f.id));
   // Drawn once its own opening is known: a row that arrives complete never
   // grows, and appending a page leaves the rows above it alone.
-  const drawn = files.filter((file) => openings.answered.has(file.id));
+  const drawn = notesWithOpenings(files, openings);
   const [total, setTotal] = useState<number | null>(null);
   const [nextPage, setNextPage] = useState(1);
   const [loading, setLoading] = useState(false);
