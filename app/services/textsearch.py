@@ -17,6 +17,9 @@ class Snippet:
     text: str
 
 
+TEXT_MIMES = frozenset({"text/markdown", "text/plain"})
+
+
 def strip_frontmatter(content: str) -> str:
     """Remove a leading YAML frontmatter block if present.
 

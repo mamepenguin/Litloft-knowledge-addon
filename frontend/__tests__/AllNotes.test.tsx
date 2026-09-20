@@ -423,7 +423,7 @@ describe("the All notes list", () => {
     render(<NotesPage />);
     await screen.findByText('knowledge.notes.count{"count":1}');
 
-    expect(screen.queryByRole("link", { name: "Note a" })).toBeNull();
+    expect(screen.queryByText("Note a")).toBeNull();
   });
 
   it("keeps the rows it has drawn while a further page's openings are on the way", async () => {

@@ -15,14 +15,6 @@ export interface NoteOpenings {
 
 const NONE: NoteOpenings = { text: {}, answered: new Set() };
 
-/**
- * The opening text of the notes in a listing, asked for in one request.
- *
- * A row is drawn once its own opening is known, so a row never grows and a
- * page appended to the listing leaves the rows already on screen alone.
- * Each id is asked about once. A failed request counts as answered: those
- * rows appear without their opening lines rather than waiting for a retry.
- */
 /** The notes a listing may draw: the ones whose opening is in hand. */
 export function notesWithOpenings(
   files: readonly FileItem[],
@@ -31,6 +23,14 @@ export function notesWithOpenings(
   return files.filter((file) => openings.answered.has(file.id));
 }
 
+/**
+ * The opening text of the notes in a listing, asked for in one request.
+ *
+ * A row is drawn once its own opening is known, so a row never grows and a
+ * page appended to the listing leaves the rows already on screen alone.
+ * Each id is asked about once. A failed request counts as answered: those
+ * rows appear without their opening lines rather than waiting for a retry.
+ */
 export function useNoteOpenings(drive: string, fileIds: string[]): NoteOpenings {
   const [state, setState] = useState<NoteOpenings>(NONE);
   // A ref, not state: marking ids as asked must not re-run the effect that

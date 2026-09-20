@@ -17,6 +17,7 @@ from app.auth import get_optional_viewer_id
 from app.credentials import CallerCredential
 from app.internal_client import InternalAPIError, InternalClient
 from app.schemas import NoteOpeningsRequest, NoteOpeningsResponse
+from app.services.textsearch import TEXT_MIMES
 
 logger = logging.getLogger(__name__)
 
@@ -30,7 +31,6 @@ OPENING_BYTES = OPENING_CHARS * 4
 _PARALLEL_FETCHES = 8
 # Notes are text. Anything else in the same drive would come back as a
 # kilobyte of replacement characters.
-_TEXT_MIMES = frozenset({"text/markdown", "text/plain"})
 
 
 @router.post("/note-openings", response_model=NoteOpeningsResponse)
@@ -61,7 +61,7 @@ async def note_openings(
     readable_here = [
         f["id"]
         for f in meta.get("files", [])
-        if f.get("drive") == drive and f.get("mime_type") in _TEXT_MIMES
+        if f.get("drive") == drive and f.get("mime_type") in TEXT_MIMES
     ]
 
     sem = asyncio.Semaphore(_PARALLEL_FETCHES)
