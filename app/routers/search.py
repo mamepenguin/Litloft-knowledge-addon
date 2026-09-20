@@ -32,7 +32,7 @@ router = APIRouter(prefix="/search", tags=["search"])
 _MAX_SCAN_FILES = 500
 _MAX_RESULTS = 50
 _PARALLEL_FETCHES = 8
-_TEXT_MIMES = frozenset({"text/markdown", "text/plain"})
+from app.services.textsearch import TEXT_MIMES as _TEXT_MIMES
 
 
 def _require_drive(drive: str | None) -> str:

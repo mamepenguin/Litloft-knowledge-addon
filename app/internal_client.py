@@ -159,6 +159,33 @@ class InternalClient:
             raise InternalAPIError(r.status_code, r.text)
         return list(r.json().get("data", []))
 
+    async def filter_file_ids(self, file_ids: list[str]) -> list[str]:
+        """Keep only the ids this caller may read, as core sees them."""
+        async with httpx.AsyncClient(timeout=10.0) as client:
+            r = await client.post(
+                f"{HOMEVAULT_INTERNAL_URL}/api/internal/filter-file-ids",
+                json={"file_ids": file_ids},
+                headers=self._headers(),
+            )
+        if r.status_code != 200:
+            raise InternalAPIError(r.status_code, r.text)
+        return list(r.json().get("accessible", []))
+
+    async def get_file_opening(self, file_id: str, max_bytes: int) -> str:
+        """Read a file's opening: ``max_bytes`` are asked for, and kept.
+
+        The range is what keeps a list of ids from becoming a list of
+        whole files.
+        """
+        async with httpx.AsyncClient(timeout=15.0) as client:
+            r = await client.get(
+                f"{HOMEVAULT_INTERNAL_URL}/api/files/{file_id}/stream",
+                headers={**self._headers(), "Range": f"bytes=0-{max_bytes - 1}"},
+            )
+        if r.status_code not in (200, 206):
+            raise InternalAPIError(r.status_code, r.text)
+        return r.content[:max_bytes].decode("utf-8", errors="replace")
+
     async def get_file_content(self, file_id: str) -> str:
         """Fetch the raw text content of a file via the core stream route.
 

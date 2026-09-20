@@ -143,6 +143,14 @@ class NoteOriginOut(BaseModel):
     health: str
 
 
+class NoteOpeningsRequest(BaseModel):
+    file_ids: list[str]
+
+
+class NoteOpeningsResponse(BaseModel):
+    openings: dict[str, str]
+
+
 class SearchHit(BaseModel):
     file_id: str
     filename: str

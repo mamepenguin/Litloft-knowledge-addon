@@ -29,6 +29,20 @@ async function request<T>(
   return res.json() as Promise<T>;
 }
 
+/** The notes' opening text, asked for once per listing. */
+export async function fetchNoteOpenings(
+  drive: string,
+  fileIds: string[],
+): Promise<Record<string, string>> {
+  if (fileIds.length === 0) return {};
+  const res = await request<{ openings: Record<string, string> }>(
+    drive,
+    "/note-openings",
+    { method: "POST", body: JSON.stringify({ file_ids: fileIds }) },
+  );
+  return res.openings;
+}
+
 export interface CaptureCommitTarget {
   mode: "new" | "existing" | "quick";
   folder?: string;

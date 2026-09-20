@@ -7,18 +7,27 @@ import { buildCanonicalFileUrl } from "@/lib/canonicalFileUrl";
 import type { FileItem } from "@/types";
 
 import { formatNoteTime } from "./noteDates";
-import { useNoteExcerpt } from "./useNoteExcerpt";
+import { excerptFromText } from "./noteExcerpt";
 
 function extensionOf(filename: string): string {
   const dot = filename.lastIndexOf(".");
   return dot > 0 ? filename.slice(dot + 1) : "";
 }
 
-export default function ContinueCard({ file, now }: { file: FileItem; now: Date }) {
+export default function ContinueCard({
+  file,
+  now,
+  opening,
+}: {
+  file: FileItem;
+  now: Date;
+  /** The note's opening text, already in hand when the card is drawn. */
+  opening?: string;
+}) {
   const t = useTranslations("knowledge.notes");
   const locale = useLocale();
   const title = file.title || file.filename;
-  const excerpt = useNoteExcerpt(file.id, title);
+  const excerpt = opening ? excerptFromText(opening, title) : "";
   const extension = extensionOf(file.filename);
 
   return (
