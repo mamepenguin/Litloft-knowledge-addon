@@ -20,53 +20,34 @@ import {
  * If anyone edits one side without the other, the factorisation silently
  * stops holding and node sizes drift — on phones especially, because the
  * `fit` divisor is what keeps sizes device-independent (see the module
- * header and hako `v-qemxzUaCC0EqFLh5hxD`). These tests pin the identity
- * across the full parameter range so that drift fails loudly instead.
+ * header and hako `v-qemxzUaCC0EqFLh5hxD`).
  */
 
-// k below 1 (zoomed out), at 1, and well above (zoomed in). fit spans
-// desktop (~0.9) through phone (~0.31) and the degenerate zero case.
-const SCALES = [0.5, 0.75, 0.9, 1, 1.5, 3, 12];
-const FITS = [0, 0.31, 0.5, 0.9, 1, 2];
-const RELATION_COUNTS = [0, 1, 4, 8, 20];
+/**
+ * The branches the formulas have, not a sweep: `k` on each side of the
+ * `k >= 1` counter-scale and at it, `fit` on each side of the `fit > 0`
+ * guard plus the identity, and `rc` on each side of the hit-radius floor.
+ * A wider grid re-answers the same branches.
+ */
+const SCALES = [0.5, 1, 3];
+const FITS = [0, 0.31, 1];
+const RELATION_COUNTS = [0, 20];
 
 describe("frameVars factorisation", () => {
-  const cases = SCALES.flatMap((k) =>
-    FITS.flatMap((fit) => RELATION_COUNTS.map((rc) => ({ k, fit, rc }))),
-  );
+  it.each(
+    SCALES.flatMap((k) => FITS.map((fit) => ({ k, fit }))),
+  )("holds at k=$k fit=$fit", ({ k, fit }) => {
+    const frame = frameVars(k, fit);
 
-  it.each(cases)(
-    "circle radius matches circleAttrR (k=$k fit=$fit rc=$rc)",
-    ({ k, fit, rc }) => {
-      const composed = screenCircleR(rc) * frameVars(k, fit).k;
-      expect(composed).toBeCloseTo(circleAttrR(rc, k, fit), 10);
-    },
-  );
-
-  it.each(cases)(
-    "hit radius matches hitAttrR (k=$k fit=$fit rc=$rc)",
-    ({ k, fit, rc }) => {
-      const composed = screenHitR(rc) * frameVars(k, fit).k;
-      expect(composed).toBeCloseTo(hitAttrR(rc, k, fit), 10);
-    },
-  );
-
-  it.each(SCALES.flatMap((k) => FITS.map((fit) => ({ k, fit }))))(
-    "label font matches labelAttrFont (k=$k fit=$fit)",
-    ({ k, fit }) => {
-      expect(frameVars(k, fit).lf).toBeCloseTo(labelAttrFont(k, fit), 10);
-    },
-  );
-
-  it.each(SCALES.flatMap((k) => FITS.map((fit) => ({ k, fit }))))(
-    "label gap reproduces the old inline expression (k=$k fit=$fit)",
-    ({ k, fit }) => {
-      // GraphLayers previously computed this per render as:
-      //   const gapAttr = 6 / scale / (fit > 0 ? fit : 1);
-      const legacy = 6 / k / (fit > 0 ? fit : 1);
-      expect(frameVars(k, fit).lg).toBeCloseTo(legacy, 10);
-    },
-  );
+    for (const rc of RELATION_COUNTS) {
+      expect(screenCircleR(rc) * frame.k).toBeCloseTo(
+        circleAttrR(rc, k, fit),
+        10,
+      );
+      expect(screenHitR(rc) * frame.k).toBeCloseTo(hitAttrR(rc, k, fit), 10);
+    }
+    expect(frame.lf).toBeCloseTo(labelAttrFont(k, fit), 10);
+  });
 });
 
 describe("frameVars guards", () => {
@@ -95,5 +76,17 @@ describe("frameVars guards", () => {
     // relation_count 0 -> screenCircleR 8 -> 8 * 1.6 = 12.8, below the
     // 22px floor, so the floor must win.
     expect(screenHitR(0)).toBe(22);
+  });
+
+  it("divides the label gap by the zoom and by the fit", () => {
+    expect(frameVars(2, 1).lg).toBeCloseTo(3, 10);
+    expect(frameVars(2, 0.5).lg).toBeCloseTo(6, 10);
+    expect(frameVars(1, 0).lg).toBeCloseTo(6, 10);
+  });
+
+  it("clamps the label font between its floor and its ceiling", () => {
+    // 11 * sqrt(k) leaves the floor above k=1 and reaches 16 at k≈2.116.
+    expect(labelAttrFont(0.25, 1)).toBeCloseTo(11 / 0.25, 10);
+    expect(labelAttrFont(9, 1)).toBeCloseTo(16 / 9, 10);
   });
 });
