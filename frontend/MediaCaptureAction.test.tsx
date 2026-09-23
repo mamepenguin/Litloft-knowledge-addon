@@ -181,5 +181,23 @@ describe("MediaCaptureAction — an icon on its own", () => {
     expect(button.classList.contains("h-9")).toBe(true);
     expect(button.classList.contains("w-9")).toBe(true);
   });
-});
 
+  it("draws for a dark bar when the host says it sits on one", () => {
+    const documentCaptureController = new DocumentCaptureStore();
+    documentCaptureController.setCapture({ kind: "page", locator: { page: 1 } });
+    render(
+      <MediaCaptureAction
+        fileId="doc1"
+        drive="family"
+        filename="paper.pdf"
+        fileType="document"
+        documentCaptureController={documentCaptureController}
+        tone="on-dark"
+      />,
+    );
+    const button = screen.getByRole("button");
+    expect(button.classList.contains("text-white/80")).toBe(true);
+    expect(button.classList.contains("bg-bg-card")).toBe(false);
+    expect(button.classList.contains("pointer-coarse:h-11")).toBe(true);
+  });
+});

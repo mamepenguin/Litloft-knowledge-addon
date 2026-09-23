@@ -20,6 +20,9 @@
         "search-result-actions": [
             {"id": "knowledge-search-capture", "label": "Capture Search Evidence", "priority": 10}
         ],
+        "document-viewer-actions": [
+            {"id": "knowledge-media-capture", "label": "Capture", "priority": 20}
+        ],
         "file-detail-actions": [
             {"id": "knowledge-media-capture", "label": "Capture Position", "priority": 20},
             {"id": "knowledge-note-search-scope", "label": "Note search scope", "priority": 30}
