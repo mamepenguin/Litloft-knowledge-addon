@@ -17,6 +17,7 @@ export default function MediaCaptureAction({
   fileType,
   mediaController,
   documentCaptureController,
+  tone,
 }: {
   fileId: string;
   drive: string;
@@ -24,6 +25,8 @@ export default function MediaCaptureAction({
   fileType: string;
   mediaController?: MediaController | null;
   documentCaptureController?: DocumentCaptureController | null;
+  /** Set by a host that draws this over a picture rather than a page. */
+  tone?: "on-dark";
 }) {
   const t = useTranslations("knowledge.captureBasket");
   const toast = useToast();
@@ -90,7 +93,11 @@ export default function MediaCaptureAction({
       // has no such rule. `docs/ADDON-DEVELOPMENT.md` states the floor as
       // an obligation of the entry, so the entry keeps it rather than
       // inheriting it from one of the two rows it can land in.
-      className="inline-flex h-9 w-9 items-center justify-center rounded-lg bg-bg-card text-text-muted transition-colors hover:bg-bg-elevated hover:text-text-primary pointer-coarse:h-11 pointer-coarse:w-11"
+      className={
+        tone === "on-dark"
+          ? "inline-flex h-9 w-9 items-center justify-center rounded-full text-white/80 transition-colors hover:bg-white/10 hover:text-white pointer-coarse:h-11 pointer-coarse:w-11"
+          : "inline-flex h-9 w-9 items-center justify-center rounded-lg bg-bg-card text-text-muted transition-colors hover:bg-bg-elevated hover:text-text-primary pointer-coarse:h-11 pointer-coarse:w-11"
+      }
     >
       <Quote size={16} />
     </button>
