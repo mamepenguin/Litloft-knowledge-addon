@@ -51,7 +51,7 @@ describe("the knowledge manifest", () => {
     // Exact, not a lower bound. The failure worth catching is an entry
     // nobody remembers declaring — under `>=` a stray one is invisible,
     // and a stray one renders on every file detail page.
-    expect(entries).toHaveLength(12);
+    expect(entries).toHaveLength(13);
   });
 
   it("gives every entry a component to render", () => {
@@ -108,11 +108,13 @@ describe("the knowledge manifest", () => {
     // and is not drawn at all.
     //
     // A move, not a copy: left in both, it renders in two places and
-    // core cannot detect that.
+    // core cannot detect that. The full-screen document viewer's entry is
+    // not such a copy — the viewer covers the page, and the row sits behind
+    // it, inert.
     const slots = entries
       .filter((entry) => entry.id === "knowledge-media-capture")
       .map((entry) => entry.slot);
-    expect(slots).toEqual(["file-detail-actions"]);
+    expect(slots).toEqual(["document-viewer-actions", "file-detail-actions"]);
   });
 
   it("puts making a note in the overflow menu", () => {
