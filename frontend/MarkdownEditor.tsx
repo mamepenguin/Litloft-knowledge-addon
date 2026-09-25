@@ -40,6 +40,7 @@ export interface MarkdownEditorHandle {
   getSelection: () => { start: number; end: number };
   setSelection: (start: number, end?: number) => void;
   focus: () => void;
+  revealSelection: () => void;
   blur: () => void;
   coordsAtPos: (position: number) => ReturnType<EditorView["coordsAtPos"]>;
   undo: () => boolean;
@@ -447,6 +448,16 @@ const MarkdownEditor = forwardRef<MarkdownEditorHandle, Props>(
             view.dispatch({ selection: EditorSelection.range(start, end) });
           },
           focus: () => viewRef.current?.focus(),
+          revealSelection: () => {
+            const view = viewRef.current;
+            if (!view) return;
+            view.dispatch({
+              effects: EditorView.scrollIntoView(
+                view.state.selection.main.head,
+                { y: "nearest" },
+              ),
+            });
+          },
           blur: () => viewRef.current?.contentDOM.blur(),
           coordsAtPos: (position) => requireView().coordsAtPos(position),
           undo: () => undo(requireView()),

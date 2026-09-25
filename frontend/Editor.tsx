@@ -460,6 +460,17 @@ export default function Editor({
     editor.focus();
   }, [autoFocus, contentLoaded, fileId]);
 
+  const prevViewModeRef = useRef(viewMode);
+  useEffect(() => {
+    const prev = prevViewModeRef.current;
+    prevViewModeRef.current = viewMode;
+    if (prev !== "preview" || viewMode === "preview") return;
+    const editor = editorRef.current;
+    if (!editor) return;
+    editor.focus();
+    editor.revealSelection();
+  }, [viewMode]);
+
   const enqueueSaveOperation = useCallback(
     <T,>(operation: () => Promise<T>): Promise<T> => {
       const queue = saveQueueRef.current;
