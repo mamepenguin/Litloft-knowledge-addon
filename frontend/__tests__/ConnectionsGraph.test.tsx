@@ -353,11 +353,14 @@ describe("ConnectionsGraph", () => {
       expect(screen.getByText("Note A")).toBeTruthy();
     });
 
-    const tagChip = screen.getByText("colorBy.tag");
-    fireEvent.click(tagChip);
-    // The component re-renders; tag chip is highlighted (we don't assert
-    // the class change here, just that the click doesn't throw and the
-    // graph still renders).
+    const group = screen.getByRole("group", { name: "colorByLabel" });
+    const pressed = () =>
+      Array.from(group.querySelectorAll("button"))
+        .filter((b) => b.getAttribute("aria-pressed") === "true")
+        .map((b) => b.textContent);
+    expect(pressed()).toEqual(["colorBy.kind"]);
+    fireEvent.click(screen.getByRole("button", { name: "colorBy.tag" }));
+    expect(pressed()).toEqual(["colorBy.tag"]);
     expect(screen.getByText("Note A")).toBeTruthy();
   });
 });

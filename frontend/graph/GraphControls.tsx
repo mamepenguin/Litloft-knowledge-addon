@@ -3,6 +3,7 @@
 import type { ReactNode } from "react";
 import { useTranslations } from "next-intl";
 import { Crosshair, Search } from "lucide-react";
+import { SegmentedControl } from "@/components/SegmentedControl";
 import type { ColorBy } from "./graphPalette";
 
 const COLOR_BY_OPTIONS: ColorBy[] = ["kind", "tag", "folder", "flat"];
@@ -41,21 +42,13 @@ export function GraphToolbar({
       <span className="text-[10px] uppercase tracking-wide text-text-muted">
         {t("colorByLabel")}
       </span>
-      <div className="inline-flex gap-0.5 rounded-2xl border border-bg-border bg-bg-card p-0.5">
-        {COLOR_BY_OPTIONS.map((opt) => (
-          <button
-            key={opt}
-            type="button"
-            onClick={() => onColorByChange(opt)}
-            className={`rounded-xl px-2.5 py-1 text-[11px] transition-colors ${
-              colorBy === opt
-                ? "bg-bg-elevated text-text-primary"
-                : "text-text-muted hover:text-text-primary"
-            }`}
-          >
-            {t(`colorBy.${opt}`)}
-          </button>
-        ))}
+      <div className="w-full md:w-80">
+        <SegmentedControl
+          label={t("colorByLabel")}
+          options={COLOR_BY_OPTIONS.map((opt) => ({ value: opt, label: t(`colorBy.${opt}`) }))}
+          value={colorBy}
+          onChange={onColorByChange}
+        />
       </div>
     </div>
   );
