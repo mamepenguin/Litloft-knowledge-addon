@@ -10,7 +10,14 @@ import {
   defaultKeymap,
   history,
   historyKeymap,
+  indentLess,
+  indentMore,
+  indentSelection,
   indentWithTab,
+  insertBlankLine,
+  insertNewline,
+  insertNewlineAndIndent,
+  insertTab,
   undo,
 } from "@codemirror/commands";
 import { indentUnit } from "@codemirror/language";
@@ -48,6 +55,11 @@ export interface MarkdownEditorHandle {
 
 interface Props {
   initialContent: string;
+  /**
+   * Plain text: no Markdown language or live preview, and nothing but the
+   * typed character is inserted (no carried indentation, no list marker).
+   */
+  plainText?: boolean;
   ariaLabel: string;
   placeholder: string;
   className?: string;
@@ -90,6 +102,32 @@ const filteredDefaultKeymap = defaultKeymap.filter((binding) =>
     .filter((key): key is string => typeof key === "string")
     .every((key) => !blockedCoreShortcuts.has(key.toLowerCase())),
 );
+
+const indentingCommands = new Set<unknown>([
+  insertBlankLine,
+  indentMore,
+  indentLess,
+  indentSelection,
+]);
+
+// The default Enter binding, with its indentation carry-over swapped for a
+// bare line break. It is rebound in place rather than declared anew so the
+// editor's Enter stays CodeMirror's own composition-aware one.
+const plainKeymap = [
+  { key: "Tab", run: insertTab },
+  ...filteredDefaultKeymap.flatMap((binding) => {
+    if (indentingCommands.has(binding.run)) return [];
+    if (binding.run !== insertNewlineAndIndent) return [binding];
+    return [
+      {
+        ...binding,
+        run: insertNewline,
+        ...(binding.shift ? { shift: insertNewline } : {}),
+      },
+    ];
+  }),
+  ...historyKeymap,
+];
 
 function replacementFor(current: string, next: string) {
   let from = 0;
@@ -242,6 +280,7 @@ const MarkdownEditor = forwardRef<MarkdownEditorHandle, Props>(
   function MarkdownEditor(
     {
       initialContent,
+      plainText = false,
       ariaLabel,
       placeholder,
       className,
@@ -283,11 +322,19 @@ const MarkdownEditor = forwardRef<MarkdownEditorHandle, Props>(
         state: EditorState.create({
           doc: initialContent,
           extensions: [
-            markdown({ base: markdownLanguage }),
-            markdownLivePreview,
-            history(),
-            indentUnit.of("  "),
-            keymap.of([indentWithTab, ...filteredDefaultKeymap, ...historyKeymap]),
+            ...(plainText
+              ? [history(), keymap.of(plainKeymap)]
+              : [
+                  markdown({ base: markdownLanguage }),
+                  markdownLivePreview,
+                  history(),
+                  indentUnit.of("  "),
+                  keymap.of([
+                    indentWithTab,
+                    ...filteredDefaultKeymap,
+                    ...historyKeymap,
+                  ]),
+                ]),
             EditorView.lineWrapping,
             placeholderExtension(placeholder),
             editableCompartment.of(EditorView.editable.of(!disabled)),

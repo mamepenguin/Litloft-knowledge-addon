@@ -230,6 +230,8 @@ interface Props {
   /** Reveals the version history, which sits at the foot of the note. */
   onOpenVersionHistory?: () => void;
   disabled?: boolean;
+  /** Plain text has no formatting: only the `…` menu is drawn. */
+  versionsOnly?: boolean;
 }
 
 export default function EditorToolbar({
@@ -238,6 +240,7 @@ export default function EditorToolbar({
   onKeepVersion,
   onOpenVersionHistory,
   disabled = false,
+  versionsOnly = false,
 }: Props) {
   const t = useTranslations("knowledge.editor.toolbar");
 
@@ -278,40 +281,42 @@ export default function EditorToolbar({
           what the document as a whole does — keeping a version, opening the
           history — which is not formatting and does not belong in a group
           named for it. */}
-      <div
-        role="toolbar"
-        aria-label={t("label")}
-        className="flex items-center gap-0.5 pointer-coarse:min-h-11 pointer-coarse:gap-3"
-      >
-        {GROUP_ORDER.map((group, i) => (
-          <span key={group} className="contents">
-            {i > 0 && <span className={SEPARATOR} />}
-            {FORMAT_ACTIONS.filter((id) => FORMAT_SPECS[id].group === group).map(
-              formatButton,
-            )}
-          </span>
-        ))}
-        {onFileLinkRequest && (
-          <>
-            <span className={SEPARATOR} />
-            {/* `FileSymlink`, not a second chain link: this inserts a
-                `loft://` reference to a file in the library, and beside the
-                Markdown-link button the two chain glyphs were the same
-                picture with two names only a screen reader heard. */}
-            <Button
-              variant="ghost"
-              iconOnly
-              className="shrink-0"
-              aria-label={t("fileLink")}
-              title={t("fileLink")}
-              onClick={onFileLinkRequest}
-              disabled={disabled}
-            >
-              <FileSymlink size={15} />
-            </Button>
-          </>
-        )}
-      </div>
+      {!versionsOnly && (
+        <div
+          role="toolbar"
+          aria-label={t("label")}
+          className="flex items-center gap-0.5 pointer-coarse:min-h-11 pointer-coarse:gap-3"
+        >
+          {GROUP_ORDER.map((group, i) => (
+            <span key={group} className="contents">
+              {i > 0 && <span className={SEPARATOR} />}
+              {FORMAT_ACTIONS.filter((id) => FORMAT_SPECS[id].group === group).map(
+                formatButton,
+              )}
+            </span>
+          ))}
+          {onFileLinkRequest && (
+            <>
+              <span className={SEPARATOR} />
+              {/* `FileSymlink`, not a second chain link: this inserts a
+                  `loft://` reference to a file in the library, and beside the
+                  Markdown-link button the two chain glyphs were the same
+                  picture with two names only a screen reader heard. */}
+              <Button
+                variant="ghost"
+                iconOnly
+                className="shrink-0"
+                aria-label={t("fileLink")}
+                title={t("fileLink")}
+                onClick={onFileLinkRequest}
+                disabled={disabled}
+              >
+                <FileSymlink size={15} />
+              </Button>
+            </>
+          )}
+        </div>
+      )}
 
       <div className="ml-auto shrink-0">
         <OverflowMenu label={t("more")}>
@@ -320,7 +325,7 @@ export default function EditorToolbar({
               {/* Below `sm` these six are not on the bar, so this is where
                   they are. Above it they are on the bar and this block is
                   `display:none` — one control, one place, at any one width. */}
-              {(["wideOnTouch", "mid", "full"] as const).map((tier) => (
+              {(versionsOnly ? [] : (["wideOnTouch", "mid", "full"] as const)).map((tier) => (
                 <div
                   key={tier}
                   className={

@@ -94,6 +94,9 @@
       "back": "Back to list",
       "delete": "Move to trash",
       "editArea": "Markdown editor",
+      "plainEditArea": "Text editor",
+      "notUtf8": "This file can't be edited here: it is not UTF-8 text.",
+      "mixedEndings": "This file can't be edited here: its line endings are mixed.",
       "placeholder": "Start writing here…",
       "yamlError": "Cannot parse frontmatter YAML",
       "title": {

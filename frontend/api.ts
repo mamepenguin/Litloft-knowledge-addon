@@ -225,6 +225,84 @@ export async function getFileContent(fileId: string): Promise<LoadedTextFile> {
   return { content, etag };
 }
 
+/** How a plain-text file is laid out on disk, so a write can restore it. */
+export interface PlainTextForm {
+  bom: boolean;
+  crlf: boolean;
+}
+
+export type PlainTextBlock = "notUtf8" | "mixedEndings";
+
+export type LoadedPlainText =
+  | { blocked: null; text: string; etag: string; form: PlainTextForm }
+  | { blocked: PlainTextBlock; text: string; etag: string };
+
+const BOM = "\uFEFF";
+
+/**
+ * Reads a file the plain-text editor may write back byte for byte.
+ *
+ * Anything it could not reproduce (not UTF-8, mixed or bare-CR line breaks)
+ * comes back `blocked` with a best-effort text for display only.
+ */
+export async function getPlainTextFile(
+  fileId: string,
+): Promise<LoadedPlainText> {
+  const res = await fetch(`/api/files/${encodeURIComponent(fileId)}/stream`, {
+    credentials: "include",
+  });
+  if (!res.ok) throw new Error(`Error: ${res.status}`);
+  const bytes = await res.arrayBuffer();
+  const etag = parseEtagHeader(res);
+
+  let decoded: string;
+  try {
+    decoded = new TextDecoder("utf-8", { fatal: true, ignoreBOM: true }).decode(
+      bytes,
+    );
+  } catch {
+    return {
+      blocked: "notUtf8",
+      text: new TextDecoder("utf-8").decode(bytes),
+      etag,
+    };
+  }
+
+  const bom = decoded.startsWith(BOM);
+  const body = bom ? decoded.slice(1) : decoded;
+  const crlfCount = (body.match(/\r\n/g) ?? []).length;
+  const bareCr = (body.match(/\r(?!\n)/g) ?? []).length;
+  const bareLf = (body.match(/\n/g) ?? []).length - crlfCount;
+  if (bareCr > 0 || (crlfCount > 0 && bareLf > 0)) {
+    return { blocked: "mixedEndings", text: foldLineBreaks(body), etag };
+  }
+  return {
+    blocked: null,
+    text: body.replace(/\r\n/g, "\n"),
+    etag,
+    form: { bom, crlf: crlfCount > 0 },
+  };
+}
+
+function foldLineBreaks(text: string): string {
+  return text.replace(/\r\n?/g, "\n");
+}
+
+/** A stored version's text as the editor's buffer holds it. */
+export function normalisePlainText(text: string): string {
+  return foldLineBreaks(text.startsWith(BOM) ? text.slice(1) : text);
+}
+
+export function encodePlainText(
+  text: string,
+  form: PlainTextForm,
+): Uint8Array {
+  const body = form.crlf ? text.replace(/\n/g, "\r\n") : text;
+  // Copied so the result is this realm's Uint8Array, which `instanceof`
+  // checks on a request body rely on under jsdom.
+  return new Uint8Array(new TextEncoder().encode(form.bom ? BOM + body : body));
+}
+
 export class ConflictError extends Error {
   constructor() {
     super("ETag mismatch");
@@ -245,7 +323,7 @@ export interface PutFileContentResult {
 
 export async function putFileContent(
   fileId: string,
-  content: string,
+  content: string | Uint8Array,
   ifMatch: string,
   kind?: "explicit",
 ): Promise<PutFileContentResult> {
@@ -260,7 +338,7 @@ export async function putFileContent(
     method: "PUT",
     credentials: "include",
     headers,
-    body: content,
+    body: content as BodyInit,
   });
   if (res.status === 412) throw new ConflictError();
   if (!res.ok) {

@@ -31,6 +31,8 @@ interface Props {
   fileId: string;
   refreshKey: number;
   onRestore: (versionId: number) => Promise<boolean>;
+  /** Shows a version's text exactly as stored (plain text has no Markdown links). */
+  rawPreview?: boolean;
 }
 
 function relativeTime(value: string): string {
@@ -68,6 +70,7 @@ export default function VersionHistoryPanel({
   fileId,
   refreshKey,
   onRestore,
+  rawPreview = false,
 }: Props) {
   const t = useTranslations("knowledge.editor.versions");
   const sectionRef = useRef<HTMLElement | null>(null);
@@ -469,7 +472,7 @@ export default function VersionHistoryPanel({
                       data-testid="version-preview"
                       className="mt-2 max-h-80 select-text overflow-auto whitespace-pre-wrap rounded-xl border border-bg-border bg-bg-primary p-3 font-mono text-xs leading-relaxed text-text-primary"
                     >
-                      {body ? decodeLinkTargets(body.content) : ""}
+                      {body ? (rawPreview ? body.content : decodeLinkTargets(body.content)) : ""}
                     </pre>
                   )}
                 </details>
