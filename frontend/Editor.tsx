@@ -545,9 +545,7 @@ export default function Editor({
     const editor = editorRef.current;
     if (!editor) return;
     editor.focus();
-    // jsdom has no Range.getClientRects, which the measure this triggers
-    // calls once the editor is shown again.
-    if (!plainText) editor.revealSelection();
+    editor.revealSelection();
   }, [viewMode]);
 
   const enqueueSaveOperation = useCallback(
