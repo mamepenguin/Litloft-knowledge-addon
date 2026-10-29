@@ -11,7 +11,7 @@ import {
 import { ShortcutsProvider } from "@/components/ShortcutsProvider";
 import { dirtyRegistry } from "@/lib/dirtyRegistry";
 import { markdownContentRegistry } from "@/lib/markdownContentRegistry";
-import { editorContent, setEditorContent } from "./editorTestDriver";
+import { editorContent, getEditorView, setEditorContent } from "./editorTestDriver";
 
 vi.mock("next-intl", () => ({
   useTranslations:
@@ -831,5 +831,82 @@ describe("Editor explicit versions", () => {
 
     expect(editorContent(bTextarea)).toBe("bravo");
     expect(aStreamReads).toBe(1);
+  });
+});
+
+describe("SPEC-ADDON-037 a .md keeps its toolbar, shortcuts and Split (I7)", () => {
+  async function openMd() {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (input: RequestInfo | URL) => {
+        if (String(input).endsWith("/api/files/f1/stream")) {
+          return response({ text: "abc", headers: { etag: '"e"' } });
+        }
+        return response({ ok: false, status: 404, body: { detail: "nf" } });
+      }),
+    );
+    renderEditor();
+    const editor = await screen.findByLabelText("knowledge.editor.editArea");
+    fireEvent.keyDown(document, { key: "?" });
+    await screen.findByText("knowledge.shortcuts.keepVersion");
+    fireEvent.keyDown(document, { key: "Escape" });
+    await waitFor(() =>
+      expect(
+        screen.queryByText("knowledge.shortcuts.keepVersion"),
+      ).not.toBeInTheDocument(),
+    );
+    return editor;
+  }
+
+  const isMac = /Mac|iPhone|iPad|iPod/.test(navigator.platform);
+  function press(
+    key: string,
+    extra: KeyboardEventInit = {},
+    target: Element | Document = document,
+  ) {
+    const event = new KeyboardEvent("keydown", {
+      key,
+      ctrlKey: !isMac,
+      metaKey: isMac,
+      bubbles: true,
+      cancelable: true,
+      ...extra,
+    });
+    act(() => {
+      target.dispatchEvent(event);
+    });
+    return event;
+  }
+
+  it("shows the formatting toolbar in Edit", async () => {
+    await openMd();
+    expect(
+      screen.getByRole("button", { name: "knowledge.editor.toolbar.bold" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "knowledge.editor.toolbar.h1" }),
+    ).toBeInTheDocument();
+  });
+
+  it.each([
+    ["b", {}, "**abc**"],
+    ["i", {}, "*abc*"],
+    ["e", {}, "`abc`"],
+    ["k", { shiftKey: true }, "```\nabc\n```"],
+  ])("Ctrl/Cmd+%s %j inserts Markdown around the selection", async (key, extra, expected) => {
+    const editor = await openMd();
+    const view = getEditorView(editor);
+    act(() => view.dispatch({ selection: { anchor: 0, head: 3 } }));
+    const event = press(key, extra, view.contentDOM);
+    expect(event.defaultPrevented).toBe(true);
+    expect(editorContent(editor)).toContain(expected);
+  });
+
+  it("Ctrl/Cmd+Shift+\\ reaches Split in the Edit, Split, Read rotation", async () => {
+    await openMd();
+    const grid = () => document.querySelector(".grid.flex-1") as HTMLElement;
+    expect(grid().className).not.toContain("md:grid-cols-2");
+    press("\\", { shiftKey: true });
+    await waitFor(() => expect(grid().className).toContain("md:grid-cols-2"));
   });
 });

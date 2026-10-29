@@ -708,6 +708,36 @@ describe("SPEC-ADDON-037 what the plain-text editor leaves out (I4, I10)", () =>
     expect(event.defaultPrevented).toBe(false);
   });
 
+  it("SPEC-ADDON-037 (I3) does not register as a Markdown content source, so tag chips never write the bytes", async () => {
+    installServer({ streams: [{ bytes: enc("hello") }] });
+    openTxt();
+    await findEditor();
+    await shortcutsReady("Keep this version");
+    expect(markdownContentRegistry.lookup("f1")).toBeNull();
+  });
+
+  it("SPEC-ADDON-037 (I4) typing [[ opens no autocomplete and Enter inserts only a line break", async () => {
+    installServer({ streams: [{ bytes: enc("") }] });
+    openTxt();
+    const editor = await findEditor();
+    const driver = await import("./editorTestDriver");
+    const view = driver.getEditorView(editor);
+    for (const ch of "[[a") {
+      act(() =>
+        view.dispatch({
+          changes: { from: view.state.doc.length, insert: ch },
+          selection: { anchor: view.state.doc.length + 1 },
+        }),
+      );
+    }
+    await act(async () => {
+      vi.advanceTimersByTime(500);
+    });
+    expect(screen.queryByTestId("wiki-link-autocomplete")).toBeNull();
+    fireEvent.keyDown(view.contentDOM, { key: "Enter", keyCode: 13 });
+    expect(editorContent(editor)).toBe("[[a\n");
+  });
+
   it("Enter inserts a line break and carries no indentation or list marker", async () => {
     installServer({ streams: [{ bytes: enc("    - item") }] });
     openTxt();
