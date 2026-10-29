@@ -35,6 +35,16 @@ declare global {
   var __editParam__: string | undefined;
 }
 
+// jsdom lays nothing out and has no Range.getClientRects, which CodeMirror's
+// measure calls when the editor scrolls its selection into view.
+if (!Range.prototype.getClientRects) {
+  Range.prototype.getClientRects = () =>
+    ({ length: 0, item: () => null, [Symbol.iterator]: [][Symbol.iterator] }) as unknown as DOMRectList;
+}
+if (!Range.prototype.getBoundingClientRect) {
+  Range.prototype.getBoundingClientRect = () => new DOMRect();
+}
+
 const KnowledgeEditSection = (await import("../KnowledgeEditSection")).default;
 
 const NOT_UTF8 =
@@ -96,7 +106,8 @@ function installServer(options: {
         const status = next.status ?? 200;
         const headers: Record<string, string> = {};
         if (next.etag !== null) headers.etag = `"${next.etag ?? "e0"}"`;
-        return new Response(status === 200 ? new Blob([(next.bytes ?? enc("")) as BlobPart]) : "x", {
+        // A jsdom Blob reaches Node's Response as the string "[object Blob]".
+        return new Response(status === 200 ? ((next.bytes ?? enc("")) as unknown as BodyInit) : "x", {
           status,
           headers,
         });
