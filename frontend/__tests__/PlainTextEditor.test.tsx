@@ -788,6 +788,26 @@ describe("SPEC-ADDON-037 what the plain-text editor leaves out (I4, I10)", () =>
     expect(server.urls.filter((u) => u.includes("upload"))).toEqual([]);
   });
 
+  it("pasting an image-only clipboard over a selection leaves the selected text", async () => {
+    const server = installServer({ streams: [{ bytes: enc("body") }] });
+    openTxt();
+    const editor = await findEditor();
+    const view = (await import("./editorTestDriver")).getEditorView(editor);
+    act(() => view.dispatch({ selection: { anchor: 0, head: 4 } }));
+    const file = new File(["data"], "shot.png", { type: "image/png" });
+    fireEvent.paste(editor, {
+      clipboardData: {
+        items: [{ type: "image/png", getAsFile: () => file }],
+        getData: () => "",
+      },
+    });
+    await act(async () => {
+      vi.advanceTimersByTime(500);
+    });
+    expect(editorContent(editor)).toBe("body");
+    expect(server.urls.filter((u) => u.includes("upload"))).toEqual([]);
+  });
+
   it("pasting a clipboard that carries an image beside its text inserts the text", async () => {
     const server = installServer({ streams: [{ bytes: enc("body") }] });
     openTxt();
