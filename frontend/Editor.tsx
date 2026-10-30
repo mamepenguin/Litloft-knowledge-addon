@@ -18,6 +18,7 @@ import {
 } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { MarkdownPreview } from "@/components/MarkdownPreview";
+import { TextLines } from "@/components/TextLines";
 import type { DocumentCaptureController } from "@/lib/documentCapture";
 import { useToast } from "@/components/ToastProvider";
 import { MarkdownViewModeToggle } from "@/components/MarkdownViewModeToggle";
@@ -31,10 +32,15 @@ import { useDirty } from "@/hooks/useDirty";
 import { useShortcuts } from "@/hooks/useShortcuts";
 import {
   ConflictError,
+  encodePlainText,
   getFileContent,
   getFileVersion,
+  getPlainTextFile,
+  normalisePlainText,
   putFileContent,
   renameFile,
+  type PlainTextBlock,
+  type PlainTextForm,
 } from "./api";
 import {
   completeUpload,
@@ -127,6 +133,30 @@ interface Props {
   onDocumentCaptureController?: (
     controller: DocumentCaptureController | null,
   ) => void;
+  /**
+   * A `.txt` document: edited as plain text, written back in the form it was
+   * read in, with none of the Markdown features and no knowledge endpoint.
+   */
+  plainText?: boolean;
+  /** A search term to mark, and scroll to once, the first time Read is shown. */
+  highlight?: string;
+}
+
+/**
+ * Why a plain-text document is not written. `held` is a document that was
+ * editable until Overwrite found the file no longer is: the viewer's text is
+ * kept on screen, read-only.
+ */
+interface PlainBlock {
+  reason: PlainTextBlock;
+  held: boolean;
+}
+
+interface LoadedBody {
+  content: string;
+  etag: string;
+  form: PlainTextForm | null;
+  blocked: PlainTextBlock | null;
 }
 
 type SaveState =
@@ -169,6 +199,8 @@ export default function Editor({
   autoFocus,
   folderPath,
   onDocumentCaptureController,
+  plainText = false,
+  highlight,
 }: Props) {
   const t = useTranslations("knowledge.editor");
   const tShortcuts = useTranslations("knowledge.shortcuts");
@@ -265,6 +297,13 @@ export default function Editor({
   }, [fileId, filename]);
   const effectiveFilename = filename ?? fetchedFilename ?? "";
   const [loadError, setLoadError] = useState<string | null>(null);
+  const [plainBlock, setPlainBlockState] = useState<PlainBlock | null>(null);
+  const plainBlockRef = useRef<PlainBlock | null>(null);
+  const setPlainBlock = useCallback((next: PlainBlock | null) => {
+    plainBlockRef.current = next;
+    setPlainBlockState(next);
+  }, []);
+  const plainFormRef = useRef<PlainTextForm>({ bom: false, crlf: false });
   const [saveState, setSaveState] = useState<SaveState>({ kind: "idle" });
   // wiki-link resolutions for the preview pane — fetched on mount and
   // re-fetched after each successful save (so newly-added [[X]] in the
@@ -365,31 +404,65 @@ export default function Editor({
     { top: number; left: number; lineHeight: number } | null
   >(null);
 
-  const applyLiveContent = useCallback(
-    (nextContent: string, etag: string, generation: number) => {
+  const loadBody = useCallback(async (): Promise<LoadedBody> => {
+    if (!plainText) {
+      const loaded = await getFileContent(fileId);
+      return {
+        content: loaded.content,
+        etag: loaded.etag,
+        form: null,
+        blocked: null,
+      };
+    }
+    const loaded = await getPlainTextFile(fileId);
+    return {
+      content: loaded.text,
+      etag: loaded.etag,
+      form: loaded.blocked === null ? loaded.form : null,
+      blocked: loaded.blocked,
+    };
+  }, [fileId, plainText]);
+
+  const applyLoaded = useCallback(
+    (loaded: LoadedBody, generation: number) => {
       if (!isCurrentGeneration(generation)) return false;
       if (saveTimerRef.current) {
         clearTimeout(saveTimerRef.current);
         saveTimerRef.current = null;
       }
-      etagRef.current = etag;
-      lastSavedRef.current = nextContent;
+      etagRef.current = loaded.etag;
+      lastSavedRef.current = loaded.content;
       contentFileIdRef.current = fileGenerationRef.current.fileId;
-      updateContent(nextContent, { addToHistory: false });
+      if (plainText) {
+        if (loaded.form) plainFormRef.current = loaded.form;
+        setPlainBlock(
+          loaded.blocked ? { reason: loaded.blocked, held: false } : null,
+        );
+      }
+      updateContent(loaded.content, { addToHistory: false });
       setSaveState({ kind: "idle" });
       return true;
     },
-    [isCurrentGeneration, updateContent],
+    [isCurrentGeneration, plainText, setPlainBlock, updateContent],
   );
 
   const reloadLiveContent = useCallback(
     async (generation: number) => {
-      const loaded = await getFileContent(fileId);
-      return applyLiveContent(loaded.content, loaded.etag, generation)
-        ? loaded
-        : null;
+      const loaded = await loadBody();
+      return applyLoaded(loaded, generation) ? loaded : null;
     },
-    [applyLiveContent, fileId],
+    [applyLoaded, loadBody],
+  );
+
+  const writeBody = useCallback(
+    (text: string, ifMatch: string, kind?: "explicit") =>
+      putFileContent(
+        fileId,
+        plainText ? encodePlainText(text, plainFormRef.current) : text,
+        ifMatch,
+        kind,
+      ),
+    [fileId, plainText],
   );
 
   useEffect(() => {
@@ -398,10 +471,11 @@ export default function Editor({
     setRestoreBusy(false);
     updateContent(null);
     setLoadError(null);
-    getFileContent(fileId)
-      .then(({ content: c, etag }) => {
+    setPlainBlock(null);
+    loadBody()
+      .then((loaded) => {
         if (cancelled) return;
-        applyLiveContent(c, etag, fileGeneration);
+        applyLoaded(loaded, fileGeneration);
       })
       .catch((e: Error) => {
         if (!cancelled && isCurrentGeneration(fileGeneration)) {
@@ -412,10 +486,12 @@ export default function Editor({
       cancelled = true;
     };
   }, [
-    applyLiveContent,
+    applyLoaded,
     fileGeneration,
     fileId,
     isCurrentGeneration,
+    loadBody,
+    setPlainBlock,
     updateContent,
   ]);
 
@@ -431,6 +507,7 @@ export default function Editor({
   // each save cycle triggers exactly one refetch.
   const [savedRefetchSeq, setSavedRefetchSeq] = useState(0);
   useEffect(() => {
+    if (plainText) return;
     let cancelled = false;
     getWikiResolutions(fileId)
       .then((r) => {
@@ -442,7 +519,7 @@ export default function Editor({
     return () => {
       cancelled = true;
     };
-  }, [fileId, savedRefetchSeq]);
+  }, [fileId, plainText, savedRefetchSeq]);
 
   const autoFocusedFileIdRef = useRef<string | null>(null);
   // Depend on the boolean "content has loaded" rather than `content`
@@ -488,6 +565,7 @@ export default function Editor({
     (generation: number) => {
       if (!isCurrentGeneration(generation)) return;
       setSavedRefetchSeq((s) => s + 1);
+      if (plainText) return;
       void fetch(
         `/api/addons/knowledge/resync-tags/${encodeURIComponent(fileId)}`,
         { method: "POST", credentials: "include" },
@@ -496,7 +574,7 @@ export default function Editor({
       });
       markdownContentRegistry.notifySaved(fileId);
     },
-    [fileId, isCurrentGeneration],
+    [fileId, isCurrentGeneration, plainText],
   );
 
   const performSave = useCallback(
@@ -504,14 +582,10 @@ export default function Editor({
       enqueueSaveOperation(async () => {
         const generation = fileGeneration;
         if (!isCurrentGeneration(generation)) return false;
+        if (plainBlockRef.current) return false;
         setSaveState({ kind: "saving" });
         try {
-          const result = await putFileContent(
-            fileId,
-            text,
-            etagRef.current,
-            kind,
-          );
+          const result = await writeBody(text, etagRef.current, kind);
           if (!isCurrentGeneration(generation)) return false;
           etagRef.current = result.etag;
           lastSavedRef.current = text;
@@ -538,14 +612,15 @@ export default function Editor({
     [
       enqueueSaveOperation,
       fileGeneration,
-      fileId,
       isCurrentGeneration,
       notifySaveSucceeded,
+      writeBody,
     ],
   );
 
   useEffect(() => {
     if (content === null) return;
+    if (plainBlock) return;
     if (contentFileIdRef.current !== fileId) return;
     if (restoreBusy) return;
     if (content === lastSavedRef.current) return;
@@ -554,7 +629,7 @@ export default function Editor({
       const latest = readCurrentContent();
       if (latest !== null) performSave(latest);
     }, AUTOSAVE_DEBOUNCE_MS);
-  }, [content, fileId, performSave, readCurrentContent, restoreBusy]);
+  }, [content, fileId, performSave, plainBlock, readCurrentContent, restoreBusy]);
 
   // Publish dirty state into the global registry so the Phase 2.2
   // navigation guard / browser unload handler can ask "would
@@ -582,6 +657,7 @@ export default function Editor({
   // the latest content even though the effect only re-runs when the
   // file or load state changes.
   useEffect(() => {
+    if (plainText) return;
     if (content === null) return;
     const dispose = markdownContentRegistry.register(fileId, {
       getContent: () => readCurrentContent() ?? "",
@@ -593,7 +669,7 @@ export default function Editor({
     // content edits flow through the ref without re-running this
     // effect, which keeps the registration stable.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [fileId, content === null, readCurrentContent, updateContent]);
+  }, [fileId, plainText, content === null, readCurrentContent, updateContent]);
 
   // Pulse the registry on every content change so FileDetailContent
   // (subscribed via useSyncExternalStore) re-reads `getContent()` and
@@ -602,20 +678,25 @@ export default function Editor({
   // content at click time, which is exactly the race Phase 3.5 set
   // out to close.
   useEffect(() => {
+    if (plainText) return;
     if (content === null) return;
     markdownContentRegistry.touchContent(fileId);
-  }, [fileId, content]);
+  }, [fileId, plainText, content]);
 
   useEffect(() => {
     return () => {
       if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
       const latest = readCurrentContent();
-      if (latest !== null && latest !== lastSavedRef.current) {
+      if (
+        latest !== null &&
+        latest !== lastSavedRef.current &&
+        !plainBlockRef.current
+      ) {
         // Fire-and-forget direct PUT instead of `performSave` — the
         // component is unmounting, so its `setSaveState` calls would
         // warn ("update on unmounted component") and have no UI to
         // reflect anyway. We only care that the bytes reach disk.
-        void putFileContent(fileId, latest, etagRef.current).catch(() => {
+        void writeBody(latest, etagRef.current).catch(() => {
           // best-effort; the next mount refetches authoritative state
         });
       }
@@ -623,7 +704,7 @@ export default function Editor({
     // Intentionally key on `fileId` (not `performSave`) — we want the
     // cleanup to run exactly when the editor unmounts or switches
     // files, not on every callback identity change.
-  }, [fileId, readCurrentContent]);
+  }, [fileId, readCurrentContent, writeBody]);
 
   const uploadFile = useCallback(
     async (file: File, placeholder: string) => {
@@ -732,13 +813,15 @@ export default function Editor({
       ) {
         return true;
       }
-      if (e.key === "Escape") {
+      // Plain text leaves Escape to CodeMirror, whose Escape-then-Tab is
+      // what moves focus out of a Tab-inserting editor.
+      if (e.key === "Escape" && !plainText) {
         editorRef.current?.blur();
         return true;
       }
       return false;
     },
-    [wikiTrigger],
+    [plainText, wikiTrigger],
   );
 
   // Inspects the editor contents around the caret to decide whether
@@ -826,10 +909,11 @@ export default function Editor({
   const handleEditorChange = useCallback(
     (next: string) => {
       adoptContent(next);
+      if (plainText) return;
       const head = editorRef.current?.getSelection().end ?? next.length;
       updateWikiTrigger(next, head);
     },
-    [adoptContent, updateWikiTrigger],
+    [adoptContent, plainText, updateWikiTrigger],
   );
 
   const insertWikiLink = useCallback(
@@ -904,6 +988,7 @@ export default function Editor({
 
   const keepCurrentVersion = useCallback(() => {
     if (restoreBusyRef.current) return;
+    if (plainBlockRef.current) return;
     if (saveTimerRef.current) {
       clearTimeout(saveTimerRef.current);
       saveTimerRef.current = null;
@@ -917,6 +1002,7 @@ export default function Editor({
   const handleRestoreVersion = useCallback(
     (versionId: number) => {
       if (restoreBusyRef.current) return Promise.resolve(false);
+      if (plainBlockRef.current) return Promise.resolve(false);
       if (saveTimerRef.current) {
         clearTimeout(saveTimerRef.current);
         saveTimerRef.current = null;
@@ -952,8 +1038,7 @@ export default function Editor({
           // this same serialized queue before reading or applying the target
           // version, then carry its returned ETag into the restore PUT.
           if (draftWasDirty) {
-            const draftResult = await putFileContent(
-              fileId,
+            const draftResult = await writeBody(
               draft,
               etagRef.current,
               "explicit",
@@ -972,9 +1057,8 @@ export default function Editor({
             });
             return false;
           }
-          const restoredResult = await putFileContent(
-            fileId,
-            version.content,
+          const restoredResult = await writeBody(
+            plainText ? normalisePlainText(version.content) : version.content,
             etagRef.current,
             "explicit",
           );
@@ -1014,13 +1098,19 @@ export default function Editor({
       fileId,
       isCurrentGeneration,
       notifySaveSucceeded,
+      plainText,
       readCurrentContent,
       reloadLiveContent,
       t,
+      writeBody,
     ],
   );
 
   const cycleViewMode = useCallback(() => {
+    if (plainText) {
+      setViewMode(viewMode === "preview" ? "edit" : "preview");
+      return;
+    }
     const idx = VIEW_MODE_ROTATION.indexOf(viewMode);
     const next = VIEW_MODE_ROTATION[(idx + 1) % VIEW_MODE_ROTATION.length];
     setViewMode(next);
@@ -1029,7 +1119,41 @@ export default function Editor({
     // relevant owner. Including viewMode is enough to keep the next
     // step computed against the current value.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [viewMode]);
+  }, [plainText, viewMode]);
+
+  const markdownShortcuts = [
+    {
+      key: "ctrl+b",
+      label: tShortcuts("bold"),
+      handler: () =>
+        handleToolbar({ kind: "wrap", before: "**", after: "**" }),
+      editingOnly: true,
+    },
+    {
+      key: "ctrl+i",
+      label: tShortcuts("italic"),
+      handler: () => handleToolbar({ kind: "wrap", before: "*", after: "*" }),
+      editingOnly: true,
+    },
+    {
+      key: "ctrl+k",
+      label: tShortcuts("insertLink"),
+      handler: () => handleToolbar({ kind: "link" }),
+      editingOnly: true,
+    },
+    {
+      key: "ctrl+e",
+      label: tShortcuts("inlineCode"),
+      handler: () => handleToolbar({ kind: "wrap", before: "`", after: "`" }),
+      editingOnly: true,
+    },
+    {
+      key: "ctrl+shift+k",
+      label: tShortcuts("codeBlock"),
+      handler: () => handleToolbar({ kind: "codeblock" }),
+      editingOnly: true,
+    },
+  ];
 
   useShortcuts(
     "knowledge-editor",
@@ -1041,37 +1165,7 @@ export default function Editor({
         handler: keepCurrentVersion,
         editingOnly: true,
       },
-      {
-        key: "ctrl+b",
-        label: tShortcuts("bold"),
-        handler: () =>
-          handleToolbar({ kind: "wrap", before: "**", after: "**" }),
-        editingOnly: true,
-      },
-      {
-        key: "ctrl+i",
-        label: tShortcuts("italic"),
-        handler: () => handleToolbar({ kind: "wrap", before: "*", after: "*" }),
-        editingOnly: true,
-      },
-      {
-        key: "ctrl+k",
-        label: tShortcuts("insertLink"),
-        handler: () => handleToolbar({ kind: "link" }),
-        editingOnly: true,
-      },
-      {
-        key: "ctrl+e",
-        label: tShortcuts("inlineCode"),
-        handler: () => handleToolbar({ kind: "wrap", before: "`", after: "`" }),
-        editingOnly: true,
-      },
-      {
-        key: "ctrl+shift+k",
-        label: tShortcuts("codeBlock"),
-        handler: () => handleToolbar({ kind: "codeblock" }),
-        editingOnly: true,
-      },
+      ...(plainText ? [] : markdownShortcuts),
       {
         key: "ctrl+shift+\\",
         label: tShortcuts("cycleViewMode"),
@@ -1098,9 +1192,19 @@ export default function Editor({
     if (latest === null) return;
     const generation = fileGeneration;
     try {
-      const { etag } = await getFileContent(fileId);
+      const loaded = await loadBody();
       if (!isCurrentGeneration(generation)) return;
-      etagRef.current = etag;
+      if (loaded.blocked) {
+        if (saveTimerRef.current) {
+          clearTimeout(saveTimerRef.current);
+          saveTimerRef.current = null;
+        }
+        setPlainBlock({ reason: loaded.blocked, held: true });
+        setSaveState({ kind: "idle" });
+        return;
+      }
+      etagRef.current = loaded.etag;
+      if (loaded.form) plainFormRef.current = loaded.form;
       await performSave(latest);
     } catch (e) {
       if (isCurrentGeneration(generation)) {
@@ -1132,7 +1236,7 @@ export default function Editor({
   // content === null early returns to keep hook order stable across
   // renders.
   const { frontmatter, body, hasFrontmatter, yamlError } = useMemo(() => {
-    if (content === null) {
+    if (content === null || plainText) {
       return {
         frontmatter: {} as Record<string, unknown>,
         body: "",
@@ -1163,7 +1267,20 @@ export default function Editor({
         yamlError: message,
       };
     }
-  }, [content]);
+  }, [content, plainText]);
+
+  // Read is drawn only while it is shown, so typing in Edit does no work for
+  // it. The search term is marked, and scrolled to, on the first Read only.
+  const [highlightSpent, setHighlightSpent] = useState(false);
+  const readShownRef = useRef(false);
+  useEffect(() => {
+    readShownRef.current = false;
+    setHighlightSpent(false);
+  }, [fileId]);
+  useEffect(() => {
+    if (viewMode === "preview") readShownRef.current = true;
+    else if (readShownRef.current) setHighlightSpent(true);
+  }, [viewMode]);
 
   if (loadError) {
     return (
@@ -1182,6 +1299,20 @@ export default function Editor({
   }
 
   const displayName = effectiveFilename.replace(/\.md$/i, "");
+  const notEditable = plainBlock !== null && !plainBlock.held;
+  const held = plainBlock?.held === true;
+  const showReadView = viewMode === "preview";
+  const plainNotice = plainBlock ? (
+    <div
+      className="flex items-start gap-2 border-b border-bg-border bg-bg-card px-4 py-3 text-sm text-text-muted"
+      role="status"
+    >
+      <AlertCircle size={14} className="mt-0.5 shrink-0" />
+      <span>
+        {plainBlock.reason === "notUtf8" ? t("notUtf8") : t("mixedEndings")}
+      </span>
+    </div>
+  ) : null;
 
   // Inline mode collapses the chrome down to status + view-mode
   // toggle; the host (FileDetailContent) already shows the title,
@@ -1252,7 +1383,7 @@ export default function Editor({
         </header>
       )}
 
-      {viewMode !== "preview" && (
+      {viewMode !== "preview" && !plainBlock && (
         // Sticky directly below the host chrome (MarkdownDocumentLayout's
         // 48px top bar / Knowledge Page's own header) so the formatting
         // affordances stay reachable while the editor content scrolls
@@ -1262,8 +1393,9 @@ export default function Editor({
         // add the positioning + a low z-index here.
         <div className="sticky top-0 z-10">
           <EditorToolbar
+            versionsOnly={plainText}
             onAction={handleToolbar}
-            onFileLinkRequest={handleFileLinkRequest}
+            onFileLinkRequest={plainText ? undefined : handleFileLinkRequest}
             onKeepVersion={keepCurrentVersion}
             onOpenVersionHistory={() => requestVersionHistory(fileId)}
             disabled={restoreBusy}
@@ -1286,63 +1418,89 @@ export default function Editor({
           fillHeight ? "" : "min-h-0"
         } ${viewMode === "split" ? "md:grid-cols-2" : "grid-cols-1"}`}
       >
-        <MarkdownEditor
-          ref={editorRef}
-          initialContent={content}
-          onChange={handleEditorChange}
-          onSelectionChange={updateWikiTrigger}
-          onKeyDown={handleKeyDown}
-          onDropFiles={handleDropFiles}
-          onPasteImages={handlePasteImages}
-          fillHeight={fillHeight}
-          className={`${
-            fillHeight ? "w-full" : "h-full w-full"
-          } bg-bg-primary ${
-            viewMode === "split" ? "border-r border-bg-border" : ""
-          } ${viewMode === "preview" ? "hidden" : ""}`}
-          ariaLabel={t("editArea")}
-          placeholder={t("placeholder")}
-          disabled={restoreBusy}
-          ariaBusy={restoreBusy}
-        />
-        <div
-          className={`${
-            fillHeight ? "min-h-[24rem]" : "h-full overflow-auto"
-          } bg-bg-primary px-8 py-6 ${viewMode === "edit" ? "hidden" : ""}`}
-        >
-          <div className="mx-auto max-w-3xl">
-            {yamlError && (
-              <div
-                className="mb-6 flex items-start gap-2 rounded-xl border border-danger/30 bg-danger/10 px-3 py-2 text-xs text-danger"
-                role="status"
-                title={yamlError}
-              >
-                <AlertCircle size={14} className="mt-0.5 shrink-0" />
-                <span className="break-anywhere">{t("yamlError")}</span>
+        {viewMode !== "preview" && held && plainNotice}
+        {viewMode !== "preview" && notEditable && plainNotice}
+        {!notEditable && (
+          <MarkdownEditor
+            ref={editorRef}
+            initialContent={content}
+            plainText={plainText}
+            onChange={handleEditorChange}
+            onSelectionChange={plainText ? undefined : updateWikiTrigger}
+            onKeyDown={handleKeyDown}
+            onDropFiles={plainText ? undefined : handleDropFiles}
+            onPasteImages={plainText ? undefined : handlePasteImages}
+            fillHeight={fillHeight}
+            className={`${
+              fillHeight ? "w-full" : "h-full w-full"
+            } bg-bg-primary ${
+              viewMode === "split" ? "border-r border-bg-border" : ""
+            } ${viewMode === "preview" ? "hidden" : ""}`}
+            ariaLabel={plainText ? t("plainEditArea") : t("editArea")}
+            placeholder={t("placeholder")}
+            disabled={restoreBusy || held}
+            ariaBusy={restoreBusy}
+          />
+        )}
+        {plainText ? (
+          showReadView && (
+            <div
+              className={`${
+                fillHeight ? "min-h-[24rem]" : "h-full overflow-auto"
+              } bg-bg-primary px-8 py-6`}
+            >
+              <div className="mx-auto max-w-3xl">
+                <TextLines
+                  text={content}
+                  highlight={highlightSpent ? undefined : highlight}
+                  onDocumentCaptureController={onDocumentCaptureController}
+                />
               </div>
-            )}
-            {hasFrontmatter && (
-              <div className="mb-6">
-                <PropertiesPanel frontmatter={frontmatter} hideTags />
-              </div>
-            )}
-            <MarkdownPreview
-              source={body}
-              chrome={false}
-              className="h-full"
-              drive={drive}
-              wikiResolution={wikiResolution}
-              onDocumentCaptureController={onDocumentCaptureController}
-            />
+            </div>
+          )
+        ) : (
+          <div
+            className={`${
+              fillHeight ? "min-h-[24rem]" : "h-full overflow-auto"
+            } bg-bg-primary px-8 py-6 ${viewMode === "edit" ? "hidden" : ""}`}
+          >
+            <div className="mx-auto max-w-3xl">
+              {yamlError && (
+                <div
+                  className="mb-6 flex items-start gap-2 rounded-xl border border-danger/30 bg-danger/10 px-3 py-2 text-xs text-danger"
+                  role="status"
+                  title={yamlError}
+                >
+                  <AlertCircle size={14} className="mt-0.5 shrink-0" />
+                  <span className="break-anywhere">{t("yamlError")}</span>
+                </div>
+              )}
+              {hasFrontmatter && (
+                <div className="mb-6">
+                  <PropertiesPanel frontmatter={frontmatter} hideTags />
+                </div>
+              )}
+              <MarkdownPreview
+                source={body}
+                chrome={false}
+                className="h-full"
+                drive={drive}
+                wikiResolution={wikiResolution}
+                onDocumentCaptureController={onDocumentCaptureController}
+              />
+            </div>
           </div>
-        </div>
+        )}
       </div>
 
-      <VersionHistoryPanel
-        fileId={fileId}
-        refreshKey={savedRefetchSeq}
-        onRestore={handleRestoreVersion}
-      />
+      {!plainBlock && (
+        <VersionHistoryPanel
+          fileId={fileId}
+          refreshKey={savedRefetchSeq}
+          onRestore={handleRestoreVersion}
+          rawPreview={plainText}
+        />
+      )}
 
       {wikiTrigger && (
         <WikiLinkAutocomplete

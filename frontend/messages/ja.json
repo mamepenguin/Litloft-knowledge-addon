@@ -94,6 +94,9 @@
       "back": "一覧に戻る",
       "delete": "ゴミ箱に移動",
       "editArea": "Markdownエディタ",
+      "plainEditArea": "テキストエディタ",
+      "notUtf8": "このファイルは UTF-8 のテキストではないため、ここでは編集できません。",
+      "mixedEndings": "改行コードが混在しているため、ここでは編集できません。",
       "placeholder": "ここに書き始めましょう...",
       "yamlError": "frontmatterのYAMLを解析できません",
       "title": {

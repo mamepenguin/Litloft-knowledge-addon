@@ -185,6 +185,24 @@ describe("KnowledgeEditSection (flag false, default)", () => {
     expect(screen.queryByTestId("editor-stub")).toBeNull();
   });
 
+  it("SPEC-ADDON-037 (I8) a text/plain file gets no editor and no full-editor link, even when core marks it editable", async () => {
+    vi.stubEnv("NEXT_PUBLIC_INLINE_KNOWLEDGE_EDITOR", "false");
+    stubFileFetch(textFile);
+
+    const { container } = render(
+      <KnowledgeEditSection
+        fileId="f1"
+        drive="d"
+        {...{ plainTextDocument: true }}
+      />,
+    );
+    await waitFor(() => expect(globalThis.fetch).toHaveBeenCalled());
+
+    await waitFor(() => expect(container).toBeEmptyDOMElement());
+    expect(screen.queryByRole("link")).toBeNull();
+    expect(screen.queryByTestId("editor-stub")).toBeNull();
+  });
+
   it("renders nothing when the file metadata fetch fails", async () => {
     vi.stubEnv("NEXT_PUBLIC_INLINE_KNOWLEDGE_EDITOR", "false");
     stubFileFetch(null);

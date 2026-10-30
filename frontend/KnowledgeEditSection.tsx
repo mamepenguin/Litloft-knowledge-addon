@@ -19,15 +19,15 @@ interface FileMeta {
   folder_path: string;
 }
 
-// Markdown only. Other text/* mimes fall back to read-only file detail
-// (spec docs/superpowers/specs/2026-05-10-markdown-document-layout.md
-// §3 C2 採用).
+// text/plain is editable only when core says the file is a plain-text
+// document (`plainTextDocument`); other text/* mimes fall back to read-only
+// file detail.
 const EDITABLE_MIMES = new Set(["text/markdown"]);
 
 /**
  * File-detail slot for the Knowledge editor.
  *
- * `.md` only, and only the editor: either the inline one, or a link to
+ * `.md`, and a `.txt` that core marks as a plain-text document; only the editor: either the inline one, or a link to
  * the full one where the inline editor is switched off. Every other kind
  * of file gets nothing here.
  *
@@ -42,10 +42,15 @@ export default function KnowledgeEditSection({
   fileId,
   drive,
   fillHeight,
+  plainTextDocument,
+  highlight,
 }: {
   fileId: string;
   drive: string;
   fillHeight?: boolean;
+  /** Core's decision that this file is a `.txt` the editor may take. */
+  plainTextDocument?: boolean;
+  highlight?: string;
 }) {
   const tEdit = useTranslations("knowledge.editSection");
   const searchParams = useSearchParams();
@@ -73,8 +78,11 @@ export default function KnowledgeEditSection({
   if (!policy.isLoading && !policy.enabled) return null;
 
   const isMarkdown = EDITABLE_MIMES.has(file.mime_type);
+  const isPlainText =
+    plainTextDocument === true && file.mime_type === "text/plain";
 
-  if (!isMarkdown) return null;
+  if (!isMarkdown && !isPlainText) return null;
+  if (isPlainText && !isInlineKnowledgeEditorEnabled()) return null;
 
   if (isInlineKnowledgeEditorEnabled()) {
     const autoFocus = searchParams.get("edit") === "1";
@@ -88,6 +96,8 @@ export default function KnowledgeEditSection({
           inlineMode
           autoFocus={autoFocus}
           fillHeight={fillHeight}
+          plainText={isPlainText}
+          highlight={highlight}
           onDocumentCaptureController={setDocumentCaptureController}
         />
         {/* The editor's own capture control, holding the editor's
