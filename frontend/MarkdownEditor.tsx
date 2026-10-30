@@ -401,9 +401,22 @@ const MarkdownEditor = forwardRef<MarkdownEditorHandle, Props>(
                   // flowing to CM6 normally.
                   return typeof event.clipboardData?.getData !== "function";
                 }
+                if (!callbackRef.current.onPasteImages) {
+                  // CM6 falls back to text/uri-list and inserts even an empty
+                  // string over the selection, so only real text goes to it.
+                  const data = event.clipboardData;
+                  if (
+                    typeof data?.getData === "function" &&
+                    data.getData("text/plain") !== ""
+                  ) {
+                    return false;
+                  }
+                  event.preventDefault();
+                  return true;
+                }
                 event.preventDefault();
                 const selection = currentView.state.selection.main;
-                callbackRef.current.onPasteImages?.(
+                callbackRef.current.onPasteImages(
                   files,
                   selection.from,
                   selection.to,
