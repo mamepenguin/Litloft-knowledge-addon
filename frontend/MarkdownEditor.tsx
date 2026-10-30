@@ -394,7 +394,10 @@ const MarkdownEditor = forwardRef<MarkdownEditorHandle, Props>(
                   .filter((item) => item.type.startsWith("image/"))
                   .map((item) => item.getAsFile())
                   .filter((file): file is File => file !== null);
-                if (files.length === 0) {
+                if (
+                  files.length === 0 ||
+                  !callbackRef.current.onPasteImages
+                ) {
                   // Some synthetic clipboard events (notably jsdom) expose
                   // items but not getData(). Claim those events so CM6 does
                   // not call a missing API; real browser text paste keeps

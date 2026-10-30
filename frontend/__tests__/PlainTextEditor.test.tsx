@@ -788,6 +788,27 @@ describe("SPEC-ADDON-037 what the plain-text editor leaves out (I4, I10)", () =>
     expect(server.urls.filter((u) => u.includes("upload"))).toEqual([]);
   });
 
+  it("pasting a clipboard that carries an image beside its text inserts the text", async () => {
+    const server = installServer({ streams: [{ bytes: enc("body") }] });
+    openTxt();
+    const editor = await findEditor();
+    const file = new File(["data"], "cells.png", { type: "image/png" });
+    fireEvent.paste(editor, {
+      clipboardData: {
+        items: [
+          { type: "text/plain", getAsFile: () => null },
+          { type: "image/png", getAsFile: () => file },
+        ],
+        getData: (type: string) => (type === "text/plain" ? "a\tb" : ""),
+      },
+    });
+    await act(async () => {
+      vi.advanceTimersByTime(500);
+    });
+    expect(editorContent(editor)).toContain("a\tb");
+    expect(server.urls.filter((u) => u.includes("upload"))).toEqual([]);
+  });
+
   it("types no Markdown styling: a Markdown-looking line gets no decoration classes", async () => {
     installServer({ streams: [{ bytes: enc("# not a heading\n**not bold**") }] });
     openTxt();
