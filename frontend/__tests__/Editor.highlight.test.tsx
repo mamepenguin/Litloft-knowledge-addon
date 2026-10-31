@@ -174,6 +174,20 @@ describe("a note opened with ?highlight=", () => {
     });
   });
 
+  it("keeps the mark, and scrolls once, when Read becomes Split", async () => {
+    stubStream({ f1: NOTE });
+    render(<Harness highlight="beta gamma" initial="preview" />);
+    await waitFor(() => expect(markedText()).toBe("beta gamma"));
+    await waitFor(() =>
+      expect(Element.prototype.scrollIntoView).toHaveBeenCalledTimes(1),
+    );
+
+    go("split");
+    await screen.findByLabelText("editArea");
+    expect(markedText()).toBe("beta gamma");
+    expect(Element.prototype.scrollIntoView).toHaveBeenCalledTimes(1);
+  });
+
   it("is not marked again once Read has been left and the text has changed", async () => {
     stubStream({ f1: NOTE });
     render(<Harness highlight="beta gamma" initial="preview" />);
