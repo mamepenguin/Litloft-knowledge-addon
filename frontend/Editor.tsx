@@ -1485,6 +1485,9 @@ export default function Editor({
                 chrome={false}
                 className="h-full"
                 drive={drive}
+                highlight={
+                  viewMode === "edit" || highlightSpent ? undefined : highlight
+                }
                 wikiResolution={wikiResolution}
                 onDocumentCaptureController={onDocumentCaptureController}
               />
