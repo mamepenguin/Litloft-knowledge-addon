@@ -1277,10 +1277,11 @@ export default function Editor({
     readShownRef.current = false;
     setHighlightSpent(false);
   }, [fileId]);
+  const previewShown = plainText ? viewMode === "preview" : viewMode !== "edit";
   useEffect(() => {
-    if (viewMode === "preview") readShownRef.current = true;
+    if (previewShown) readShownRef.current = true;
     else if (readShownRef.current) setHighlightSpent(true);
-  }, [viewMode]);
+  }, [previewShown]);
 
   if (loadError) {
     return (
