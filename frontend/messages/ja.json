@@ -351,6 +351,9 @@
     },
     "noteScope": {
       "label": "ノート"
+    },
+    "inbox": {
+      "sourceWebClip": "Web クリップ"
     }
   }
 }

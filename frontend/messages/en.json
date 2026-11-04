@@ -351,6 +351,9 @@
     },
     "noteScope": {
       "label": "Notes"
+    },
+    "inbox": {
+      "sourceWebClip": "Web clip"
     }
   }
 }

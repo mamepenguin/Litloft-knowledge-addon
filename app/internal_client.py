@@ -48,17 +48,25 @@ class InternalClient:
         path: str,
         content: str,
         conflict_mode: str = "rename",
+        arrival: dict | None = None,
     ) -> dict:
-        """Create a new text file in the given drive via core POST /files."""
+        """Create a new text file in the given drive via core POST /files.
+
+        ``arrival`` asks core to record the file in the drive's inbox in the
+        same transaction as the file itself.
+        """
+        body: dict = {
+            "path": path,
+            "content": content,
+            "conflict_mode": conflict_mode,
+        }
+        if arrival is not None:
+            body["arrival"] = arrival
         async with httpx.AsyncClient(timeout=30.0) as client:
             r = await client.post(
                 f"{HOMEVAULT_INTERNAL_URL}/api/drives/{drive}/files",
                 headers={**self._headers(), "Content-Type": "application/json"},
-                json={
-                    "path": path,
-                    "content": content,
-                    "conflict_mode": conflict_mode,
-                },
+                json=body,
             )
         if r.status_code not in (200, 201):
             raise InternalAPIError(r.status_code, r.text)

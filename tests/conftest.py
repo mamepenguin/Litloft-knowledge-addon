@@ -102,7 +102,9 @@ class FakeInternalClient:
             {"file_id": file_id, "tier": tier}
         )
 
-    async def create_text_file(self, drive, path, content, conflict_mode="rename"):
+    async def create_text_file(
+        self, drive, path, content, conflict_mode="rename", arrival=None
+    ):
         from app.internal_client import InternalAPIError
 
         FakeInternalClient.captured_text_writes.append(
@@ -111,6 +113,7 @@ class FakeInternalClient:
                 "path": path,
                 "content": content,
                 "conflict_mode": conflict_mode,
+                "arrival": arrival,
             }
         )
         if FakeInternalClient.create_text_file_always_fails is not None:

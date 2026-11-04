@@ -14,6 +14,11 @@ import pytest
 from app.models import ClipJob
 from tests.conftest import FakeInternalClient, viewer_id_for_nickname
 
+WEB_CLIP_ARRIVAL = {
+    "source": "web_clip",
+    "i18n_key": "knowledge.inbox.sourceWebClip",
+}
+
 
 class FakeWorker:
     def __init__(self):
@@ -328,3 +333,66 @@ def test_clip_accepts_409_because_the_viewer_already_ruled(
     )
 
     assert r.status_code == 202
+
+
+@pytest.mark.parametrize(
+    ("path", "payload", "expected_status"),
+    [
+        pytest.param(
+            "/clips",
+            {"url": "https://example.com/article", "title": "Arrival"},
+            202,
+            id="clips",
+        ),
+        pytest.param(
+            "/clips/pasted",
+            {
+                "url": "https://example.com/article",
+                "html": "<html><body><article>Body text here.</article></body></html>",
+            },
+            201,
+            id="clips-pasted",
+        ),
+    ],
+)
+def test_every_clip_entry_point_sends_the_arrival(
+    client, knowledge_db, fake_clips_internal, fake_worker, viewer_cookie,
+    stub_dns, path, payload, expected_status,
+):
+    """SPEC-ADDON-059 I2: both clip endpoints record a web_clip arrival."""
+    fake_clips_internal.captured_text_writes = []
+
+    r = client.post(
+        path,
+        json=payload,
+        headers={**viewer_cookie, "X-Lit-Drive": "test-drive"},
+    )
+
+    assert r.status_code == expected_status, r.text
+    assert [w["arrival"] for w in fake_clips_internal.captured_text_writes] == [
+        WEB_CLIP_ARRIVAL
+    ]
+
+
+def test_conflict_retry_resends_the_arrival(
+    client, knowledge_db, fake_clips_internal, fake_worker, viewer_cookie,
+    stub_dns,
+):
+    """SPEC-ADDON-059 I2: the retry after a 409 carries the arrival too."""
+    fake_clips_internal.captured_text_writes = []
+    fake_clips_internal.create_text_file_collisions = {"arrival.md"}
+
+    r = client.post(
+        "/clips",
+        json={"url": "https://example.com/article", "title": "Arrival"},
+        headers={**viewer_cookie, "X-Lit-Drive": "test-drive"},
+    )
+
+    assert r.status_code == 202, r.text
+    writes = fake_clips_internal.captured_text_writes
+    assert len(writes) == 2
+    assert writes[0]["path"] != writes[1]["path"]
+    assert [w["arrival"] for w in writes] == [
+        WEB_CLIP_ARRIVAL,
+        WEB_CLIP_ARRIVAL,
+    ]
