@@ -48,6 +48,11 @@ logger = logging.getLogger(__name__)
 #: viewer reads it and vouches for it in the core UI.
 CLIP_INGEST_TIER = "unverified"
 
+CLIP_ARRIVAL = {
+    "source": "web_clip",
+    "i18n_key": "knowledge.inbox.sourceWebClip",
+}
+
 router = APIRouter(prefix="/clips", tags=["clips"])
 
 
@@ -135,7 +140,9 @@ async def _create_placeholder(
     rel_path = _join_path(subfolder, slug)
     content = _initial_content(url)
     try:
-        created = await client.create_text_file(drive, rel_path, content)
+        created = await client.create_text_file(
+            drive, rel_path, content, arrival=CLIP_ARRIVAL
+        )
     except InternalAPIError as e:
         # 409: filename collision. Retry once with a timestamp suffix.
         if e.status_code == 409:
@@ -144,7 +151,7 @@ async def _create_placeholder(
             rel_path = _join_path(subfolder, slug2)
             try:
                 created = await client.create_text_file(
-                    drive, rel_path, content
+                    drive, rel_path, content, arrival=CLIP_ARRIVAL
                 )
             except InternalAPIError as e2:
                 raise HTTPException(status_code=502, detail=str(e2))
