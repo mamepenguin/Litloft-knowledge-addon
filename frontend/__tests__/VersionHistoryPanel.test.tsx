@@ -135,6 +135,7 @@ describe("VersionHistoryPanel", () => {
       "2026",
     );
     expect(screen.getByTestId("version-preview")).toHaveClass("select-text");
+    expect(screen.getByTestId("version-preview")).toHaveClass("break-anywhere");
     const nextPage = screen.getByRole("button", {
       name: "knowledge.editor.versions.nextPage",
     });
