@@ -470,7 +470,7 @@ export default function VersionHistoryPanel({
                   ) : (
                     <pre
                       data-testid="version-preview"
-                      className="mt-2 max-h-80 select-text overflow-auto whitespace-pre-wrap rounded-xl border border-bg-border bg-bg-primary p-3 font-mono text-xs leading-relaxed text-text-primary"
+                      className="mt-2 max-h-80 select-text overflow-auto whitespace-pre-wrap break-anywhere rounded-xl border border-bg-border bg-bg-primary p-3 font-mono text-xs leading-relaxed text-text-primary"
                     >
                       {body ? (rawPreview ? body.content : decodeLinkTargets(body.content)) : ""}
                     </pre>
