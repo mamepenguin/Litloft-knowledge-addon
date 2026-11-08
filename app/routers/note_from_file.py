@@ -24,6 +24,7 @@ from app.credentials import CallerCredential
 from app.internal_client import InternalAPIError, InternalClient
 from app.routers.distill import (
     _COLLISION_CAP,
+    _created_rel_path,
     _join_path,
     _next_collision_candidate,
     _require_drive,
@@ -92,7 +93,7 @@ async def create_note_from_file(
         )
 
     note_file_id = created["id"]
-    note_rel_path = _join_path(folder, final_filename)
+    note_rel_path = _created_rel_path(created)
 
     await client.emit_addon_event(
         "knowledge.note.created",

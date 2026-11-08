@@ -33,6 +33,7 @@ from app.internal_client import InternalAPIError, InternalClient
 from app.models import NoteOrigin, NoteOriginSource
 from app.routers.distill import (
     _COLLISION_CAP,
+    _created_rel_path,
     _join_path,
     _next_collision_candidate,
     _require_drive,
@@ -129,7 +130,7 @@ async def create_note(
     # Core owns collision resolution and may return ``name (1).md`` even
     # though the requested path was ``name.md``. Its response is the source
     # of truth for both the cache key and the path returned to the caller.
-    note_rel_path = created.get("file_path") or _join_path(folder, final_filename)
+    note_rel_path = _created_rel_path(created)
     approved_at = datetime.now(timezone.utc)
 
     # Only same-drive sources enter note_origin_sources: drive is the
