@@ -158,6 +158,25 @@ def _migrate_add_tags_synced_at() -> None:
     logger.info("knowledge: added note_origins.tags_synced_at column (tags projection pending)")
 
 
+def _migrate_add_trust_declared_at() -> None:
+    """Add ``note_origins.trust_declared_at`` if the column is missing.
+
+    Nullable with no server default, so every existing row stays NULL: the
+    startup pass then declares the Ask notes among them one by one.
+    """
+    insp = inspect(engine)
+    if "note_origins" not in insp.get_table_names():
+        return
+    cols = {c["name"] for c in insp.get_columns("note_origins")}
+    if "trust_declared_at" in cols:
+        return
+    with engine.begin() as conn:
+        conn.execute(
+            text("ALTER TABLE note_origins ADD COLUMN trust_declared_at DATETIME")
+        )
+    logger.info("knowledge: added note_origins.trust_declared_at column")
+
+
 def init_schema() -> None:
     """Create all tables if not present. Safe to call on every startup."""
     _migrate_note_origins_to_drive_scope()
@@ -166,6 +185,7 @@ def init_schema() -> None:
     Base.metadata.create_all(bind=engine)
     _migrate_drop_note_origin_ref()
     _migrate_add_tags_synced_at()
+    _migrate_add_trust_declared_at()
 
 
 @contextmanager

@@ -102,6 +102,13 @@ class NoteOrigin(Base):
         nullable=True,
         default=None,
     )
+    # NULL means core has not accepted an ``unverified`` declaration for this
+    # note yet. Only ever written, never cleared: a rename or rescan must not
+    # make the startup pass declare a note the viewer already ruled on.
+    trust_declared_at: Mapped[Optional[datetime]] = mapped_column(
+        nullable=True,
+        default=None,
+    )
 
     sources: Mapped[list["NoteOriginSource"]] = relationship(
         "NoteOriginSource",

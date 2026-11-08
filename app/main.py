@@ -28,12 +28,14 @@ from app.sanitize import build_frontmatter, slugify_filename
 from app.services.extractor import ExtractedArticle
 from app.services.frontmatter import iso_z
 from app.services.note_scanner import scanner_loop
+from app.services.trust_declaration import declare_pending_ask_notes
 from app.services.worker import ClipTask, ClipWorker, MarkReady
 
 logger = logging.getLogger(__name__)
 
 _worker: Optional[ClipWorker] = None
 _scanner_task: Optional[asyncio.Task] = None
+_trust_task: Optional[asyncio.Task] = None
 
 
 def get_worker() -> Optional[ClipWorker]:
@@ -130,12 +132,22 @@ async def _publish_fail(task: ClipTask, reason: str) -> None:
         )
 
 
+async def _declare_pending_notes() -> None:
+    """Run the trust declaration pass without letting it take startup down."""
+    try:
+        await declare_pending_ask_notes()
+    except asyncio.CancelledError:
+        raise
+    except Exception:  # noqa: BLE001
+        logger.exception("trust declaration pass failed")
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     init_schema()
     logger.info("knowledge addon: schema initialized")
 
-    global _worker, _scanner_task
+    global _worker, _scanner_task, _trust_task
     _worker = ClipWorker(on_done=_publish_clip, on_fail=_publish_fail)
     _worker.start()
     for task in _worker.reclaim_stale_jobs():
@@ -149,16 +161,22 @@ async def lifespan(app: FastAPI):
     _scanner_task = asyncio.create_task(scanner_loop(interval_seconds=interval))
     logger.info("knowledge addon: note scanner started (interval=%ds)", interval)
 
+    # Starts after the app is serving: a core that is down must not hold up
+    # /health or the routes.
+    _trust_task = asyncio.create_task(_declare_pending_notes())
+
     try:
         yield
     finally:
-        if _scanner_task is not None:
-            _scanner_task.cancel()
-            try:
-                await _scanner_task
-            except (asyncio.CancelledError, Exception):  # noqa: BLE001
-                pass
-            _scanner_task = None
+        for task in (_scanner_task, _trust_task):
+            if task is not None:
+                task.cancel()
+                try:
+                    await task
+                except (asyncio.CancelledError, Exception):  # noqa: BLE001
+                    pass
+        _scanner_task = None
+        _trust_task = None
         if _worker is not None:
             await _worker.stop()
             _worker = None
