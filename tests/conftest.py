@@ -19,6 +19,22 @@ def viewer_id_for_nickname(nickname: str) -> str:
     return hashlib.sha256(nickname.strip().encode("utf-8")).hexdigest()[:16]
 
 
+def _next_free_name(path: str, occupied: set[str]) -> str:
+    folder, _, name = path.rpartition("/")
+    if "." in name:
+        stem, extension = name.rsplit(".", 1)
+        suffix = f".{extension}"
+    else:
+        stem, suffix = name, ""
+    n = 1
+    while True:
+        candidate = f"{stem} ({n}){suffix}"
+        full = f"{folder}/{candidate}" if folder else candidate
+        if full not in occupied:
+            return full
+        n += 1
+
+
 @pytest.fixture()
 def knowledge_db(tmp_path, monkeypatch):
     db_path = tmp_path / "knowledge.db"
@@ -69,6 +85,11 @@ class FakeInternalClient:
     # If not None, every create_text_file call raises this status code.
     create_text_file_always_fails: int | None = None
     create_text_file_result_paths: dict[str, str] = {}
+    # Core's default "rename" mode answers 201 at the next free
+    # ``name (n).md`` when the path is occupied. Opt-in because
+    # ``create_text_file_collisions`` models the "error" mode instead.
+    create_text_file_renames: bool = False
+    occupied_paths: set[str] = set()
     file_by_path_override: dict[tuple[str, str], dict] = {}
     file_by_path_sequences: dict[tuple[str, str], list[dict | None]] = {}
     # Track distill calls so tests can assert registered relations.
@@ -126,11 +147,25 @@ class FakeInternalClient:
             )
         if path in FakeInternalClient.create_text_file_collisions:
             raise InternalAPIError(409, "exists")
-        # Assign a deterministic file id based on the path so tests can
-        # tell collision-retried rows apart.
         result_path = FakeInternalClient.create_text_file_result_paths.get(path, path)
+        if (
+            FakeInternalClient.create_text_file_renames
+            and conflict_mode == "rename"
+            and result_path in FakeInternalClient.occupied_paths
+        ):
+            result_path = _next_free_name(result_path, FakeInternalClient.occupied_paths)
+        FakeInternalClient.occupied_paths.add(result_path)
+        # Assign a deterministic file id based on the path so tests can
+        # tell collision-retried rows apart. Core answers the file it
+        # created, by folder and filename rather than by full path.
+        folder_path, _, filename = result_path.rpartition("/")
         file_id = f"f{abs(hash(result_path)) % 10**10:010d}"
-        return {"id": file_id, "drive": drive, "file_path": result_path}
+        return {
+            "id": file_id,
+            "drive": drive,
+            "folder_path": folder_path,
+            "filename": filename,
+        }
 
     async def get_drive_file_by_path(self, drive, path):
         key = (drive, path)
@@ -295,6 +330,8 @@ def fake_internal(monkeypatch):
     FakeInternalClient.create_text_file_collisions = set()
     FakeInternalClient.create_text_file_always_fails = None
     FakeInternalClient.create_text_file_result_paths = {}
+    FakeInternalClient.create_text_file_renames = False
+    FakeInternalClient.occupied_paths = set()
     FakeInternalClient.file_by_path_override = {}
     FakeInternalClient.file_by_path_sequences = {}
     FakeInternalClient.captured_relations = []
