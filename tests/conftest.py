@@ -84,6 +84,8 @@ class FakeInternalClient:
     captured_trust_declarations: list[dict] = []
     # If not None, ``declare_trust_tier`` raises with this status.
     raise_on_declare_trust_tier: int | None = None
+    # If not None, ``declare_trust_tier`` raises this transport error instead.
+    transport_error_on_declare_trust_tier: Exception | None = None
 
     def __init__(self, credential=None):
         self._credential = credential
@@ -94,6 +96,8 @@ class FakeInternalClient:
     async def declare_trust_tier(self, file_id: str, tier: str) -> None:
         from app.internal_client import InternalAPIError
 
+        if FakeInternalClient.transport_error_on_declare_trust_tier is not None:
+            raise FakeInternalClient.transport_error_on_declare_trust_tier
         if FakeInternalClient.raise_on_declare_trust_tier is not None:
             raise InternalAPIError(
                 FakeInternalClient.raise_on_declare_trust_tier, "boom"
@@ -313,6 +317,7 @@ def fake_internal(monkeypatch):
     FakeInternalClient.raise_on_bulk_state = None
     FakeInternalClient.captured_trust_declarations = []
     FakeInternalClient.raise_on_declare_trust_tier = None
+    FakeInternalClient.transport_error_on_declare_trust_tier = None
     import app.routers.note_from_file as note_from_file_router
 
     monkeypatch.setattr(distill, "InternalClient", FakeInternalClient)
