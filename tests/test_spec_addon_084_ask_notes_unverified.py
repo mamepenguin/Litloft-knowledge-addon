@@ -1,4 +1,4 @@
-"""SPEC-ADDON-082: notes saved through the Ask save land unverified.
+"""SPEC-ADDON-084: notes saved through the Ask save land unverified.
 
 The save route is driven through ``FakeInternalClient``. The startup pass is
 driven through the real ``InternalClient`` with its HTTP layer replaced, so the
@@ -72,7 +72,7 @@ class TestTheSaveRoute:
     def test_an_ask_note_is_declared_unverified_and_marked_declared(
         self, origin, client, fake_internal, viewer_cookie, knowledge_db,
     ):
-        """SPEC-ADDON-082 1, I8 and I9: one declaration; ``trust_declared_at`` set to now."""
+        """SPEC-ADDON-084 1, I8 and I9: one declaration; ``trust_declared_at`` set to now."""
         before = datetime.now(UTC)
 
         r = _post_note(client, viewer_cookie, origin=origin)
@@ -87,7 +87,7 @@ class TestTheSaveRoute:
     def test_a_viewer_who_already_ruled_answers_201_and_marks_declared(
         self, client, fake_internal, viewer_cookie, knowledge_db,
     ):
-        """SPEC-ADDON-082 1 and I8: 409 means the viewer's ruling stands."""
+        """SPEC-ADDON-084 1 and I8: 409 means the viewer's ruling stands."""
         fake_internal.raise_on_declare_trust_tier = 409
         before = datetime.now(UTC)
 
@@ -102,7 +102,7 @@ class TestTheSaveRoute:
     def test_a_rejected_declaration_is_502_and_the_note_stays(
         self, status, client, fake_internal, viewer_cookie, knowledge_db,
     ):
-        """SPEC-ADDON-082 failure cases and I8: 502, row committed, event sent, column null."""
+        """SPEC-ADDON-084 failure cases and I8: 502, row committed, event sent, column null."""
         fake_internal.raise_on_declare_trust_tier = status
 
         r = _post_note(client, viewer_cookie)
@@ -131,7 +131,7 @@ class TestTheSaveRoute:
     def test_a_transport_error_is_502_and_the_note_stays(
         self, error, client, fake_internal, viewer_cookie, knowledge_db,
     ):
-        """SPEC-ADDON-082 failure cases: a transport error is caught, unlike the clip route."""
+        """SPEC-ADDON-084 failure cases: a transport error is caught, unlike the clip route."""
         fake_internal.transport_error_on_declare_trust_tier = error
 
         r = _post_note(client, viewer_cookie)
@@ -150,7 +150,7 @@ class TestTheSaveRoute:
     def test_a_capture_note_is_never_declared(
         self, client, fake_internal, viewer_cookie, knowledge_db,
     ):
-        """SPEC-ADDON-082 1 and I8: ``source_capture`` notes stay verified, column null."""
+        """SPEC-ADDON-084 1 and I8: ``source_capture`` notes stay verified, column null."""
         r = client.post(
             "/captures/commit",
             json={
@@ -281,7 +281,7 @@ class TestTheStartupPass:
     def test_only_undeclared_ask_notes_are_declared_and_only_204_or_409_marks_them(
         self, knowledge_db, core,
     ):
-        """SPEC-ADDON-082 2 and I9: ask_answer rows still null, one call each."""
+        """SPEC-ADDON-084 2 and I9: ask_answer rows still null, one call each."""
         _seed(knowledge_db, [
             (ASK_NULL, "ask_answer", None),
             (ASK_DONE, "ask_answer", datetime(2026, 1, 1, tzinfo=UTC)),
@@ -309,7 +309,7 @@ class TestTheStartupPass:
             assert stamps[still_null] is None
 
     def test_the_next_start_retries_only_what_did_not_succeed(self, knowledge_db, core):
-        """SPEC-ADDON-082 2 and I9: a declared row makes no call at the next start."""
+        """SPEC-ADDON-084 2 and I9: a declared row makes no call at the next start."""
         _seed(knowledge_db, [
             (ASK_NULL, "ask_answer", None),
             (ASK_TRASHED, "ask_answer", None),
@@ -325,7 +325,7 @@ class TestTheStartupPass:
         assert core.declared == [ASK_TRASHED]
 
     def test_health_answers_while_the_pass_waits_on_core(self, knowledge_db, core):
-        """SPEC-ADDON-082 2 and I9: the pass runs in the background and never delays /health."""
+        """SPEC-ADDON-084 2 and I9: the pass runs in the background and never delays /health."""
         from fastapi.testclient import TestClient
 
         from app.main import app
@@ -346,7 +346,7 @@ class TestTheStartupPass:
         assert core.declared == [ASK_NULL]
 
     def test_an_unreachable_core_neither_blocks_nor_stops_startup(self, knowledge_db, core):
-        """SPEC-ADDON-082 2: a transport error keeps the row null and the app serving."""
+        """SPEC-ADDON-084 2: a transport error keeps the row null and the app serving."""
         _seed(knowledge_db, [(ASK_NULL, "ask_answer", None), (ASK_TRASHED, "ask_answer", None)])
         core.unreachable = {ASK_NULL, ASK_TRASHED}
 
@@ -359,7 +359,7 @@ class TestTheStartupPass:
     def test_a_failed_declaration_is_logged_with_the_file_id_and_status(
         self, knowledge_db, core, caplog,
     ):
-        """SPEC-ADDON-082 failure cases and 8: one line per failed file, with id and status."""
+        """SPEC-ADDON-084 failure cases and 8: one line per failed file, with id and status."""
         _seed(knowledge_db, [(ASK_FAILING, "ask_answer", None)])
         core.status = {ASK_FAILING: 503}
         caplog.set_level(logging.DEBUG)
@@ -402,7 +402,7 @@ def _snapshot(engine) -> tuple[list[dict], list[dict]]:
 
 
 def test_the_migration_adds_a_null_column_and_keeps_every_row(tmp_path, monkeypatch):
-    """SPEC-ADDON-082 4 and I10: the column is added as null, rows untouched, twice is a no-op."""
+    """SPEC-ADDON-084 4 and I10: the column is added as null, rows untouched, twice is a no-op."""
     import app.database as database
     from app.models import Base
 
