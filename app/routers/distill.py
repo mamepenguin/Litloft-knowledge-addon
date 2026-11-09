@@ -95,6 +95,17 @@ def _next_collision_candidate(filename: str, n: int) -> str:
     return f"{stem}-{n}.md"
 
 
+def _created_rel_path(created: dict) -> str:
+    """Drive-relative path of the file core says it created.
+
+    Core answers with ``folder_path`` and ``filename``, which may differ
+    from the requested path when its ``conflict_mode`` renamed the file.
+    """
+    folder = (created.get("folder_path") or "").strip("/")
+    filename = created.get("filename") or ""
+    return f"{folder}/{filename}" if folder else filename
+
+
 def _compose_markdown(
     *,
     title: str,
@@ -185,7 +196,7 @@ async def distill(
         )
 
     note_file_id = created["id"]
-    note_rel_path = _join_path(folder, final_filename)
+    note_rel_path = _created_rel_path(created)
 
     # active_summary pointer lives in knowledge.db now (spec
     # 2026-04-30-file-active-summary-to-knowledge). UPSERT in the same

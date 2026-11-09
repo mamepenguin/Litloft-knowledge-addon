@@ -14,6 +14,7 @@ Flow:
      relations from the note's own content, not from this list.
   5. INSERT ``note_origins`` + ``note_origin_sources`` as queryable cache.
   6. Emit ``knowledge.note.created`` WS event.
+  7. Declare the note ``unverified`` when it holds an Ask answer.
 """
 from __future__ import annotations
 
@@ -21,6 +22,7 @@ import logging
 from datetime import datetime, timezone
 from typing import Annotated
 
+import httpx
 from fastapi import APIRouter, Depends, Header, HTTPException, Request
 from sqlalchemy.orm import Session
 
@@ -31,6 +33,7 @@ from app.internal_client import InternalAPIError, InternalClient
 from app.models import NoteOrigin, NoteOriginSource
 from app.routers.distill import (
     _COLLISION_CAP,
+    _created_rel_path,
     _join_path,
     _next_collision_candidate,
     _require_drive,
@@ -38,10 +41,46 @@ from app.routers.distill import (
     _sanitise_folder,
 )
 from app.schemas import DistillResponse, NoteCreate
+from app.services.trust_declaration import ASK_INGEST_TIER
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter(tags=["notes"])
+
+
+async def _declare_unverified(
+    client: InternalClient, db: Session, origin_row: NoteOrigin
+) -> None:
+    """Declare an Ask note unverified, or answer 502 once the note is saved.
+
+    409 means the viewer already ruled on this file, and their decision
+    stands, so it is an accepted outcome. A transport error is caught here
+    instead of being left to the startup pass: the viewer has to be told the
+    note exists but is not yet marked. Either way the row's column stays NULL
+    until core accepts the declaration.
+    """
+    try:
+        await client.declare_trust_tier(origin_row.note_file_id, ASK_INGEST_TIER)
+    except InternalAPIError as e:
+        if e.status_code != 409:
+            raise HTTPException(
+                status_code=502,
+                detail=(
+                    "Note saved but could not be marked unverified "
+                    f"({e}). The next knowledge startup will declare it."
+                ),
+            )
+    except httpx.HTTPError as e:
+        raise HTTPException(
+            status_code=502,
+            detail=(
+                "Note saved but could not be marked unverified "
+                f"({type(e).__name__}). The next knowledge startup will declare it."
+            ),
+        )
+
+    origin_row.trust_declared_at = datetime.now(timezone.utc)
+    db.commit()
 
 
 @router.post("/notes", response_model=DistillResponse, status_code=201)
@@ -91,7 +130,7 @@ async def create_note(
     # Core owns collision resolution and may return ``name (1).md`` even
     # though the requested path was ``name.md``. Its response is the source
     # of truth for both the cache key and the path returned to the caller.
-    note_rel_path = created.get("file_path") or _join_path(folder, final_filename)
+    note_rel_path = _created_rel_path(created)
     approved_at = datetime.now(timezone.utc)
 
     # Only same-drive sources enter note_origin_sources: drive is the
@@ -142,6 +181,9 @@ async def create_note(
         },
         drive=drive,
     )
+
+    if body.origin == "ask_answer":
+        await _declare_unverified(client, db, origin_row)
 
     return DistillResponse(
         note_file_id=note_file_id,
