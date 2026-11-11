@@ -106,3 +106,7 @@ counter, separate from generic `errors`.
 See `docs/superpowers/specs/2026-04-13-knowledge-addon.md` in the core
 repo for the original design (the Vault abstraction described there has
 since been removed; drive root is now the implicit scope).
+
+## License
+
+[AGPL-3.0](LICENSE)
