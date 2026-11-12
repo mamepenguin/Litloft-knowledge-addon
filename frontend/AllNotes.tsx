@@ -4,7 +4,7 @@ import { useCallback, useEffect, useRef, useState, type FormEvent, type ReactNod
 import { usePathname, useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
 import Link from "next/link";
-import { ArrowUpDown, Folder, Search, Tag as TagIcon, X } from "lucide-react";
+import { ArrowUpDown, Folder, Newspaper, Search, Tag as TagIcon, X } from "lucide-react";
 
 import { Button } from "@/components/Button";
 import { MenuRadioGroup, ToolbarMenu } from "@/components/ToolbarMenu";
@@ -99,6 +99,7 @@ function AllNotesList({
         ...(scope.folder !== null ? { path: scope.folder } : {}),
         ...(scope.tag ? { tag: scope.tag } : {}),
         ...(scope.query ? { search: scope.query } : {}),
+        ...(scope.clips ? {} : { exclude_origin: "webclip" }),
         page: nextPage,
         limit: PAGE_SIZE,
       });
@@ -198,7 +199,7 @@ export default function AllNotes({
     setFolders([]);
     if (!drive) return;
     let cancelled = false;
-    getFolderCounts(drive, "text")
+    getFolderCounts(drive, "text", scope.clips ? undefined : { exclude_origin: "webclip" })
       .then((rows) => {
         if (!cancelled) setFolders(rows);
       })
@@ -206,7 +207,7 @@ export default function AllNotes({
     return () => {
       cancelled = true;
     };
-  }, [drive]);
+  }, [drive, scope.clips]);
 
   // Counted within the chosen folder, so a count is what choosing the tag shows.
   useEffect(() => {
@@ -309,6 +310,19 @@ export default function AllNotes({
               />
             )}
           </ToolbarMenu>
+          <button
+            type="button"
+            aria-pressed={Boolean(scope.clips)}
+            onClick={() => go({ clips: !scope.clips })}
+            className={`inline-flex h-10 items-center gap-1.5 rounded-full border px-3.5 text-sm font-medium transition-colors pointer-coarse:min-h-11 ${
+              scope.clips
+                ? "border-text-primary bg-text-primary text-white"
+                : "border-warm-silver/40 bg-bg-card text-text-primary hover:bg-bg-elevated"
+            }`}
+          >
+            <Newspaper size={16} strokeWidth={1.8} aria-hidden="true" />
+            {t("includeClips")}
+          </button>
         </div>
         <div ref={listRef} tabIndex={-1} className="focus:outline-none">
           <AllNotesList

@@ -1,7 +1,8 @@
 {
   "knowledge": {
     "nav": {
-      "label": "ノート"
+      "label": "ノート",
+      "clips": "クリップ"
     },
     "shortcuts": {
       "knowledge": "Knowledge",
@@ -347,7 +348,31 @@
       },
       "findInScopePlaceholder": "この一覧から探す",
       "findInScopeLabel": "一覧から探す",
-      "removeTag": "タグの絞り込みを外す"
+      "removeTag": "タグの絞り込みを外す",
+      "includeClips": "クリップを含める"
+    },
+    "clips": {
+      "heading": "クリップ",
+      "count": "{count} 件",
+      "action": "Web ページをクリップ",
+      "tabsLabel": "クリップの表示",
+      "home": "ホーム",
+      "all": "すべて",
+      "shelf": {
+        "unread": "未読",
+        "recentlyOpened": "最近開いた",
+        "unverified": "未確認",
+        "newClips": "新しいクリップ"
+      },
+      "emptyTitle": "まだクリップがありません",
+      "emptyBody": "クリップした Web ページはここに集まります。フォルダのメニューやブックマークレットからもクリップできます。",
+      "loadMore": "さらに表示",
+      "age": {
+        "today": "今日",
+        "week": "過去 7 日",
+        "month": "過去 30 日",
+        "earlier": "それ以前"
+      }
     },
     "noteScope": {
       "label": "ノート"

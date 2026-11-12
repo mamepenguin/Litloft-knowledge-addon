@@ -343,7 +343,7 @@ function StatusDot({ status }: { status: RecentJob["status"] }) {
 
 // ---- Root ------------------------------------------------------------
 
-export default function ClipSection() {
+export default function ClipSection({ onClipAdded }: { onClipAdded?: (fileId: string) => void }) {
   const drive = useCurrentDrive() ?? "";
   const searchParams = useSearchParams();
   const prefillUrl = searchParams.get("prefill") ?? "";
@@ -406,9 +406,13 @@ export default function ClipSection() {
     }
   }, [drive]);
 
-  const handleJobAdded = useCallback((fileId: string, job: RecentJob) => {
-    dispatch({ type: "add", fileId, job });
-  }, []);
+  const handleJobAdded = useCallback(
+    (fileId: string, job: RecentJob) => {
+      dispatch({ type: "add", fileId, job });
+      onClipAdded?.(fileId);
+    },
+    [onClipAdded],
+  );
 
   return (
     <div className="flex flex-col gap-10">

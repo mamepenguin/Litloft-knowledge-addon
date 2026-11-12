@@ -22,7 +22,7 @@ export default function NoteSearchScope({ drive, filename, mimeType }: Props) {
       label,
       type: "text",
       seeAllHref: (query) =>
-        `/drive/${encodeURIComponent(drive)}/addons/knowledge?view=all&q=${encodeURIComponent(query)}`,
+        `/drive/${encodeURIComponent(drive)}/addons/knowledge?q=${encodeURIComponent(query)}`,
     }),
     [drive, label],
   );

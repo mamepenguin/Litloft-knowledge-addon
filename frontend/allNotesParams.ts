@@ -10,6 +10,8 @@ export interface AllNotesScope {
   tag: string | null;
   sort: AllNotesSort;
   query: string;
+  /** True only when the URL asks for clips too, so the default stays out of the URL. */
+  clips?: boolean;
 }
 
 export const SORT_REQUEST: Record<AllNotesSort, { sort: ListingSortField; order: SortOrder }> = {
@@ -25,6 +27,7 @@ export function readAllNotesScope(params: URLSearchParams): AllNotesScope {
     tag: params.get("tag") || null,
     sort: ALL_NOTES_SORTS.includes(sort as AllNotesSort) ? (sort as AllNotesSort) : "updated",
     query: params.get("q")?.trim() ?? "",
+    ...(params.get("clips") === "1" ? { clips: true } : {}),
   };
 }
 
@@ -35,5 +38,6 @@ export function allNotesHref(pathname: string, scope: AllNotesScope): string {
   if (scope.tag) params.set("tag", scope.tag);
   if (scope.sort !== "updated") params.set("sort", scope.sort);
   if (scope.query) params.set("q", scope.query);
+  if (scope.clips) params.set("clips", "1");
   return `${pathname}?${params}`;
 }

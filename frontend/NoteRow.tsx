@@ -8,7 +8,7 @@ import { FileText, Folder } from "lucide-react";
 import { buildCanonicalFileUrl } from "@/lib/canonicalFileUrl";
 import type { FileItem } from "@/types";
 
-import { formatNoteTime } from "./noteDates";
+import { formatNoteTime, type NoteDateField } from "./noteDates";
 import { excerptFromText } from "./noteExcerpt";
 
 // Lowercasing can lengthen a character (İ becomes i + a combining dot), so
@@ -64,6 +64,7 @@ interface Props {
   query?: string;
   /** In place of the folder, for a list already narrowed to one folder. */
   showTags?: boolean;
+  dateField?: NoteDateField;
 }
 
 function TagChips({ tags }: { tags: string[] }) {
@@ -78,13 +79,13 @@ function TagChips({ tags }: { tags: string[] }) {
   );
 }
 
-export default function NoteRow({ file, now, opening, query, showTags = false }: Props) {
+export default function NoteRow({ file, now, opening, query, showTags = false, dateField = "updated_at" }: Props) {
   const t = useTranslations("knowledge.notes");
   const locale = useLocale();
   const title = file.title || file.filename;
   const excerpt = opening ? excerptFromText(opening, title) : "";
   const folder = file.folder_path || t("rootFolder");
-  const time = formatNoteTime(file.updated_at, now, locale);
+  const time = formatNoteTime(file[dateField], now, locale);
 
   return (
     <Link
@@ -147,6 +148,7 @@ export function NoteRows({
   openings,
   query,
   showTags,
+  dateField,
 }: {
   files: FileItem[];
   now: Date;
@@ -154,6 +156,7 @@ export function NoteRows({
   openings?: Record<string, string>;
   query?: string;
   showTags?: boolean;
+  dateField?: NoteDateField;
 }) {
   return (
     <ul role="list" className="flex flex-col">
@@ -166,6 +169,7 @@ export function NoteRows({
             opening={openings?.[file.id]}
             query={query}
             showTags={showTags}
+            dateField={dateField}
           />
         </li>
       ))}

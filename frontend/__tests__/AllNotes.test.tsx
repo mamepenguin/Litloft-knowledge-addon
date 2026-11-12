@@ -117,7 +117,7 @@ describe("the All notes rail", () => {
       ["Knowledge / AI3", `${PATH}?view=all&folder=Knowledge%2FAI&sort=title`, "true"],
       ["AI4", `${PATH}?view=all&folder=Knowledge%2FAI&tag=AI&sort=title`, null],
     ]);
-    expect(getFolderCounts.mock.calls).toEqual([["d", "text"]]);
+    expect(getFolderCounts.mock.calls).toEqual([["d", "text", { exclude_origin: "webclip" }]]);
     expect(getDriveTags.mock.calls).toEqual([["d", null, "text", "Knowledge/AI"]]);
   });
 
@@ -205,11 +205,11 @@ describe("keeping the rest of the scope", () => {
     await waitFor(() => expect(getDriveFiles).toHaveBeenCalledTimes(5));
 
     expect(getDriveFiles.mock.calls.map(([, o]) => o)).toEqual([
-      { type: "text", sort: "updated_at", order: "desc", page: 1, limit: 30 },
-      { type: "text", sort: "updated_at", order: "desc", tag: "AI", page: 1, limit: 30 },
-      { type: "text", sort: "created_at", order: "desc", tag: "AI", page: 1, limit: 30 },
-      { type: "text", sort: "created_at", order: "desc", path: "Inbox", tag: "AI", page: 1, limit: 30 },
-      { type: "text", sort: "created_at", order: "desc", path: "Inbox", tag: "AI", search: "kyoto", page: 1, limit: 30 },
+      { type: "text", sort: "updated_at", order: "desc", exclude_origin: "webclip", page: 1, limit: 30 },
+      { type: "text", sort: "updated_at", order: "desc", tag: "AI", exclude_origin: "webclip", page: 1, limit: 30 },
+      { type: "text", sort: "created_at", order: "desc", tag: "AI", exclude_origin: "webclip", page: 1, limit: 30 },
+      { type: "text", sort: "created_at", order: "desc", path: "Inbox", tag: "AI", exclude_origin: "webclip", page: 1, limit: 30 },
+      { type: "text", sort: "created_at", order: "desc", path: "Inbox", tag: "AI", search: "kyoto", exclude_origin: "webclip", page: 1, limit: 30 },
     ]);
   });
 
@@ -325,7 +325,7 @@ describe("the All notes list", () => {
     render(<NotesPage />);
     await screen.findByText("Note a");
     expect(getDriveFiles.mock.calls).toEqual([
-      ["d", { type: "text", sort: "title", order: "asc", path: "", tag: "AI", search: "kyoto", page: 1, limit: 30 }],
+      ["d", { type: "text", sort: "title", order: "asc", path: "", tag: "AI", search: "kyoto", exclude_origin: "webclip", page: 1, limit: 30 }],
     ]);
   });
 

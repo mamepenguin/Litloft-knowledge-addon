@@ -24,7 +24,7 @@ export function SectionHeading({
   children,
   action,
 }: {
-  icon: ReactNode;
+  icon?: ReactNode;
   children: ReactNode;
   action?: ReactNode;
 }) {
@@ -96,7 +96,7 @@ export function ContinueWriting({ drive, now }: { drive: string; now: Date }) {
     setFailed(false);
     if (!nickname || !drive) return;
     let cancelled = false;
-    getWatchHistory(drive, CONTINUE_LIMIT, "all", "text")
+    getWatchHistory(drive, CONTINUE_LIMIT, "all", "text", { exclude_origin: "webclip" })
       .then((items) => {
         if (!cancelled) setRows(items);
       })
@@ -158,7 +158,13 @@ export function RecentNotes({
     setFailed(false);
     if (!drive) return;
     let cancelled = false;
-    getDriveFiles(drive, { type: "text", sort: "updated_at", order: "desc", limit: RECENT_LIMIT })
+    getDriveFiles(drive, {
+      type: "text",
+      sort: "updated_at",
+      order: "desc",
+      limit: RECENT_LIMIT,
+      exclude_origin: "webclip",
+    })
       .then((res) => {
         if (cancelled) return;
         setPage({ files: res.data, total: res.meta.total });
