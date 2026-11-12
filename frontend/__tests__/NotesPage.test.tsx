@@ -164,7 +164,7 @@ describe("the Notes landing", () => {
 
     await screen.findByText("Note r1");
     expect(getDriveFiles.mock.calls).toEqual([
-      ["d", { type: "text", sort: "updated_at", order: "desc", limit: 8 }],
+      ["d", { type: "text", sort: "updated_at", order: "desc", limit: 8, exclude_origin: "webclip" }],
     ]);
     expect(screen.getByRole("link", { name: /Note r1/ }).getAttribute("href")).toBe(
       "/drive/d/journal?file=r1",
@@ -352,7 +352,7 @@ describe("the Notes landing", () => {
     getWatchHistory.mockResolvedValueOnce([note("w1")]);
     render(<NotesPage />);
     await screen.findByText("Note w1");
-    expect(getWatchHistory.mock.calls).toEqual([["d", 3, "all", "text"]]);
+    expect(getWatchHistory.mock.calls).toEqual([["d", 3, "all", "text", { exclude_origin: "webclip" }]]);
     expect(screen.getByRole("link", { name: /Note w1/ }).getAttribute("href")).toBe("/drive/d/journal?file=w1");
 
     cleanup();
@@ -474,7 +474,7 @@ describe("Find and All notes", () => {
     render(<NotesPage />);
     await screen.findByText("Note a1");
     expect(getDriveFiles.mock.calls).toEqual([
-      ["d", { type: "text", sort: "updated_at", order: "desc", search: undefined, page: 1, limit: 30 }],
+      ["d", { type: "text", sort: "updated_at", order: "desc", search: undefined, exclude_origin: "webclip", page: 1, limit: 30 }],
     ]);
     expect(screen.getByText("knowledge.notes.all")).toBeInTheDocument();
   });
@@ -584,7 +584,9 @@ describe("the clip section across in-page navigation", () => {
     render(<NotesPage />);
     expect(screen.getByRole("search")).toBeInTheDocument();
     await screen.findByText("knowledge.notes.empty");
-    expect(getDriveFiles.mock.calls).toEqual([["d", { type: "text", sort: "updated_at", order: "desc", limit: 8 }]]);
+    expect(getDriveFiles.mock.calls).toEqual([
+      ["d", { type: "text", sort: "updated_at", order: "desc", limit: 8, exclude_origin: "webclip" }],
+    ]);
   });
 });
 

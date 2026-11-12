@@ -2,6 +2,9 @@ import type { FileItem } from "@/types";
 
 export type NoteAgeGroup = "today" | "week" | "month" | "earlier";
 
+/** Which timestamp decides a row's age group and date. */
+export type NoteDateField = "updated_at" | "created_at";
+
 const GROUP_ORDER: NoteAgeGroup[] = ["today", "week", "month", "earlier"];
 const DAY_MS = 86_400_000;
 
@@ -23,10 +26,11 @@ export function noteAgeGroup(iso: string, now: Date): NoteAgeGroup {
 export function groupNotesByAge(
   files: FileItem[],
   now: Date,
+  dateField: NoteDateField = "updated_at",
 ): { group: NoteAgeGroup; files: FileItem[] }[] {
   const buckets = new Map<NoteAgeGroup, FileItem[]>();
   for (const file of files) {
-    const group = noteAgeGroup(file.updated_at, now);
+    const group = noteAgeGroup(file[dateField], now);
     buckets.set(group, [...(buckets.get(group) ?? []), file]);
   }
   return GROUP_ORDER.filter((group) => buckets.has(group)).map((group) => ({

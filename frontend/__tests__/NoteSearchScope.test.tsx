@@ -60,8 +60,9 @@ describe("note search scope on a file's screen", () => {
     const scope = opened[0]!;
     expect(scope.label).toBe("knowledge.noteScope.label");
     expect(scope.type).toBe("text");
+    // SPEC-ADDON-101 I22: the landing's search, which keeps clips, not All notes.
     expect(scope.seeAllHref!("a&b 旅行")).toBe(
-      `/drive/${encodeURIComponent("動画 d")}/addons/knowledge?view=all&q=${encodeURIComponent("a&b 旅行")}`,
+      `/drive/${encodeURIComponent("動画 d")}/addons/knowledge?q=${encodeURIComponent("a&b 旅行")}`,
     );
   });
 

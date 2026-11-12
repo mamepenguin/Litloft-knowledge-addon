@@ -33,14 +33,14 @@ const manifest = JSON.parse(
   readFileSync(resolve(ADDON_ROOT, "manifest.json"), "utf-8"),
 ) as {
   href: string;
-  navigation: Record<string, unknown>;
+  navigation: unknown;
   slots: Record<string, { id: string; priority: number }[]>;
 };
 
 const readMessages = (locale: string) =>
   JSON.parse(
     readFileSync(resolve(ADDON_ROOT, `frontend/messages/${locale}.json`), "utf-8"),
-  ) as { knowledge: { nav: { label: string } } };
+  ) as { knowledge: { nav: Record<string, string> } };
 
 const entries = Object.entries(manifest.slots).flatMap(([slot, list]) =>
   list.map((entry) => ({ slot, id: entry.id })),
@@ -168,19 +168,29 @@ describe("the knowledge manifest", () => {
     ]);
   });
 
-  it("declares the Notes sidebar entry and keeps the generated route", () => {
-    expect(manifest.navigation).toEqual({
-      label: "Notes",
-      i18n_key: "knowledge.nav.label",
-      icon: "notebook-pen",
-      placement: "primary",
-      priority: 20,
-    });
+  it("SPEC-ADDON-100 I30 declares Notes, then Clips, and keeps the generated route", () => {
+    expect(manifest.navigation).toEqual([
+      {
+        label: "Notes",
+        i18n_key: "knowledge.nav.label",
+        icon: "notebook-pen",
+        placement: "primary",
+        priority: 20,
+      },
+      {
+        label: "Clips",
+        i18n_key: "knowledge.nav.clips",
+        icon: "newspaper",
+        placement: "primary",
+        priority: 21,
+        path: "clips",
+      },
+    ]);
     expect(manifest.href).toBe("/drive/{drive}/addons/knowledge");
   });
 
-  it("carries the Notes label key in both locales", () => {
-    expect(readMessages("en").knowledge.nav.label).toBe("Notes");
-    expect(readMessages("ja").knowledge.nav.label).toBe("ノート");
+  it("SPEC-ADDON-100 carries the Notes and Clips label keys in both locales", () => {
+    expect(readMessages("en").knowledge.nav).toMatchObject({ label: "Notes", clips: "Clips" });
+    expect(readMessages("ja").knowledge.nav).toMatchObject({ label: "ノート", clips: "クリップ" });
   });
 });

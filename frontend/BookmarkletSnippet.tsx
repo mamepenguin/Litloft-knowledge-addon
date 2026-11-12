@@ -12,7 +12,7 @@ function buildBookmarklet(origin: string, drive: string): string {
   // Prefill tab-open strategy — no CORS involved. `encodeURIComponent`
   // runs on the *visited page* (inside the javascript: URL body) so the
   // bookmarklet captures the visited URL and title at click time.
-  const base = `${origin}/drive/${encodeURIComponent(drive)}/addons/knowledge`;
+  const base = `${origin}/drive/${encodeURIComponent(drive)}/addons/knowledge/clips`;
   const body =
     "(function(){" +
     "var u=encodeURIComponent(location.href);" +

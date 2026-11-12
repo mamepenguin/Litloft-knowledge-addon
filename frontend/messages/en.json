@@ -1,7 +1,8 @@
 {
   "knowledge": {
     "nav": {
-      "label": "Notes"
+      "label": "Notes",
+      "clips": "Clips"
     },
     "shortcuts": {
       "knowledge": "Knowledge",
@@ -347,7 +348,31 @@
       },
       "findInScopePlaceholder": "Search this list",
       "findInScopeLabel": "Search the list",
-      "removeTag": "Remove tag filter"
+      "removeTag": "Remove tag filter",
+      "includeClips": "Include clips"
+    },
+    "clips": {
+      "heading": "Clips",
+      "count": "{count, plural, one {# clip} other {# clips}}",
+      "action": "Clip a web page",
+      "tabsLabel": "Clips views",
+      "home": "Home",
+      "all": "All",
+      "shelf": {
+        "unread": "Unread",
+        "recentlyOpened": "Recently opened",
+        "unverified": "Unverified",
+        "newClips": "New clips"
+      },
+      "emptyTitle": "No clips yet",
+      "emptyBody": "Clipped web pages gather here. You can also clip from a folder's menu or with the bookmarklet.",
+      "loadMore": "Load more",
+      "age": {
+        "today": "Today",
+        "week": "Past 7 days",
+        "month": "Past 30 days",
+        "earlier": "Earlier"
+      }
     },
     "noteScope": {
       "label": "Notes"
