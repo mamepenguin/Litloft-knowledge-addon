@@ -324,9 +324,15 @@ describe("VersionHistoryPanel body preview", () => {
 
     await openPanel();
 
-    const preview = await screen.findByTestId("version-preview");
-    expect(preview).toHaveTextContent("[はじめに](#1-はじめに)");
-    expect(preview).toHaveTextContent("[up](#up-100%-year)");
+    // The preview is drawn empty until the version's body arrives.
+    await waitFor(() =>
+      expect(screen.getByTestId("version-preview")).toHaveTextContent(
+        "[はじめに](#1-はじめに)",
+      ),
+    );
+    expect(screen.getByTestId("version-preview")).toHaveTextContent(
+      "[up](#up-100%-year)",
+    );
   });
 });
 
