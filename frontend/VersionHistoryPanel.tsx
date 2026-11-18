@@ -33,6 +33,8 @@ interface Props {
   onRestore: (versionId: number) => Promise<boolean>;
   /** Shows a version's text exactly as stored (plain text has no Markdown links). */
   rawPreview?: boolean;
+  /** Drawn without the rule above it, for a host that frames the editor itself. */
+  frameless?: boolean;
 }
 
 function relativeTime(value: string): string {
@@ -71,6 +73,7 @@ export default function VersionHistoryPanel({
   refreshKey,
   onRestore,
   rawPreview = false,
+  frameless = false,
 }: Props) {
   const t = useTranslations("knowledge.editor.versions");
   const sectionRef = useRef<HTMLElement | null>(null);
@@ -228,7 +231,7 @@ export default function VersionHistoryPanel({
   const hasNext = page !== null && offset + page.limit < page.total;
 
   return (
-    <section ref={sectionRef} className="border-t border-bg-border bg-bg-card">
+    <section ref={sectionRef} className={`bg-bg-card ${frameless ? "mt-4" : "border-t border-bg-border"}`}>
       <button
         type="button"
         onClick={() => setOpen((value) => !value)}

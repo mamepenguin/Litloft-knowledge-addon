@@ -127,8 +127,8 @@ interface Props {
    * (spec 2026-05-10 §3 / E15 fix).
    */
   fillHeight?: boolean;
-  /** The host embeds the editor in a pane of its own, so no rule is drawn under the toolbar. */
-  toolbarRuleless?: boolean;
+  /** The host embeds the editor in a pane of its own, so no rule is drawn under the toolbar or above the version history. */
+  frameless?: boolean;
   /**
    * The folder_path of this note on the drive. Used when uploading
    * dropped/pasted files so they land in the same folder as the note.
@@ -204,7 +204,7 @@ export default function Editor({
   onDelete,
   inlineMode,
   fillHeight,
-  toolbarRuleless,
+  frameless,
   autoFocus,
   folderPath,
   onDocumentCaptureController,
@@ -1450,7 +1450,7 @@ export default function Editor({
         <div className="sticky top-0 z-10">
           <EditorToolbar
             versionsOnly={plainText}
-            bordered={!toolbarRuleless}
+            bordered={!frameless}
             onAction={handleToolbar}
             onFileLinkRequest={plainText ? undefined : handleFileLinkRequest}
             onKeepVersion={keepCurrentVersion}
@@ -1559,6 +1559,7 @@ export default function Editor({
           refreshKey={savedRefetchSeq}
           onRestore={handleRestoreVersion}
           rawPreview={plainText}
+          frameless={frameless}
         />
       )}
 

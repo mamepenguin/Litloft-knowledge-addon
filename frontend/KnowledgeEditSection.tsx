@@ -43,7 +43,7 @@ export default function KnowledgeEditSection({
   fileId,
   drive,
   fillHeight,
-  toolbarRuleless,
+  frameless,
   plainTextDocument,
   highlight,
   saveHandle,
@@ -51,7 +51,7 @@ export default function KnowledgeEditSection({
   fileId: string;
   drive: string;
   fillHeight?: boolean;
-  toolbarRuleless?: boolean;
+  frameless?: boolean;
   /** Core's decision that this file is a `.txt` the editor may take. */
   plainTextDocument?: boolean;
   highlight?: string;
@@ -101,7 +101,7 @@ export default function KnowledgeEditSection({
           inlineMode
           autoFocus={autoFocus}
           fillHeight={fillHeight}
-          toolbarRuleless={toolbarRuleless}
+          frameless={frameless}
           plainText={isPlainText}
           highlight={highlight}
           saveHandle={saveHandle}

@@ -258,15 +258,19 @@ describe("SPEC-ADDON-132 Library step 5: the toolbar's rule", () => {
     );
   }
 
-  it("the file page, under the chrome provider, keeps the rule under the toolbar", async () => {
+  const historyPanel = () => document.querySelector("section.bg-bg-card") as HTMLElement;
+
+  it("the file page, under the chrome provider, keeps the rule under the toolbar and above the history", async () => {
     underChrome({});
     await loaded();
     expect(toolbarRoot().className).toContain("border-b");
+    expect(historyPanel().className).toContain("border-t");
   });
 
   it("a host that asks for it gets a toolbar with no rule under it", async () => {
-    underChrome({ toolbarRuleless: true } as object);
+    underChrome({ frameless: true } as object);
     await loaded();
     expect(toolbarRoot().className).not.toContain("border-b");
+    expect(historyPanel().className).not.toContain("border-t");
   });
 });

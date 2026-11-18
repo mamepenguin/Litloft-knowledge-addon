@@ -252,7 +252,7 @@ export default function NotePaneContainer({
           fileId={noteId}
           drive={drive}
           fillHeight
-          toolbarRuleless
+          frameless
           plainTextDocument={plainText.plainTextDocument}
           saveHandle={saveHandle}
         />
