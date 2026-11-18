@@ -7,7 +7,7 @@
  * the test controls, so the gate is driven by `flush()` outcomes directly.
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import type { AnchorHTMLAttributes, MouseEvent } from "react";
 
 import { dirtyRegistry } from "@/lib/dirtyRegistry";
@@ -24,6 +24,7 @@ import {
   isFiles,
   isFilesQuery,
   isMeta,
+  listsOrCounts as listsOrCountsCall,
   isShelvesGet,
   isShelvesQuery,
   isProgress,
@@ -121,6 +122,21 @@ vi.mock("@/components/MarkdownPreview", () => ({
     </div>
   ),
 }));
+const nearEnd = vi.hoisted(() => ({ enabled: false, load: () => {} }));
+vi.mock("@/components/appshell/useNearEnd", () => ({
+  useNearEnd: (enabled: boolean, load: () => void) => {
+    nearEnd.enabled = enabled;
+    nearEnd.load = load;
+    return () => {};
+  },
+}));
+const plain = vi.hoisted(() => ({ state: { decided: true, plainTextDocument: false } }));
+vi.mock("@/components/FileDetail/hooks/usePlainTextDocument", () => ({
+  usePlainTextDocument: () => plain.state,
+}));
+vi.mock("@/components/TextPreview", () => ({
+  TextPreview: ({ fileId }: { fileId: string }) => <div data-testid="text-preview">{fileId}</div>,
+}));
 const member = vi.hoisted(() => ({ evaluation: null as null | (() => Promise<unknown>) }));
 vi.mock("@/lib/memberTarget", async () => {
   const actual = await vi.importActual<Record<string, unknown>>("@/lib/memberTarget");
@@ -174,6 +190,8 @@ beforeEach(() => {
   policy.enabled = true;
   policy.isLoading = false;
   member.evaluation = null;
+  plain.state = { decided: true, plainTextDocument: false };
+  nearEnd.enabled = false;
   edit.props = [];
   edit.renderNothing = false;
   edit.dirty = true;
@@ -208,6 +226,11 @@ const paneEditor = () => screen.queryByTestId("pane-editor");
 const editButton = () => screen.queryByRole("button", { name: "Edit" });
 const listCalls = () => server.calls.filter((c) => (isFiles(c) || isFilesQuery(c)) && c.url.searchParams.get("limit") === "60");
 const lastListParams = () => listCalls()[listCalls().length - 1]?.url.searchParams ?? new URLSearchParams("none=1");
+
+async function chooseSort(name: string) {
+  fireEvent.click(screen.getByRole("button", { name: /Sort/ }));
+  fireEvent.click(await screen.findByRole("menuitemradio", { name }));
+}
 
 async function startEditing() {
   await waitFor(() => expect(shown("Body of Alpha")).toBe(true));
@@ -669,6 +692,7 @@ describe("SPEC-ADDON-132 Library step 7, I4, I18: Done and the gate", () => {
     ],
     ["Open the file page", () => fireEvent.click(screen.getByRole("link", { name: "Open the file page" })), () => nav.pathname !== BASE],
     ["a Target change", () => void chooseTarget("Trip"), () => localStorage.getItem(TARGET_KEY) === "sf-trip"],
+    ["a sort change", () => void chooseSort("Title"), () => nav.params.get("sort") === "title"],
   ];
 
   it.each(GATED)("SPEC-ADDON-132 I4 %s waits for the save and happens on saved", async (_l, act1, happened) => {
@@ -684,6 +708,36 @@ describe("SPEC-ADDON-132 Library step 7, I4, I18: Done and the gate", () => {
     expect(edit.flush).toHaveBeenCalledTimes(1);
     expect(happened()).toBe(false);
     await act(async () => pending.resolve("saved"));
+    await waitFor(() => expect(happened()).toBe(true));
+  });
+
+  it.each(GATED)("SPEC-ADDON-132 I4 %s after a failed save goes to the guard, and cancelling lets nothing happen", async (_l, act1, happened) => {
+    edit.flush = vi.fn(async () => "failed" as Outcome);
+    open();
+    await startEditing();
+    await waitFor(() => expect(controls("Work").length).toBeGreaterThan(0));
+
+    act1();
+
+    await waitFor(() => expect(navigationGuard.getPending()).not.toBeNull());
+    expect(happened()).toBe(false);
+    act(() => navigationGuard.cancel());
+    await act(() => settle(50));
+    expect(happened()).toBe(false);
+    expect(paneEditor()).not.toBeNull();
+  });
+
+  it.each(GATED)("SPEC-ADDON-132 I4 %s after a conflicting save happens once the guard is confirmed", async (_l, act1, happened) => {
+    edit.flush = vi.fn(async () => "conflict" as Outcome);
+    open();
+    await startEditing();
+    await waitFor(() => expect(controls("Work").length).toBeGreaterThan(0));
+
+    act1();
+
+    await waitFor(() => expect(navigationGuard.getPending()).not.toBeNull());
+    expect(happened()).toBe(false);
+    act(() => navigationGuard.confirm());
     await waitFor(() => expect(happened()).toBe(true));
   });
 });
@@ -832,5 +886,197 @@ describe("SPEC-ADDON-132 Library step 9, I6: below 1024px", () => {
     await act(() => settle(100));
     expect(editButton()).toBeNull();
     expect(screen.getByText("Gamma").closest("a")).not.toBeNull();
+  });
+});
+
+describe("SPEC-ADDON-132 Library step 2: paging, dates, openings and history", () => {
+  const many = (count: number): Note[] =>
+    Array.from({ length: count }, (_, i) => ({
+      id: `m${i}`,
+      title: `Many ${i}`,
+      folder: "",
+      tags: [],
+      updated: new Date(Date.UTC(2026, 10, 1) - i * 60_000).toISOString(),
+    }));
+  const pages = () => listCalls().map((c) => c.url.searchParams.get("page") ?? "1");
+
+  it("SPEC-ADDON-132 scrolling to the end asks the next page and appends it; the last page ends the paging", async () => {
+    open(`${BASE}?view=all`, many(130));
+
+    expect(await screen.findByText("Many 59")).toBeInTheDocument();
+    expect(screen.queryByText("Many 60")).toBeNull();
+    expect(nearEnd.enabled).toBe(true);
+
+    act(() => nearEnd.load());
+    expect(await screen.findByText("Many 119")).toBeInTheDocument();
+    expect(within(screen.getByRole("region", { name: "Notes" })).getByText("Many 0")).toBeInTheDocument();
+    expect(pages()).toEqual(["1", "2"]);
+
+    await waitFor(() => expect(nearEnd.enabled).toBe(true));
+    act(() => nearEnd.load());
+    expect(await screen.findByText("Many 129")).toBeInTheDocument();
+    expect(pages()).toEqual(["1", "2", "3"]);
+    await waitFor(() => expect(nearEnd.enabled).toBe(false));
+  });
+
+  it.each([
+    ["updated", "Jul 9, 2021"],
+    ["created", "Mar 5, 2020"],
+  ])("SPEC-ADDON-132 under sort=%s a row shows %s", async (sort, date) => {
+    const notes: Note[] = [
+      { id: "d1", title: "Dated", folder: "", tags: [], created: "2020-03-05T12:00:00Z", updated: "2021-07-09T12:00:00Z" },
+    ];
+    open(`${BASE}?view=all&sort=${sort}`, notes);
+
+    const list = await screen.findByRole("region", { name: "Notes" });
+    expect(await within(list).findByText("Dated")).toBeInTheDocument();
+    const row = within(list).getByText("Dated").closest("a")!;
+    expect(row.textContent).toContain(date);
+    expect(row.textContent).not.toContain(date === "Jul 9, 2021" ? "Mar 5, 2020" : "Jul 9, 2021");
+  });
+
+  it("SPEC-ADDON-132 a selection change pushes history and drops note", async () => {
+    open(`${BASE}?view=all&note=n1`);
+    await waitFor(() => expect(shown("Body of Alpha")).toBe(true));
+    await waitFor(() => expect(controls("Work").length).toBeGreaterThan(0));
+
+    fireEvent.click(control("Work"));
+
+    await waitFor(() => expect(nav.log.some((n) => n.url.searchParams.get("folder") === "Work")).toBe(true));
+    const entry = nav.log.find((n) => n.url.searchParams.get("folder") === "Work")!;
+    expect(entry.kind).toBe("push");
+    expect(entry.url.searchParams.has("note")).toBe(false);
+  });
+
+  it("SPEC-ADDON-132 the sort control pushes history, drops note and names the current sort", async () => {
+    open(`${BASE}?view=all&note=n3`);
+    await waitFor(() => expect(shown("Body of Gamma")).toBe(true));
+    expect(screen.getByRole("button", { name: /Sort/ })).toHaveTextContent("Updated");
+
+    await chooseSort("Title");
+
+    await waitFor(() => expect(nav.log.some((n) => n.url.searchParams.get("sort") === "title")).toBe(true));
+    const entry = nav.log.find((n) => n.url.searchParams.get("sort") === "title")!;
+    expect(entry.kind).toBe("push");
+    expect(entry.url.searchParams.has("note")).toBe(false);
+    expect(screen.getByRole("button", { name: /Sort/ })).toHaveTextContent("Title");
+  });
+
+  it("SPEC-ADDON-132 rows show their opening, and a row whose opening did not load has none", async () => {
+    open(`${BASE}?view=all`, NOTES, { openings: { n1: "Opening of Alpha" } });
+
+    const list = await screen.findByRole("region", { name: "Notes" });
+    await waitFor(() => expect(within(list).queryByText("Opening of Alpha")).not.toBeNull());
+    const asked = server.calls.filter((c) => c.url.pathname === "/api/addons/knowledge/note-openings");
+    expect(asked.length).toBeGreaterThan(0);
+    expect((asked[0].body as { file_ids: string[] }).file_ids).toEqual(expect.arrayContaining(["n1", "n2", "n3", "n4"]));
+    const excerpt = (title: string) => within(list).getByText(title).closest("a")!.querySelector("[data-testid=note-excerpt]")!;
+    expect(excerpt("Alpha").textContent).toBe("Opening of Alpha");
+    expect(excerpt("Beta").textContent).toBe("");
+  });
+
+  it("SPEC-ADDON-132 when the openings request fails the rows are drawn without openings", async () => {
+    nav.set(`${BASE}?view=all`);
+    server = installNotesServer({ notes: NOTES, openings: { n1: "Opening of Alpha" } });
+    server.override = (c) => (c.url.pathname === "/api/addons/knowledge/note-openings" ? new Response("{}", { status: 500 }) : null);
+    render(<Page />);
+
+    const list = await screen.findByRole("region", { name: "Notes" });
+    expect(await within(list).findByText("Delta")).toBeInTheDocument();
+    await act(() => settle(100));
+    expect(within(list).queryByText("Opening of Alpha")).toBeNull();
+  });
+});
+
+describe("SPEC-ADDON-132 Library: Target, rail and frame gaps", () => {
+  const collection = {
+    id: "c-mine",
+    name: "Mine",
+    description: null,
+    drive: DRIVE,
+    item_count: 2,
+    first_file_id: "n1",
+    created_at: "2026-01-01T00:00:00Z",
+    updated_at: "2026-01-01T00:00:00Z",
+  };
+
+  it.each(["folder", "tag"])("SPEC-ADDON-132 I3 a collection Target reaches the %s rail and the list with collection=", async (segment) => {
+    localStorage.setItem(CLASSIFICATION_KEY, segment);
+    localStorage.setItem(TARGET_KEY, "collection:c-mine");
+    const notes = NOTES.map((n) => (n.id === "n1" || n.id === "n3" ? { ...n, collections: ["Mine"] } : n));
+    open(`${BASE}?view=all`, notes, { collections: [collection] });
+
+    if (segment === "folder") {
+      await waitFor(() => expect(controls("Journal", 1)).toHaveLength(1));
+      expect(control("Work", 1)).toBeInTheDocument();
+    } else {
+      await waitFor(() => expect(controls("trip", 2)).toHaveLength(1));
+      expect(control("food", 1)).toBeInTheDocument();
+    }
+    expect(control("All", 2)).toBeInTheDocument();
+    const asked = server.calls.filter((c) => listsOrCountsCall(c));
+    expect(asked.length).toBeGreaterThan(0);
+    for (const call of asked) expect(call.url.searchParams.getAll("collection")).toEqual(["Mine"]);
+    expect(screen.queryByText("Delta")).toBeNull();
+  });
+
+  it("SPEC-ADDON-132 a Target change through a lookup drops note and keeps the folder", async () => {
+    const lookup = deferred<unknown>();
+    member.evaluation = () => lookup.promise;
+    open(`${BASE}?view=all&folder=Journal&note=n4`, NOTES, {
+      smartFolders: [smartFolder("sf-beach", "Beach", "beach")],
+    });
+    await waitFor(() => expect(shown("Body of Delta")).toBe(true));
+
+    await chooseTarget("Beach");
+    await act(() => settle(50));
+    await act(async () => lookup.resolve({ status: "ready", fileIds: ["n1", "n4"] }));
+
+    await waitFor(() => expect(nav.params.has("note")).toBe(false));
+    expect(nav.params.get("folder")).toBe("Journal");
+  });
+
+  it("SPEC-ADDON-132 the tag rail has an entry per tag and none for untagged notes", async () => {
+    localStorage.setItem(CLASSIFICATION_KEY, "tag");
+    open();
+
+    await waitFor(() => expect(controls("trip", 2)).toHaveLength(1));
+    const rail = screen.getByRole("navigation", { name: "Classification" });
+    const entries = within(rail).getAllByRole("listitem");
+    expect(entries.map((li) => li.textContent).sort()).toEqual(["All4", "food2", "trip2"]);
+  });
+
+  it("SPEC-ADDON-130 I13 the Library does not ask for an overlay sidebar", async () => {
+    open();
+
+    await waitFor(() => expect(shown("Body of Alpha")).toBe(true));
+    expect(sidebar.overlay).not.toHaveBeenCalled();
+  });
+});
+
+describe("SPEC-ADDON-132 Library step 5, I6: the file's kind", () => {
+  const log: Note = { id: "p1", title: "Plain", folder: "", tags: [], mime: "text/plain", updated: "2026-11-12T09:00:00Z", body: "Plain body" };
+
+  it("SPEC-ADDON-132 I6 a plain-text document is drawn as plain text and can be edited with plainTextDocument", async () => {
+    plain.state = { decided: true, plainTextDocument: true };
+    open(`${BASE}?view=all&note=p1`, [log, ...NOTES]);
+
+    expect(await screen.findByTestId("text-preview")).toHaveTextContent("p1");
+    expect(screen.queryByTestId("markdown")).toBeNull();
+    fireEvent.click(await screen.findByRole("button", { name: "Edit" }));
+    await waitFor(() => expect(paneEditor()).not.toBeNull());
+    expect(edit.props[edit.props.length - 1].plainTextDocument).toBe(true);
+  });
+
+  it.each([
+    ["not a plain-text document", { decided: true, plainTextDocument: false }],
+    ["not yet decided", { decided: false, plainTextDocument: false }],
+  ])("SPEC-ADDON-132 I6 a text/plain file that is %s has no Edit", async (_l, state) => {
+    plain.state = state;
+    open(`${BASE}?view=all&note=p1`, [log, ...NOTES]);
+
+    expect(await screen.findByTestId("text-preview")).toBeInTheDocument();
+    await act(() => settle(100));
+    expect(editButton()).toBeNull();
   });
 });

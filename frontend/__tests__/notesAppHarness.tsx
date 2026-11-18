@@ -171,6 +171,8 @@ export interface Note {
   mime?: string;
   origin?: string | null;
   body?: string;
+  /** Names of the collections that hold this note. */
+  collections?: string[];
 }
 
 export function fileItem(n: Note) {
@@ -215,6 +217,7 @@ export interface Server {
   sources: Record<string, unknown[]>;
   relations: Record<string, unknown[]>;
   smartFolders: unknown[];
+  collections: unknown[];
   /** Per-route override: return a Response (or a never-settling promise) to replace the default. */
   override: (call: WireCall) => Answer;
   isListing: (c: WireCall) => boolean;
@@ -246,6 +249,7 @@ export const listsOrCounts = (c: WireCall) =>
 function filterNotes(notes: Note[], c: WireCall): Note[] {
   const q = c.url.searchParams;
   let out = notes.filter((n) => !(q.get("exclude_origin") && n.origin === q.get("exclude_origin")));
+  for (const name of q.getAll("collection")) out = out.filter((n) => (n.collections ?? []).includes(name));
   if (q.has("path")) out = out.filter((n) => n.folder === q.get("path"));
   for (const tag of q.getAll("tag")) {
     if (tag) out = out.filter((n) => (n.tags ?? []).some((t) => t.toLowerCase() === tag.toLowerCase()));
@@ -272,7 +276,7 @@ function sortNotes(notes: Note[], c: WireCall): Note[] {
   return order === "asc" ? sorted : sorted.reverse();
 }
 
-export function installNotesServer(init: Partial<Pick<Server, "notes" | "history" | "openings" | "withSources" | "sources" | "relations" | "smartFolders">> = {}): Server {
+export function installNotesServer(init: Partial<Pick<Server, "notes" | "history" | "openings" | "withSources" | "sources" | "relations" | "smartFolders" | "collections">> = {}): Server {
   const server: Server = {
     calls: [],
     notes: init.notes ?? [],
@@ -282,6 +286,7 @@ export function installNotesServer(init: Partial<Pick<Server, "notes" | "history
     sources: init.sources ?? {},
     relations: init.relations ?? {},
     smartFolders: init.smartFolders ?? [],
+    collections: init.collections ?? [],
     override: () => null,
     isListing: (c) => isFiles(c) || isFilesQuery(c),
     isCounts: (c) => isCountsGet(c) || isCountsQuery(c),
@@ -299,7 +304,7 @@ export function installNotesServer(init: Partial<Pick<Server, "notes" | "history
 function answer(server: Server, call: WireCall): Response {
   const p = path(call);
   if (p === `/api/drives/${DRIVE}/smart-folders`) return json(server.smartFolders);
-  if (p === `/api/drives/${DRIVE}/collections`) return json([]);
+  if (p === `/api/drives/${DRIVE}/collections`) return json(server.collections);
   if (p === "/api/addons/status") return json({ addons: {}, slots: {} });
   if (isFiles(call) || isFilesQuery(call)) {
     const all = sortNotes(filterNotes(server.notes, call), call);
