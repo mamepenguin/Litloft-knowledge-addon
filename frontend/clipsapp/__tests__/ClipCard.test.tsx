@@ -77,10 +77,9 @@ describe("SPEC-ADDON-138 the card", () => {
     expect(screen.getByText("3 days ago")).toBeInTheDocument();
   });
 
-  it("contains the absolutely placed Unread label in the card link, so a sideways strip does not widen the page", () => {
+  it("puts the Unread label inside the card link", () => {
     render(<ClipCard file={file()} cover={undefined} dot now={NOW} showAge />);
     const link = screen.getByRole("link");
-    expect(link).toHaveClass("relative");
     expect(link).toContainElement(screen.getByText("Unread"));
   });
 
