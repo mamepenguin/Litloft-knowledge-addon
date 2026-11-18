@@ -44,6 +44,8 @@ export interface NotePaneProps {
   onModeChange: (mode: PaneMode) => void;
   /** The text was saved: the list and the rail are asked for again. */
   onSaved: () => void;
+  /** The viewer chose this note, so opening it counts as a view. */
+  recordView: boolean;
 }
 
 type FlushNote = "failed" | "conflict" | null;
@@ -72,6 +74,7 @@ export default function NotePaneContainer({
   gateRef,
   onModeChange,
   onSaved,
+  recordView,
 }: NotePaneProps) {
   const t = useTranslations("knowledge.notesLibrary");
   const locale = useLocale();
@@ -104,14 +107,14 @@ export default function NotePaneContainer({
   }, [mode, onModeChange]);
   useEffect(() => () => onModeChange("reading"), [onModeChange]);
 
-  // One empty progress POST per note shown, so it appears in Continue writing.
+  // One empty progress POST per note the viewer chose, so it appears in Continue writing.
   const recorded = useRef(false);
   const isLoaded = loaded !== null;
   useEffect(() => {
-    if (!isLoaded || recorded.current) return;
+    if (!isLoaded || !recordView || recorded.current) return;
     recorded.current = true;
     void recordFileView(noteId);
-  }, [isLoaded, noteId]);
+  }, [isLoaded, recordView, noteId]);
 
   const isMarkdown = file?.mime_type === "text/markdown";
   useEffect(() => {

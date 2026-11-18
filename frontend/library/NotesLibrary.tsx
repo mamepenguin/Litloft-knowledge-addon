@@ -10,7 +10,7 @@ import { registerChangeGate } from "../notesapp/changeGate";
 import type { NotesTarget } from "../notesapp/useNotesTarget";
 import { useNoteClock } from "../useNoteClock";
 import { useNoteOpenings } from "../useNoteOpenings";
-import { LibraryList } from "./LibraryList";
+import { LibraryList, SortMenu } from "./LibraryList";
 import { LibraryRail, LibraryRailMenu } from "./LibraryRail";
 import {
   hasConflictingSelection,
@@ -95,9 +95,13 @@ export default function NotesLibrary({ drive, target, total }: NotesLibraryProps
   // by the first row, or dropped when there is none.
   const setNote = shown.kind === "show" ? shown.setNote : null;
   const removeNote = shown.kind === "none" && shown.removeNote;
+  // The note this page put in the URL itself; the viewer did not choose it.
+  const [replacement, setReplacement] = useState<string | null>(null);
   useEffect(() => {
-    if (setNote !== null) navigate({ note: setNote }, "replace");
-    else if (removeNote) navigate({ note: null }, "replace");
+    if (setNote !== null) {
+      setReplacement(setNote);
+      navigate({ note: setNote }, "replace");
+    } else if (removeNote) navigate({ note: null }, "replace");
   }, [setNote, removeNote, navigate]);
 
   const conflicting = hasConflictingSelection(searchParams);
@@ -150,7 +154,8 @@ export default function NotesLibrary({ drive, target, total }: NotesLibraryProps
 
   const choose = (file: FileItem): boolean => {
     if (!paneDrawn) return false;
-    if (file.id !== shownId) gate(() => navigate({ note: file.id }, "replace"));
+    if (replacement === file.id) setReplacement(null);
+    if (file.id !== params.note) gate(() => navigate({ note: file.id }, "replace"));
     return true;
   };
 
@@ -184,6 +189,7 @@ export default function NotesLibrary({ drive, target, total }: NotesLibraryProps
         gateRef={gateRef}
         onModeChange={setPaneMode}
         onSaved={onSaved}
+        recordView={params.note === paneId && replacement !== paneId}
       />
     ) : shown.kind === "error" ? (
       <PaneError onRetry={retryCheck} />
@@ -202,8 +208,15 @@ export default function NotesLibrary({ drive, target, total }: NotesLibraryProps
           <LibraryRail {...railProps} />
         </aside>
       ) : (
-        <div className={narrowEditing ? "hidden" : "px-3"}>
-          <LibraryRailMenu {...railProps} />
+        <div
+          className={
+            narrowEditing ? "hidden" : layout === "list" ? "flex items-center gap-2" : "px-3"
+          }
+        >
+          <div className="min-w-0 flex-1">
+            <LibraryRailMenu {...railProps} short={layout === "list"} />
+          </div>
+          {layout === "list" && <SortMenu sort={params.sort} onSort={sort} />}
         </div>
       )}
       <div className="flex min-w-0 flex-1">
@@ -213,10 +226,11 @@ export default function NotesLibrary({ drive, target, total }: NotesLibraryProps
               ? "hidden"
               : paneDrawn
                 ? "w-[360px] min-w-[340px] max-w-[380px] shrink-0 border-x border-bg-border"
-                : "min-w-0 flex-1"
+                : "-mx-4 min-w-0 flex-1"
           }
         >
           <LibraryList
+            phone={layout === "list"}
             rows={list.rows}
             openings={openings.text}
             phase={list.phase}

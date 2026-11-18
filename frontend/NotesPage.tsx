@@ -137,6 +137,7 @@ export default function NotesPage() {
             defaultLabel: t("allNotes"),
             unavailableLabel: t("unavailable"),
             defaultTargetTypes: NOTES_BASE_KINDS,
+            defaultTargetExcludeOrigin: "webclip",
             isUsable: notesTarget.isUsable,
             onChoose: (id) => runGated(() => notesTarget.choose(id)),
             onRetryFolders: notesTarget.retryFolders,

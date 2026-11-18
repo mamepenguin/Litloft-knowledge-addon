@@ -34,16 +34,25 @@ export interface LibraryListProps {
   onSort: (sort: LibrarySort) => void;
   onLoadMore: () => void;
   onRetry: () => void;
+  /** The phone layout: the sort button is drawn by the page, beside the rail menu. */
+  phone?: boolean;
+}
+
+/** A folder path's own name; the full path does not fit a phone's field. */
+export function lastSegment(path: string): string {
+  return path.split("/").filter(Boolean).pop() ?? path;
 }
 
 function SearchField({
   selection,
   query,
   onSearch,
+  phone,
 }: {
   selection: Selection;
   query: string;
   onSearch: (query: string) => void;
+  phone: boolean;
 }) {
   const t = useTranslations("knowledge.notesLibrary");
   const [draft, setDraft] = useState(query);
@@ -53,7 +62,9 @@ function SearchField({
 
   const placeholder =
     selection.kind === "folder"
-      ? t("searchFolder", { folder: selection.path === "" ? t("rootFolder") : selection.path })
+      ? t("searchFolder", {
+          folder: selection.path === "" ? t("rootFolder") : phone ? lastSegment(selection.path) : selection.path,
+        })
       : selection.kind === "tag"
         ? t("searchTag", { tag: selection.name })
         : t("searchNotes");
@@ -130,6 +141,25 @@ function Row({
   );
 }
 
+export function SortMenu({ sort, onSort }: { sort: LibrarySort; onSort: (sort: LibrarySort) => void }) {
+  const t = useTranslations("knowledge.notesLibrary");
+  return (
+    <ToolbarMenu label={t("sortMenu")} value={t(`sort.${sort}`)} icon={ArrowUpDown} align="end">
+      {(close) => (
+        <MenuRadioGroup
+          heading={t("sortMenu")}
+          options={LIBRARY_SORTS.map((value) => ({ value, label: t(`sort.${value}`) }))}
+          isSelected={(value) => value === sort}
+          onSelect={(value) => {
+            close();
+            onSort(value);
+          }}
+        />
+      )}
+    </ToolbarMenu>
+  );
+}
+
 export function LibraryList(props: LibraryListProps) {
   const t = useTranslations("knowledge.notesLibrary");
   const sentinel = useNearEnd(props.hasMore && props.more === "idle", props.onLoadMore);
@@ -138,21 +168,9 @@ export function LibraryList(props: LibraryListProps) {
 
   return (
     <section aria-label={t("listLabel")} className="flex min-w-0 flex-col">
-      <div className="flex gap-2 px-3 pb-3">
-        <SearchField selection={props.selection} query={props.query} onSearch={props.onSearch} />
-        <ToolbarMenu label={t("sortMenu")} value={t(`sort.${props.sort}`)} icon={ArrowUpDown} align="end">
-          {(close) => (
-            <MenuRadioGroup
-              heading={t("sortMenu")}
-              options={LIBRARY_SORTS.map((sort) => ({ value: sort, label: t(`sort.${sort}`) }))}
-              isSelected={(value) => value === props.sort}
-              onSelect={(value) => {
-                close();
-                props.onSort(value);
-              }}
-            />
-          )}
-        </ToolbarMenu>
+      <div className={`flex gap-2 pb-3 ${props.phone ? "px-4" : "px-3"}`}>
+        <SearchField selection={props.selection} query={props.query} onSearch={props.onSearch} phone={props.phone === true} />
+        {!props.phone && <SortMenu sort={props.sort} onSort={props.onSort} />}
       </div>
       {props.phase === "loading" && props.rows.length === 0 && (
         <div aria-hidden="true" data-testid="list-skeleton" className="flex flex-col gap-1 px-3">

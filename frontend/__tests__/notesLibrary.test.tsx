@@ -1080,3 +1080,70 @@ describe("SPEC-ADDON-132 Library step 5, I6: the file's kind", () => {
     expect(editButton()).toBeNull();
   });
 });
+
+describe("SPEC-ADDON-132 Library step 4, I21: only a chosen note records a view", () => {
+  const views = () => server.calls.filter(isProgress).map((c) => c.url.pathname);
+
+  it("SPEC-ADDON-132 I21 the first row shown with no note records nothing", async () => {
+    open();
+
+    await waitFor(() => expect(shown("Body of Alpha")).toBe(true));
+    await act(() => settle(100));
+    expect(views()).toEqual([]);
+  });
+
+  it("SPEC-ADDON-132 I21 clicking a row records that note once", async () => {
+    open();
+    await waitFor(() => expect(shown("Body of Alpha")).toBe(true));
+
+    fireEvent.click(screen.getByText("Gamma"));
+
+    expect(await screen.findByText("Body of Gamma")).toBeInTheDocument();
+    await act(() => settle(100));
+    expect(views()).toEqual(["/api/files/n3/progress"]);
+  });
+
+  it("SPEC-ADDON-132 I21 clicking the row already shown as the first row records it", async () => {
+    open();
+    await waitFor(() => expect(shown("Body of Alpha")).toBe(true));
+
+    fireEvent.click(within(screen.getByRole("region", { name: "Notes" })).getByText("Alpha"));
+
+    await waitFor(() => expect(views()).toEqual(["/api/files/n1/progress"]));
+  });
+
+  it("SPEC-ADDON-132 I21 the replacement for a note that is not a note records nothing", async () => {
+    open(`${BASE}?view=all&note=zz`);
+
+    await waitFor(() => expect(nav.params.get("note")).toBe("n1"));
+    expect(await screen.findByText("Body of Alpha")).toBeInTheDocument();
+    await act(() => settle(100));
+    expect(views()).toEqual([]);
+  });
+});
+
+describe("SPEC-ADDON-132 Library: the phone's folder names", () => {
+  const nested: Note[] = [
+    { id: "x1", title: "Deep", folder: "Journal/2026", tags: [], updated: "2026-11-10T09:00:00Z", body: "Body of Deep" },
+  ];
+
+  it("SPEC-ADDON-132 on the phone the rail button and the search use the folder's last segment, and the sort sits beside the button", async () => {
+    setViewport(390);
+    open(`${BASE}?view=all&folder=Journal/2026`, nested);
+
+    const railButton = await screen.findByRole("button", { name: /Folders: 2026/ });
+    expect(screen.getByPlaceholderText("Search 2026")).toBeInTheDocument();
+    const sort = screen.getByRole("button", { name: /Sort/ });
+    expect(sort.parentElement!.parentElement).toBe(railButton.parentElement!.parentElement!.parentElement);
+    expect(within(screen.getByRole("region", { name: "Notes" })).queryByRole("button", { name: /Sort/ })).toBeNull();
+  });
+
+  it("SPEC-ADDON-132 from 1024 up the full path stays", async () => {
+    setViewport(1100);
+    open(`${BASE}?view=all&folder=Journal/2026`, nested);
+
+    expect(await screen.findByRole("button", { name: /Folders: Journal \/ 2026/ })).toBeInTheDocument();
+    expect(screen.getByPlaceholderText("Search Journal/2026")).toBeInTheDocument();
+    expect(within(screen.getByRole("region", { name: "Notes" })).getByRole("button", { name: /Sort/ })).toBeInTheDocument();
+  });
+});

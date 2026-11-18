@@ -6,6 +6,7 @@ import { Folder, Layers, Tag as TagIcon } from "lucide-react";
 
 import { MenuRadioGroup, ToolbarMenu } from "@/components/ToolbarMenu";
 
+import { lastSegment } from "./LibraryList";
 import type { Segment, Selection } from "./libraryUrl";
 import type { RailItem } from "./railModel";
 
@@ -123,12 +124,16 @@ export function LibraryRail(props: LibraryRailProps) {
 }
 
 /** From 1024 to 1279px: the same switch and entries behind one button. */
-export function LibraryRailMenu(props: LibraryRailProps): ReactNode {
+export function LibraryRailMenu(props: LibraryRailProps & { short?: boolean }): ReactNode {
   const t = useTranslations("knowledge.notesLibrary");
   const { segment, items } = props;
   const labelOf = useRailLabel(segment);
   const selected = items.find((item) => item.selected) ?? items[0];
-  const value = t(segment === "tag" ? "railMenuTags" : "railMenuFolders", { name: labelOf(selected) });
+  const selectedName =
+    props.short && segment === "folder" && selected.kind !== "all" && selected.key
+      ? lastSegment(selected.key)
+      : labelOf(selected);
+  const value = t(segment === "tag" ? "railMenuTags" : "railMenuFolders", { name: selectedName });
   return (
     <ToolbarMenu label={value} value={value} icon={segment === "tag" ? TagIcon : Folder} align="start" truncateValue>
       {(close) => (

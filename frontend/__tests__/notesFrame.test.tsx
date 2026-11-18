@@ -370,6 +370,26 @@ describe("SPEC-ADDON-130 frame step 2, I9: the Target", () => {
     },
   );
 
+  it("SPEC-ADDON-130 the open menu counts All notes without clips", async () => {
+    smartFolders = [smartFolder("sf-trip", "Trip", "tag:trip")];
+    localStorage.setItem(TARGET_KEY, "sf-trip");
+    serve();
+    render(<Page />);
+    await findText(`${DRIVE} · 2 notes`);
+
+    fireEvent.click(screen.getByRole("button", { name: /Target/ }));
+
+    await waitFor(() => {
+      const counts = server.calls.filter(
+        (c) => isFiles(c) && c.url.searchParams.get("limit") === "1" && !c.url.searchParams.has("tag"),
+      );
+      expect(counts.length).toBeGreaterThan(0);
+      for (const call of counts) {
+        expect([call.url.searchParams.getAll("type"), call.url.searchParams.get("exclude_origin")]).toEqual([["text"], "webclip"]);
+      }
+    });
+  });
+
   it("SPEC-ADDON-130 frame step 4 the Target survives a tab switch", async () => {
     smartFolders = [smartFolder("sf-trip", "Trip", "tag:trip")];
     localStorage.setItem(TARGET_KEY, "sf-trip");
