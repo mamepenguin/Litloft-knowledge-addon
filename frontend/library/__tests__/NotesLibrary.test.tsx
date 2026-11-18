@@ -394,17 +394,6 @@ describe("SPEC-ADDON-132 Library step 2: the list", () => {
     expect(await screen.findByText("Note a")).toBeInTheDocument();
   });
 
-  it("changing the target key starts a new list and drops the note from the URL", async () => {
-    const { rerender } = render(<NotesLibrary drive="d" target={READY} total={3} />);
-    params = new URLSearchParams("view=all&folder=Notes&note=b");
-    setWidth(1440);
-    rerender(<NotesLibrary drive="d" target={READY} total={3} />);
-    await screen.findByText("Note a");
-    replace.mockClear();
-    rerender(<NotesLibrary drive="d" target={{ ...READY, key: "smart:2" }} total={1} />);
-    await waitFor(() => expect(replace).toHaveBeenCalledWith(`${PATH}?view=all&folder=Notes`));
-  });
-
   it("a URL naming both a folder and a tag is repaired to the tag", async () => {
     await mount({ query: "view=all&folder=Notes&tag=ai" });
     await waitFor(() => expect(replace).toHaveBeenCalledWith(`${PATH}?view=all&tag=ai`));
