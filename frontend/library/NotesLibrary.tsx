@@ -202,7 +202,7 @@ export default function NotesLibrary({ drive, target, total }: NotesLibraryProps
     <div
       data-testid="notes-library"
       data-layout={layout ?? "unknown"}
-      className={`flex min-w-0 pt-2.5 max-sm:pt-2 ${layout === "three" ? "flex-row" : "flex-col gap-3"}`}
+      className={`flex min-w-0 ${layout === "three" ? "flex-row pt-2.5" : "flex-col gap-3 pt-3 max-sm:pt-2"}`}
     >
       {layout === "three" ? (
         <aside className="w-[220px] shrink-0 pr-4">
