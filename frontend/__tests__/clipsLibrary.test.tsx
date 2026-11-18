@@ -282,7 +282,9 @@ describe("SPEC-ADDON-139 step 11: shelf pages", () => {
     serve([...tagged("curry", 62, "k"), ...clips(2), ...NOT_CLIPS]);
     render(<Page />);
 
-    expect(await screen.findByText("K clip 9")).toBeInTheDocument();
+    // Title order is text order, so "K clip 7" closes page 1 and "K clip 8", "K clip 9" are page 2.
+    expect(await screen.findByText("K clip 7")).toBeInTheDocument();
+    expect(screen.queryByText("K clip 9")).toBeNull();
     expect(textNodes("curry").length).toBeGreaterThan(0);
     expect(metaNodes(/^(?![A-Z] clip)(\D*\s)?62$/).length).toBeGreaterThan(0);
     const asks = () => server.calls.filter((c) => isTagShelves(c) && q(c).get("key") === "curry");
@@ -296,7 +298,7 @@ describe("SPEC-ADDON-139 step 11: shelf pages", () => {
     expect([target.searchParams.get("view"), target.searchParams.get("group"), target.searchParams.get("sort")]).toEqual(["all", "tags", "title"]);
 
     await reachEnd();
-    expect(await screen.findByText("K clip 62")).toBeInTheDocument();
+    expect(await screen.findByText("K clip 9")).toBeInTheDocument();
     expect(asks().map((c) => q(c).get("page") ?? "1")).toEqual(["1", "2"]);
     await reachEnd();
     await act(() => settle());

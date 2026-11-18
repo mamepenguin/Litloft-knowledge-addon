@@ -157,7 +157,7 @@ describe("SPEC-ADDON-138 step 1, step 3: the header", () => {
     render(<Page />);
 
     await screen.findByRole("link", { name: "Library" });
-    expect(await screen.findByText("Unread")).toBeInTheDocument();
+    expect(await screen.findByRole("heading", { level: 2, name: "Unread" })).toBeInTheDocument();
     await act(() => settle());
     expect(document.body.textContent).not.toMatch(/\d+ clips/);
     expect(textNodes(DRIVE).length).toBeGreaterThan(0);
@@ -260,7 +260,8 @@ describe("SPEC-ADDON-138 step 4, step 5, I11: tabs and the clip form", () => {
     fireEvent.click(screen.getByRole("button", { name: "Clip a web page" }));
     await waitFor(() => expect(urlField()).not.toBeNull());
     fireEvent.click(screen.getByRole("button", { name: "Clip a web page" }));
-    await waitFor(() => expect(urlField()).toBeNull());
+    // Closing hides the region: the form stays mounted so a draft survives (SPEC-ADDON-138 I11).
+    await waitFor(() => expect(urlField()).not.toBeVisible());
   });
 });
 
@@ -368,6 +369,6 @@ describe("SPEC-ADDON-138 States, Empty (SPEC-ADDON-100 I28 as revised)", () => {
         "12",
       ]);
     }
-    expect(screen.getByText("C clip 1")).toBeInTheDocument();
+    expect(await screen.findByText("C clip 1")).toBeInTheDocument();
   });
 });
