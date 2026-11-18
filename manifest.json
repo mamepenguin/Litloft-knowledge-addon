@@ -106,6 +106,16 @@
                 "response_filter": null
             },
             {
+                "path": "/notes/with-sources",
+                "methods": ["GET"],
+                "response_filter": null
+            },
+            {
+                "path": "/notes/sources",
+                "methods": ["POST"],
+                "response_filter": null
+            },
+            {
                 "path": "/notes/by_source_file/{source_file_id}",
                 "methods": ["GET"],
                 "response_filter": null
