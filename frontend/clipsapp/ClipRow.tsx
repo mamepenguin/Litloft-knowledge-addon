@@ -45,7 +45,7 @@ export default function ClipRow({
           {t("saveFailed")}
         </span>
       )}
-      <Button variant="secondary" size="sm" className="shrink-0 text-[13px] font-semibold" disabled={status === "saving"} onClick={onVerify}>
+      <Button variant="secondary" size="sm" className="h-8 shrink-0 text-[13px] font-semibold" disabled={status === "saving"} onClick={onVerify}>
         {t("markVerified")}
       </Button>
     </div>
