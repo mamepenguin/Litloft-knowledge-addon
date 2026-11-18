@@ -468,7 +468,7 @@ describe("SPEC-ADDON-132 Library step 4 and I21: reading and the view record", (
   it("records one empty view per note shown, and none again after Done", async () => {
     await mount({ query: "view=all&note=a" });
     await screen.findByTestId("md");
-    expect(recordFileView).toHaveBeenCalledTimes(1);
+    await waitFor(() => expect(recordFileView).toHaveBeenCalledTimes(1));
     expect(recordFileView).toHaveBeenCalledWith("a");
     fireEvent.click(screen.getByRole("button", { name: "notesLibrary.edit" }));
     await screen.findByTestId("editor");
