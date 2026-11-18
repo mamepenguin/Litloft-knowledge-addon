@@ -1286,7 +1286,7 @@ describe("SPEC-ADDON-138 refresh", () => {
     await screen.findByText("Clip k00");
 
     emit("knowledge.clip.ready", { job_id: 9, file_id: "z" });
-    await waitFor(() => expect(shelfCalls(isGrid).length).toBe(3));
+    await waitFor(() => expect(shelfCalls(isGrid).length).toBe(4));
     expect(screen.getByText("Clip k00")).toBeInTheDocument();
     expect(screen.getByText("Clip k60")).toBeInTheDocument();
   });

@@ -68,6 +68,13 @@ describe("SPEC-ADDON-138 the card", () => {
     expect(screen.getByText("2 min")).toBeInTheDocument();
   });
 
+  it("contains the absolutely placed Unread label in the card link, so a sideways strip does not widen the page", () => {
+    render(<ClipCard file={file()} cover={undefined} dot now={NOW} showAge />);
+    const link = screen.getByRole("link");
+    expect(link).toHaveClass("relative");
+    expect(link).toContainElement(screen.getByText("Unread"));
+  });
+
   it("draws the dot only when told to", () => {
     const { rerender } = render(<ClipCard file={file()} cover={undefined} dot now={NOW} showAge />);
     expect(screen.getByTestId("unread-dot")).toHaveAttribute("aria-hidden", "true");

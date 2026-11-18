@@ -26,7 +26,7 @@ export interface PagedOptions<T> {
   scope: string | null;
   fetchPage: (page: number, signal: AbortSignal) => Promise<PagedPage<T>>;
   pageSize: number;
-  /** A change re-asks page 1 and merges it into what is drawn. */
+  /** A change re-asks every page drawn (page 1 for a capped or replaced shelf) and merges them into what is drawn. */
   refresh: number;
   /** Home's shelves hold no more than this many cards. */
   cap?: number;
@@ -46,9 +46,10 @@ function appendUnseen<T extends { id: string }>(drawn: readonly T[], page: reado
 }
 
 /**
- * Pages of one shelf, in the order the server gave them. A refresh puts the
- * fresh first page in front and keeps every drawn card the page does not
- * name, so nothing already on screen leaves; a failed refresh changes nothing.
+ * Pages of one shelf, in the order the server gave them. A refresh asks every
+ * page drawn again, puts the fresh pages in front in their order and keeps every
+ * drawn card they do not name, so nothing already on screen leaves; a failed
+ * refresh (any of its pages) changes nothing.
  * `remove` takes a card out without asking again, a removed card never comes
  * back from a refresh that was already on its way, and a card being saved is
  * not pushed out by one.
@@ -58,8 +59,10 @@ export function usePagedClips<T extends { id: string }>(options: PagedOptions<T>
   const [held, setHeld] = useState<Held<T> | null>(null);
   const [attempt, setAttempt] = useState(0);
   const latest = useRef(options);
+  const heldRef = useRef(held);
   useEffect(() => {
     latest.current = options;
+    heldRef.current = held;
   });
   const gone = useRef<{ scope: string | null; ids: Set<string> }>({ scope: null, ids: new Set() });
   const saving = useRef(new Set<string>());
@@ -78,17 +81,30 @@ export function usePagedClips<T extends { id: string }>(options: PagedOptions<T>
         ? { ...prev, phase: prev.phase === "ready" ? "ready" : "loading" }
         : empty<T>(scope),
     );
-    fetchPage(1, controller.signal).then(
-      (page) => {
+    const drawn = heldRef.current;
+    const single = latest.current.cap !== undefined || latest.current.replaceOnRefresh;
+    const pages =
+      single || drawn === null || drawn.scope !== scope
+        ? 1
+        : Math.max(1, Math.ceil(drawn.items.length / pageSize));
+    Promise.all(Array.from({ length: pages }, (_, i) => fetchPage(i + 1, controller.signal))).then(
+      (answers) => {
         if (controller.signal.aborted) return;
+        const page = {
+          items: answers.flatMap((a) => a.items).filter((item, i, all) => all.findIndex((x) => x.id === item.id) === i),
+          count: answers[0].count,
+        };
         const removed = goneIds(scope);
         setHeld((prev) => {
           const base = prev !== null && prev.scope === scope ? prev : empty<T>(scope);
           const fresh = page.items.filter((item) => !removed.has(item.id));
           const { cap, replaceOnRefresh } = latest.current;
-          const merged = replaceOnRefresh
-            ? fresh
-            : [...fresh, ...base.items.filter((item) => !fresh.some((f) => f.id === item.id))];
+          // Several pages asked again are the whole drawn range in the server's
+          // order, so a card they leave out is gone, unless it is being saved.
+          const unnamed = base.items.filter(
+            (item) => !fresh.some((f) => f.id === item.id) && (pages === 1 || saving.current.has(item.id)),
+          );
+          const merged = replaceOnRefresh ? fresh : [...fresh, ...unnamed];
           return {
             ...base,
             // A card being saved stays where it is, even past the cap.
@@ -113,7 +129,7 @@ export function usePagedClips<T extends { id: string }>(options: PagedOptions<T>
       },
     );
     return () => controller.abort();
-  }, [scope, refresh, attempt, goneIds]);
+  }, [scope, refresh, attempt, goneIds, pageSize]);
 
   const own = held !== null && held.scope === scope ? held : null;
 

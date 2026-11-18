@@ -512,7 +512,7 @@ describe("SPEC-ADDON-139 review r1: Target conditions, Target change, refresh on
     await waitFor(() => expect(screen.queryByText("T clip 1")).toBeNull());
   });
 
-  it("SPEC-ADDON-138 step 5 a refresh keeps the later pages a shelf page has drawn", async () => {
+  it("SPEC-ADDON-138 step 5 a refresh asks every page a shelf page has drawn again, so a later page is refreshed too", async () => {
     nav.set(`${CLIPS}?view=shelf&shelf=tag:curry`);
     serve([...tagged("curry", 65, "k"), ...NOT_CLIPS]);
     render(<Page />);
@@ -522,11 +522,15 @@ describe("SPEC-ADDON-139 review r1: Target conditions, Target change, refresh on
     const firstPages = () => server.calls.filter((c) => isTagShelves(c) && (q(c).get("page") ?? "1") === "1").length;
     const asked = firstPages();
 
+    server.files = server.files.map((c) => (c.id === "k65" ? { ...c, title: "Renamed 65" } : c));
+
     emit("knowledge.clip.ready", { file_id: "k1", job_id: 1 });
     await waitFor(() => expect(firstPages()).toBeGreaterThan(asked));
     await act(() => settle());
 
     expect(screen.getByText("K clip 1")).toBeInTheDocument();
-    expect(screen.getByText("K clip 65")).toBeInTheDocument();
+    expect(await screen.findByText("Renamed 65")).toBeInTheDocument();
+    const secondPages = server.calls.filter((c) => isTagShelves(c) && q(c).get("page") === "2");
+    expect(secondPages.length).toBeGreaterThanOrEqual(2);
   });
 });

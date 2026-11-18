@@ -21,17 +21,32 @@ function setup(initial: { scope: string | null; refresh: number }, answer: (n: n
 }
 
 describe("SPEC-ADDON-138 refresh merges the first page", () => {
-  it("puts the fresh page first, updates a drawn card, and keeps the drawn cards the page does not name", async () => {
+  it("puts the fresh page first, updates a drawn card, and keeps the drawn cards a one-page refresh does not name", async () => {
+    const first = page(["a", "b"], 4);
+    const { result, rerender } = setup({ scope: "s", refresh: 0 }, async () => first);
+    await waitFor(() => expect(result.current.phase).toBe("ready"));
+
+    first.items = [{ id: "n" }, { id: "a", title: "A2" }];
+    first.count = 3;
+    rerender({ scope: "s", refresh: 1 });
+    await waitFor(() => expect(ids(result.current.items)).toEqual(["n", "a", "b"]));
+    expect(result.current.items[1].title).toBe("A2");
+    expect(result.current.count).toBe(3);
+  });
+
+  it("asks every drawn page again and merges them in order, so a later page is refreshed too", async () => {
     let first = page(["a", "b"], 4);
-    const { result, rerender } = setup({ scope: "s", refresh: 0 }, async (n) => (n === 1 ? first : page(["c", "d"], 4)));
+    let second = page(["c", "d"], 4);
+    const { result, rerender } = setup({ scope: "s", refresh: 0 }, async (n) => (n === 1 ? first : second));
     await waitFor(() => expect(result.current.phase).toBe("ready"));
     act(() => result.current.loadMore());
     await waitFor(() => expect(ids(result.current.items)).toEqual(["a", "b", "c", "d"]));
 
     first = { items: [{ id: "n" }, { id: "a", title: "A2" }], count: 5 };
+    second = { items: [{ id: "b", title: "B2" }, { id: "d" }], count: 5 };
     rerender({ scope: "s", refresh: 1 });
-    await waitFor(() => expect(ids(result.current.items)).toEqual(["n", "a", "b", "c", "d"]));
-    expect(result.current.items[1].title).toBe("A2");
+    await waitFor(() => expect(ids(result.current.items)).toEqual(["n", "a", "b", "d"]));
+    expect(result.current.items[2].title).toBe("B2");
     expect(result.current.count).toBe(5);
   });
 

@@ -87,7 +87,7 @@ export default function ClipCard({ file, cover, dot, now, showAge }: ClipCardPro
   return (
     <Link
       href={buildCanonicalFileUrl(file, file.id)}
-      className="group block min-w-0 rounded-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
+      className="group relative block min-w-0 rounded-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
     >
       <Cover cover={cover} className="aspect-[4/3] rounded-xl">
         {dot && (
