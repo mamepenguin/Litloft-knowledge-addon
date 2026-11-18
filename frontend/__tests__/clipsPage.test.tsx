@@ -748,6 +748,26 @@ describe("SPEC-ADDON-138 Mark as verified", () => {
     await settle();
     expect(screen.queryByText("Clip v1")).toBeNull();
   });
+
+  it("SPEC-ADDON-138 keeps a saving row on Home when a refresh brings five newer rows in front of it", async () => {
+    const day = (n: number) => `2026-09-${String(n).padStart(2, "0")}T09:00:00Z`;
+    fake.clips = [1, 2, 3, 4, 5].map((n) => clip(`v${n}`, { created_at: day(10 - n), trust_tier: "unverified" }));
+    render(<ClipsPage />);
+    await screen.findByText("Clip v5");
+    const gate = deferred();
+    fake.hold = (_u, m) => (m === "PUT" ? gate.promise : undefined);
+
+    fireEvent.click(screen.getAllByRole("button", { name: "Mark as verified" })[4]);
+    await waitFor(() => expect(screen.getAllByRole("button", { name: "Mark as verified" })[4]).toBeDisabled());
+    fake.clips = [
+      ...[1, 2, 3, 4, 5].map((n) => clip(`n${n}`, { created_at: day(20 - n), trust_tier: "unverified" })),
+      ...fake.clips,
+    ];
+    emit("knowledge.clip.ready", { job_id: 2, file_id: "z" });
+    await screen.findByText("Clip n5");
+    expect(screen.getByText("Clip v5")).toBeInTheDocument();
+    gate.resolve();
+  });
 });
 
 describe("SPEC-ADDON-139 Library", () => {
