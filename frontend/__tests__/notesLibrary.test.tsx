@@ -559,6 +559,7 @@ describe("SPEC-ADDON-132 Library step 5, I6: when Edit is offered", () => {
     const props = edit.props[edit.props.length - 1];
     expect(JSON.stringify(props)).toContain("n1");
     expect(props.fillHeight).toBe(true);
+    expect(props.toolbarRuleless).toBe(true);
     expect(props.saveHandle).toEqual(expect.objectContaining({ current: expect.anything() }));
     expect(screen.queryByText("Connections")).toBeNull();
     expect(screen.getByRole("button", { name: "Done" })).toBeInTheDocument();
