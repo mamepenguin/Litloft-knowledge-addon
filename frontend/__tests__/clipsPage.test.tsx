@@ -7,7 +7,7 @@
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
-import { useSyncExternalStore } from "react";
+import { useEffect, useSyncExternalStore } from "react";
 
 import type { FileItem, WebSocketEvent } from "@/types";
 
@@ -55,8 +55,18 @@ vi.mock("next/link", () => ({
 }));
 
 let nickname: string | null = "alice";
+const profileListeners = new Set<() => void>();
 vi.mock("@/components/ProfileProvider", () => ({
-  useProfile: () => ({ nickname, setNickname: vi.fn(), clearNickname: vi.fn() }),
+  useProfile: () => {
+    const current = useSyncExternalStore(
+      (l) => {
+        profileListeners.add(l);
+        return () => profileListeners.delete(l);
+      },
+      () => nickname,
+    );
+    return { nickname: current, setNickname: vi.fn(), clearNickname: vi.fn() };
+  },
 }));
 vi.mock("@/hooks/usePolicy", () => ({ usePolicy: () => ({ enabled: true, isLoading: false }) }));
 vi.mock("@/components/FolderPicker", () => ({
@@ -982,7 +992,20 @@ describe("SPEC-ADDON-139 shelf pages", () => {
 
   it("SPEC-ADDON-139 does not send a deep link to Unread to Home while the profile is being read", async () => {
     params = new URLSearchParams({ view: "shelf", shelf: "unread" });
-    render(<ClipsPage />);
+    nickname = null;
+    // The provider reads the cookie in an effect that runs after its children's.
+    function Provider({ children }: { children: React.ReactNode }) {
+      useEffect(() => {
+        nickname = "alice";
+        profileListeners.forEach((l) => l());
+      }, []);
+      return children;
+    }
+    render(
+      <Provider>
+        <ClipsPage />
+      </Provider>,
+    );
     await screen.findByText("Clip u1");
     await settle();
 
@@ -1101,6 +1124,21 @@ describe("SPEC-ADDON-138 the Target", () => {
     }
     expect(histories()[0].url.searchParams.has("collection")).toBe(false);
     expect(within(header()).getByRole("button", { name: /Target/ })).toHaveTextContent("Soups");
+  });
+
+  it("SPEC-ADDON-138 counts the menu's All clips as clips only", async () => {
+    fake.collections = [{ id: "c1", name: "Soups" }];
+    fake.collectionTotal = 3;
+    window.localStorage.setItem(TARGET_KEY, "collection:c1");
+    render(<ClipsPage />);
+    await screen.findByText("Clip u1");
+    const was = counts().length;
+
+    fireEvent.click(within(header()).getByRole("button", { name: /Target/ }));
+    await waitFor(() => expect(counts().length).toBeGreaterThan(was));
+    const asked = counts()[counts().length - 1];
+    expect(asked.url.searchParams.has("collection")).toBe(false);
+    expect(["type", "origin", "limit"].map((k) => q(asked, k))).toEqual(["text", "webclip", "1"]);
   });
 
   it("SPEC-ADDON-138 does not read Notes' saved target", async () => {
@@ -1247,7 +1285,7 @@ describe("SPEC-ADDON-138 the clip form", () => {
     ["a shelf page", { view: "shelf", shelf: "unverified" }],
     ["Home", {}],
   ])("SPEC-ADDON-138 I11 keeps the form, typed into, when the page moves to %s and refreshes", async (_, next) => {
-    params = new URLSearchParams(next.view ? {} : { view: "all" });
+    params = new URLSearchParams("view" in next ? {} : { view: "all" });
     const { rerender } = render(<ClipsPage />);
     await settle();
     fireEvent.click(within(header()).getByRole("button", { name: ACTION }));

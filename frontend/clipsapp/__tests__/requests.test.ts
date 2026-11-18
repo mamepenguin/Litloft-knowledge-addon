@@ -26,7 +26,7 @@ afterEach(() => vi.unstubAllGlobals());
 
 const DEFAULT: ReadyNotesTarget = { status: "ready", key: "default", params: null, fileIds: null };
 const MEMBER: ReadyNotesTarget = { status: "ready", key: "member:x:2", params: null, fileIds: ["a", "b"] };
-const soups: ReadyNotesTarget = { status: "ready", key: "collection:c", params: { collection: "Soups", tag: "quick" }, fileIds: null };
+const soups: ReadyNotesTarget = { status: "ready", key: "collection:c", params: { type: ["text"], collection: "Soups", tag: "quick" }, fileIds: null };
 
 describe("SPEC-ADDON-138 clip conditions", () => {
   it("fixes type=text and origin=webclip last, whatever the target carries", () => {
