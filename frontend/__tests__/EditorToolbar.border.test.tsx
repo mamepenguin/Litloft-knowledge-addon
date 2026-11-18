@@ -13,7 +13,7 @@ describe("SPEC-ADDON-132 Library step 5: the pane's editor has no rule under its
     [false, false],
   ])("bordered=%s draws the rule: %s", (bordered, drawn) => {
     const { container } = render(
-      <EditorToolbar bordered={bordered} onAction={() => {}} onKeepVersion={() => {}} onOpenVersionHistory={() => {}} />,
+      <EditorToolbar frameless={!bordered} onAction={() => {}} onKeepVersion={() => {}} onOpenVersionHistory={() => {}} />,
     );
     expect((container.firstElementChild as HTMLElement).className.includes("border-b")).toBe(drawn);
   });

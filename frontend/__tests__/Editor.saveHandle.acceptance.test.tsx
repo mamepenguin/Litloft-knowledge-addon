@@ -258,6 +258,7 @@ describe("SPEC-ADDON-132 Library step 5: the toolbar's rule", () => {
     );
   }
 
+  const editorHost = () => document.querySelector("div.bg-bg-primary.w-full") as HTMLElement;
   const historyPanel = () => document.querySelector("section.bg-bg-card") as HTMLElement;
 
   it("the file page, under the chrome provider, keeps the rule under the toolbar and above the history", async () => {
@@ -265,6 +266,8 @@ describe("SPEC-ADDON-132 Library step 5: the toolbar's rule", () => {
     await loaded();
     expect(toolbarRoot().className).toContain("border-b");
     expect(historyPanel().className).toContain("border-t");
+    expect(toolbarRoot().className).toContain("px-3");
+    expect(editorHost().className).not.toContain("cm-content");
   });
 
   it("a host that asks for it gets a toolbar with no rule under it", async () => {
@@ -272,5 +275,7 @@ describe("SPEC-ADDON-132 Library step 5: the toolbar's rule", () => {
     await loaded();
     expect(toolbarRoot().className).not.toContain("border-b");
     expect(historyPanel().className).not.toContain("border-t");
+    expect(toolbarRoot().className).not.toContain("px-3");
+    expect(editorHost().className).toContain("cm-content");
   });
 });

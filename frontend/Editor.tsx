@@ -1450,7 +1450,7 @@ export default function Editor({
         <div className="sticky top-0 z-10">
           <EditorToolbar
             versionsOnly={plainText}
-            bordered={!frameless}
+            frameless={frameless}
             onAction={handleToolbar}
             onFileLinkRequest={plainText ? undefined : handleFileLinkRequest}
             onKeepVersion={keepCurrentVersion}
@@ -1490,7 +1490,7 @@ export default function Editor({
             fillHeight={fillHeight}
             className={`${
               fillHeight ? "w-full" : "h-full w-full"
-            } bg-bg-primary ${
+            } bg-bg-primary ${frameless ? "[&_.cm-content]:!pl-0" : ""} ${
               viewMode === "split" ? "border-r border-bg-border" : ""
             } ${viewMode === "preview" ? "hidden" : ""}`}
             ariaLabel={plainText ? t("plainEditArea") : t("editArea")}
