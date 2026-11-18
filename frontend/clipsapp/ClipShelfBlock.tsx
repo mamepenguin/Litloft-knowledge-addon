@@ -22,9 +22,10 @@ const ITEM = "min-w-0 pointer-coarse:w-[150px] pointer-coarse:shrink-0";
 const LIST = "grid gap-x-5 gap-y-6 pointer-coarse:flex pointer-coarse:gap-3 pointer-coarse:overflow-x-auto";
 const STRIP_SKELETONS = 4;
 
-export function SkeletonCard({ className = "" }: { className?: string }) {
+/** `grid` is a skeleton in a wrapping grid: it takes the column width, never the strip's 150px. */
+export function SkeletonCard({ className = "", grid = false }: { className?: string; grid?: boolean }) {
   return (
-    <li className={`${ITEM} animate-pulse ${className}`} aria-hidden="true" data-testid="clip-skeleton">
+    <li className={`${grid ? "min-w-0" : ITEM} animate-pulse ${className}`} aria-hidden="true" data-testid="clip-skeleton">
       <div className="aspect-[4/3] rounded-xl bg-bg-elevated" />
       <div className="mt-2.5 h-[2.9em] rounded-lg bg-bg-elevated text-[15px]" />
       <div className="mt-1 h-4 w-2/3 rounded-lg bg-bg-elevated" />

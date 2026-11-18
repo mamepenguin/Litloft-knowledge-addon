@@ -11,7 +11,7 @@ vi.mock("next/link", () => ({
   default: ({ children, ...props }: React.AnchorHTMLAttributes<HTMLAnchorElement>) => <a {...props}>{children}</a>,
 }));
 
-const { ClipShelfBlock } = await import("../ClipShelfBlock");
+const { ClipShelfBlock, SkeletonCard } = await import("../ClipShelfBlock");
 
 afterEach(() => {
   cleanup();
@@ -96,5 +96,15 @@ describe("SPEC-ADDON-138 the shelf's heading", () => {
     expect(screen.queryByRole("link", { name: /See all/ })).toBeNull();
     fireEvent.click(screen.getByRole("button", { name: "Try again" }));
     expect(onRetry).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("SPEC-ADDON-138 item 9: skeleton cards at final size", () => {
+  it("gives a skeleton in a wrapping grid the column width, and only a strip skeleton the 150px strip width", () => {
+    const { unmount } = render(<SkeletonCard grid />);
+    expect(screen.getByTestId("clip-skeleton").className).not.toMatch(/w-\[150px\]/);
+    unmount();
+    render(<SkeletonCard />);
+    expect(screen.getByTestId("clip-skeleton").className).toMatch(/pointer-coarse:w-\[150px\]/);
   });
 });

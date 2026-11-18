@@ -75,7 +75,7 @@ export function CoverGrid({
         </li>
       ))}
       {Array.from({ length: skeletons }, (_, i) => (
-        <SkeletonCard key={`skeleton-${i}`} />
+        <SkeletonCard key={`skeleton-${i}`} grid />
       ))}
     </ClipGrid>
   );
