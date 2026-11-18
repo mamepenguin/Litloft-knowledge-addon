@@ -120,7 +120,7 @@ export default function NotesPage() {
           countDetail={count === null ? null : t("count", { count })}
           tabs={tabs}
           actions={
-            <Button variant="primary" onClick={openNewNote} className="max-sm:mr-2 max-sm:w-[calc(100%-0.5rem)]">
+            <Button variant="primary" onClick={openNewNote}>
               <FilePlus size={14} strokeWidth={1.8} />
               {t("newNote")}
             </Button>

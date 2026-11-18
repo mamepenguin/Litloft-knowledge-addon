@@ -64,7 +64,6 @@ describe("the Notes page header", () => {
     expect(heading.nextElementSibling?.textContent).not.toContain(" · ");
     const newNote = screen.getByRole("button", { name: "knowledge.notesApp.newNote" });
     expect(newNote.closest("header")).not.toBeNull();
-    expect(newNote.className).toContain("max-sm:w-");
   });
 
   it("states the count the listing reports", async () => {
