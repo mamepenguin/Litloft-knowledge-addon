@@ -14,6 +14,7 @@ from app.internal_client import InternalAPIError, InternalClient
 from app.routers import (
     active_summary,
     captures,
+    clip_covers,
     clips,
     connections_graph,
     distill,
@@ -194,6 +195,7 @@ app.include_router(captures.router)
 app.include_router(connections_graph.router)
 app.include_router(distill.router)
 app.include_router(note_from_file.router)
+app.include_router(clip_covers.router)
 app.include_router(note_openings.router)
 app.include_router(notes.router)
 app.include_router(notes_sources.router)

@@ -96,6 +96,11 @@
                 "response_filter": null
             },
             {
+                "path": "/clip-covers",
+                "methods": ["POST"],
+                "response_filter": null
+            },
+            {
                 "path": "/note-openings",
                 "methods": ["POST"],
                 "response_filter": null
