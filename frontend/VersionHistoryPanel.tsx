@@ -245,7 +245,7 @@ export default function VersionHistoryPanel({
       </button>
 
       {open && (
-        <div className="border-t border-bg-border p-4">
+        <div className="@container border-t border-bg-border p-4">
           {error && (
             <div
               role="status"
@@ -264,7 +264,7 @@ export default function VersionHistoryPanel({
           ) : page?.versions.length === 0 ? (
             <p className="py-8 text-center text-sm text-text-muted">{t("empty")}</p>
           ) : (
-            <div className="grid gap-4 lg:grid-cols-[minmax(14rem,20rem)_minmax(0,1fr)]">
+            <div className="grid gap-4 @2xl:grid-cols-[minmax(14rem,20rem)_minmax(0,1fr)]">
               <div className="min-w-0">
                 <div className="overflow-hidden rounded-xl border border-bg-border">
                   {page?.versions.map((version) => (
