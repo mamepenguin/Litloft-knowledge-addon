@@ -10,7 +10,6 @@ import asyncio
 import logging
 import re
 from typing import Annotated
-from urllib.parse import unquote
 
 import httpx
 from fastapi import APIRouter, Depends, Header, HTTPException, Request
@@ -112,7 +111,7 @@ async def notes_sources(
     _viewer_id: Annotated[str | None, Depends(get_optional_viewer_id)],
     x_hv_drive: Annotated[str | None, Header(alias="X-Lit-Drive")] = None,
 ) -> NotesSourcesResponse:
-    drive = unquote(_require_drive(x_hv_drive))
+    drive = _require_drive(x_hv_drive)
     note_ids = _dedupe(body.file_ids)
 
     try:

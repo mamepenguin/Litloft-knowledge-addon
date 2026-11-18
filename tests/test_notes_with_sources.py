@@ -363,8 +363,8 @@ class TestSourcesAnswer:
         assert res.status_code == 503
 
     def test_spec_addon_131_a_knowledge_db_failure_is_503(self, client, knowledge_db, core, monkeypatch):
-        import app.database as database
         from sqlalchemy.exc import OperationalError
+        from sqlalchemy.orm import Session
 
         _note(knowledge_db, "nA", ["s1"])
         core.contents["nA"] = _body(["s1"])
@@ -374,7 +374,7 @@ class TestSourcesAnswer:
         def broken(*_a, **_kw):
             raise OperationalError("SELECT 1", {}, Exception("database is locked"))
 
-        monkeypatch.setattr(database, "SessionLocal", broken)
+        monkeypatch.setattr(Session, "execute", broken)
 
         res = _post(client, ["nA"])
 
