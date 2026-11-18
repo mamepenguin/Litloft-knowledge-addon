@@ -8,6 +8,7 @@ import { createRef, type ComponentProps } from "react";
 
 import { installWireFetch, json, type WireCall } from "@/__tests__/helpers/wireFetch";
 import { dirtyRegistry } from "@/lib/dirtyRegistry";
+import { MarkdownChromeProvider } from "@/lib/markdownChromeContext";
 import { setEditorContent } from "./editorTestDriver";
 
 vi.mock("next-intl", () => ({
@@ -238,5 +239,27 @@ describe("SPEC-ADDON-132 step 6: dirty and flush", () => {
 
     expect(outcome).toBe(expected);
     expect(handleOf(ref).dirty()).toBe(true);
+  });
+});
+
+describe("SPEC-ADDON-132 Library step 5: the toolbar's rule", () => {
+  function toolbarRoot(): HTMLElement {
+    return document.querySelector(".sticky.top-0 > div") as HTMLElement;
+  }
+
+  it("a host that supplies the chrome gets a toolbar with no rule under it; the file page keeps it", async () => {
+    const chrome = { viewMode: "edit" as const, setViewMode: () => undefined, publishSaveState: () => undefined, isMobile: false };
+    const { unmount } = render(
+      <MarkdownChromeProvider value={chrome}>
+        <Editor fileId="f1" filename="note.md" drive="d" onBack={() => undefined} inlineMode fillHeight />
+      </MarkdownChromeProvider>,
+    );
+    await loaded();
+    expect(toolbarRoot().className).not.toContain("border-b");
+    unmount();
+
+    mount({ current: null }, { fillHeight: true });
+    await loaded();
+    expect(toolbarRoot().className).toContain("border-b");
   });
 });
