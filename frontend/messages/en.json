@@ -394,27 +394,46 @@
       "includeClips": "Include clips"
     },
     "clips": {
-      "heading": "Clips",
       "count": "{count, plural, one {# clip} other {# clips}}",
       "action": "Clip a web page",
+      "target": "Target",
+      "allClips": "All clips",
+      "unavailable": "Unavailable",
       "tabsLabel": "Clips views",
       "home": "Home",
-      "all": "All",
+      "library": "Library",
       "shelf": {
         "unread": "Unread",
         "recentlyOpened": "Recently opened",
         "unverified": "Unverified",
         "newClips": "New clips"
       },
+      "seeAll": "See all",
+      "seeAllIn": "See all: {name}",
+      "markVerified": "Mark as verified",
+      "saveFailed": "Couldn't save",
+      "groupMenu": "Grouping",
+      "sortMenu": "Sort",
+      "group": {
+        "tags": "By tag",
+        "none": "No grouping"
+      },
+      "sort": {
+        "newest": "Newest clipped",
+        "oldest": "Oldest clipped",
+        "title": "Title"
+      },
+      "untagged": "Untagged",
+      "minutes": "{count} min",
+      "noClipsHere": "No clips here",
+      "noClipsInTarget": "No clips in this Target",
+      "backHome": "‹ Home",
+      "backLibrary": "‹ Library",
+      "loadFailed": "Couldn't load",
+      "retry": "Try again",
+      "unreadLabel": "Unread",
       "emptyTitle": "No clips yet",
-      "emptyBody": "Clipped web pages gather here. You can also clip from a folder's menu or with the bookmarklet.",
-      "loadMore": "Load more",
-      "age": {
-        "today": "Today",
-        "week": "Past 7 days",
-        "month": "Past 30 days",
-        "earlier": "Earlier"
-      }
+      "emptyBody": "Clipped web pages gather here. You can also clip from a folder's menu or with the bookmarklet."
     },
     "noteScope": {
       "label": "Notes"
