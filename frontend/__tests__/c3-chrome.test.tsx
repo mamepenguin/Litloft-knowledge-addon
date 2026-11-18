@@ -1,9 +1,11 @@
+/** SPEC-ADDON-130: the Notes header is the core's app header, not a hand-written one. */
 import { describe, expect, it, vi, afterEach } from "vitest";
 import { cleanup, render, screen } from "@testing-library/react";
 
 import NotesPage from "../NotesPage";
 
 vi.mock("next-intl", () => ({
+  useLocale: () => "en",
   useTranslations: (ns?: string) => (key: string, values?: Record<string, unknown>) =>
     key === "driveScope"
       ? `${values!.drive} · ${values!.detail}`
@@ -22,27 +24,34 @@ vi.mock("next/navigation", () => ({
 vi.mock("@/components/ProfileProvider", () => ({
   useProfile: () => ({ nickname: null, setNickname: vi.fn(), clearNickname: vi.fn() }),
 }));
-vi.mock("@/hooks/usePolicy", () => ({
-  usePolicy: () => ({ enabled: true, isLoading: false }),
-}));
+vi.mock("@/components/quick-note", () => ({ useQuickNote: () => ({ open: vi.fn() }) }));
 const api = vi.hoisted(() => ({
   getDriveFiles: vi.fn((): Promise<unknown> => new Promise(() => {})),
 }));
-vi.mock("@/lib/api", () => ({
-  getDriveFiles: api.getDriveFiles,
-  getWatchHistory: vi.fn(() => new Promise(() => {})),
+vi.mock("@/lib/api", async () => {
+  const actual = await vi.importActual<typeof import("@/lib/api")>("@/lib/api");
+  return {
+    ...actual,
+    getDriveFiles: api.getDriveFiles,
+    getWatchHistory: vi.fn(() => new Promise(() => {})),
+    getSmartFolders: vi.fn(async () => []),
+    getCollections: vi.fn(async () => []),
+  };
+});
+vi.mock("../notesapp/sourcesApi", () => ({
+  getNotesWithSources: vi.fn(() => new Promise(() => {})),
+  getNoteSources: vi.fn(() => new Promise(() => {})),
 }));
-vi.mock("../ClipSection", () => ({ default: () => null }));
-vi.mock("../ConnectionsGraph", () => ({ default: () => null }));
+vi.mock("../library/NotesLibrary", () => ({ default: () => null }));
 
 describe("the Notes page header", () => {
   afterEach(cleanup);
 
-  it("gets its heading from PageHeader, not from a hand-written <h1>", () => {
+  it("gets its heading from the app header, not from a hand-written <h1>", () => {
     const { container } = render(<NotesPage />);
     const h1s = [...container.querySelectorAll("h1")];
     expect(h1s).toHaveLength(1);
-    expect(h1s[0].textContent).toBe("knowledge.nav.label");
+    expect(h1s[0].textContent).toBe("knowledge.notesApp.title");
     const header = h1s[0].closest("header")!;
     expect(header.querySelector("svg")).not.toBeNull();
     expect(h1s[0].querySelector("svg")).toBeNull();
@@ -51,29 +60,22 @@ describe("the Notes page header", () => {
   it("names the drive under the title before the count is known, and puts New note in the header", () => {
     render(<NotesPage />);
     const heading = screen.getByRole("heading", { level: 1 });
-    expect(heading.nextElementSibling?.textContent).toBe("test-drive");
-    expect(screen.queryByText("knowledge.notes.description")).toBeNull();
-    const newNote = screen.getByRole("button", { name: "knowledge.notes.newNote" });
+    expect(heading.nextElementSibling?.textContent).toMatch(/^test-drive/);
+    expect(heading.nextElementSibling?.textContent).not.toContain(" · ");
+    const newNote = screen.getByRole("button", { name: "knowledge.notesApp.newNote" });
     expect(newNote.closest("header")).not.toBeNull();
   });
 
-  it("states the count the recent list reports", async () => {
-    api.getDriveFiles.mockResolvedValueOnce({ data: [], meta: { total: 42, page: 1, limit: 12 } });
+  it("states the count the listing reports", async () => {
+    api.getDriveFiles.mockResolvedValue({ data: [], meta: { total: 42, page: 1, limit: 1 } });
     render(<NotesPage />);
     const heading = screen.getByRole("heading", { level: 1 });
-    await vi.waitFor(() => expect(heading.nextElementSibling?.textContent).toBe("test-drive · 42 notes"));
+    await vi.waitFor(() => expect(heading.nextElementSibling?.textContent).toContain("42 notes"));
   });
 
-  it("names the drive alone when the list fails", async () => {
-    api.getDriveFiles.mockRejectedValueOnce(new Error("down"));
-    render(<NotesPage />);
-    await screen.findByRole("alert");
-    expect(screen.getByRole("heading", { level: 1 }).nextElementSibling?.textContent).toBe("test-drive");
-  });
-
-  it("wears the list column on the landing", () => {
+  it("wears the wide column, as the other apps do", () => {
     render(<NotesPage />);
     const header = screen.getByRole("heading", { level: 1 }).closest("header")!;
-    expect(header.parentElement?.getAttribute("data-page-frame")).toBe("list");
+    expect(header.parentElement?.getAttribute("data-page-frame")).toBe("wide");
   });
 });

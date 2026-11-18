@@ -160,10 +160,10 @@ describe("the knowledge addon's modules", () => {
   // Exact, because the census is where this can go quietly wrong: narrow
   // the walk to `.tsx` and nine `.ts` modules leave the population without
   // any assertion noticing, since an orphan among them is no longer looked
-  // for. Measured 2026-09-07.
+  // for. Measured 2026-11-18.
   it("counts every module in the addon", () => {
-    expect(moduleFiles.size).toBe(66);
-    expect([...moduleFiles].filter((f) => f.endsWith(".ts")).length).toBe(19);
+    expect(moduleFiles.size).toBe(90);
+    expect([...moduleFiles].filter((f) => f.endsWith(".ts")).length).toBe(34);
   });
 
   /**
@@ -182,6 +182,8 @@ describe("the knowledge addon's modules", () => {
     // Several hops from a root, into a subdirectory, and a `.ts` module —
     // the three shapes the walk has to keep reaching.
     expect(reachableFrom(["slots.ts"]).has("Editor.tsx")).toBe(true);
+    expect(reachable().has("notesapp/Home.tsx")).toBe(true);
+    expect(reachable().has("notesapp/sourcesApi.ts")).toBe(true);
     expect(reachable().has("graph/GraphControls.tsx")).toBe(true);
     expect(reachable().has("api.ts")).toBe(true);
   });
