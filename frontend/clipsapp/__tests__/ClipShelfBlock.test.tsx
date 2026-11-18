@@ -16,7 +16,6 @@ const { ClipShelfBlock } = await import("../ClipShelfBlock");
 afterEach(() => {
   cleanup();
   measured.columns = 0;
-  vi.unstubAllGlobals();
 });
 
 const items = Array.from({ length: 12 }, (_, i) => ({ id: `c${i}` }));
@@ -32,6 +31,9 @@ const shelf = (view: Parameters<typeof ClipShelfBlock<{ id: string }>>[0]["view"
     />,
   );
 
+/** Tailwind is not applied in jsdom, so a place "drawn on a mouse" is one without `hidden`. */
+const onMouse = (els: HTMLElement[]) => els.filter((el) => !el.closest("li")!.className.split(" ").includes("hidden"));
+
 describe("SPEC-ADDON-138 how many cards a shelf draws", () => {
   it.each([
     [2, 4],
@@ -39,11 +41,12 @@ describe("SPEC-ADDON-138 how many cards a shelf draws", () => {
     [5, 5],
     [8, 8],
     [0, 4],
-  ])("draws %s columns as %s cards: one row from three columns, two rows at two", (columns, drawn) => {
+  ])("draws %s columns as %s cards on a mouse: one row from three columns, two rows at two", (columns, drawn) => {
     measured.columns = columns;
     shelf({ status: "loaded", items });
 
-    expect(screen.getAllByTestId("card")).toHaveLength(drawn);
+    expect(onMouse(screen.getAllByTestId("card"))).toHaveLength(drawn);
+    expect(screen.getAllByTestId("card")).toHaveLength(12);
   });
 
   it("draws skeleton cards for as many places while loading, and no cards", () => {
@@ -51,22 +54,20 @@ describe("SPEC-ADDON-138 how many cards a shelf draws", () => {
     shelf({ status: "loading" });
 
     expect(screen.queryAllByTestId("card")).toHaveLength(0);
-    expect(screen.getAllByTestId("clip-skeleton")).toHaveLength(3);
+    expect(onMouse(screen.getAllByTestId("clip-skeleton"))).toHaveLength(3);
   });
 
-  it("draws every card as a sideways strip of 150px cards on a coarse pointer", () => {
-    vi.stubGlobal("matchMedia", (query: string) => ({
-      matches: query === "(pointer: coarse)",
-      addEventListener: () => {},
-      removeEventListener: () => {},
-    }));
+  it("lays the list out as a wrapping grid on a mouse and a strip of 150px cards only on a coarse pointer", () => {
     measured.columns = 3;
     shelf({ status: "loaded", items });
 
-    expect(screen.getAllByTestId("card")).toHaveLength(12);
-    const strip = screen.getAllByTestId("card")[0].closest("ul")!;
-    expect(strip.className).toContain("overflow-x-auto");
-    expect(screen.getAllByTestId("card")[0].closest("li")!.className).toContain("w-[150px]");
+    const list = screen.getAllByTestId("card")[0].closest("ul")!;
+    expect(list.className).toContain("grid");
+    expect(list.className).toContain("pointer-coarse:overflow-x-auto");
+    expect(list.className).not.toMatch(/(^| )overflow-x-auto/);
+    const item = screen.getAllByTestId("card")[0].closest("li")!;
+    expect(item.className).toContain("pointer-coarse:w-[150px]");
+    expect(screen.getAllByTestId("card")[11].closest("li")!.className).toContain("pointer-coarse:block");
   });
 });
 

@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useSyncExternalStore, type ReactNode } from "react";
+import type { ReactNode } from "react";
 import { ChevronRight } from "lucide-react";
 import { useTranslations } from "next-intl";
 
@@ -17,25 +17,14 @@ export type ClipShelfView<T> =
   | { status: "failed" }
   | { status: "loaded"; items: readonly T[] };
 
-const COARSE_QUERY = "(pointer: coarse)";
+/** A mouse wraps a grid; only a coarse pointer gets the sideways strip of 150px cards. */
+const ITEM = "min-w-0 pointer-coarse:w-[150px] pointer-coarse:shrink-0";
+const LIST = "grid gap-x-5 gap-y-6 pointer-coarse:flex pointer-coarse:gap-3 pointer-coarse:overflow-x-auto";
+const STRIP_SKELETONS = 4;
 
-function useCoarsePointer(): boolean {
-  const subscribe = useCallback((onChange: () => void) => {
-    if (typeof window.matchMedia !== "function") return () => {};
-    const mql = window.matchMedia(COARSE_QUERY);
-    mql.addEventListener("change", onChange);
-    return () => mql.removeEventListener("change", onChange);
-  }, []);
-  return useSyncExternalStore(
-    subscribe,
-    () => typeof window.matchMedia === "function" && window.matchMedia(COARSE_QUERY).matches,
-    () => false,
-  );
-}
-
-export function SkeletonCard() {
+export function SkeletonCard({ className = "" }: { className?: string }) {
   return (
-    <li className="min-w-0 animate-pulse" aria-hidden="true" data-testid="clip-skeleton">
+    <li className={`${ITEM} animate-pulse ${className}`} aria-hidden="true" data-testid="clip-skeleton">
       <div className="aspect-[4/3] rounded-xl bg-bg-elevated" />
       <div className="mt-2.5 h-[2.9em] rounded-lg bg-bg-elevated text-[15px]" />
       <div className="mt-1 h-4 w-2/3 rounded-lg bg-bg-elevated" />
@@ -111,29 +100,30 @@ export function ClipShelfBlock<T extends { id: string }>({
   renderItem: (item: T) => ReactNode;
 }) {
   const { ref, columns } = useCardColumns(CLIP_GRID);
-  const coarse = useCoarsePointer();
   const effective = columns > 0 ? columns : MIN_CARD_COLUMNS;
   const capacity = effective * rowsFor(effective);
-  const itemClass = coarse ? "min-w-0 w-[150px] shrink-0" : "min-w-0";
 
   let body: ReactNode;
   if (view.status === "failed") {
     body = <LoadFailed onRetry={onRetry} />;
   } else {
+    // Beyond the grid's capacity a card exists only for the strip.
+    const spill = (i: number, limit: number) => (i >= limit ? "hidden pointer-coarse:block" : "");
     const cards =
       view.status === "loading"
-        ? Array.from({ length: coarse ? 4 : capacity }, (_, i) => <SkeletonCard key={i} />)
-        : (coarse ? view.items : view.items.slice(0, capacity)).map((item) => (
-            <li key={item.id} className={itemClass}>
+        ? Array.from({ length: Math.max(capacity, STRIP_SKELETONS) }, (_, i) => (
+            <SkeletonCard
+              key={i}
+              className={`${i >= capacity ? "hidden" : ""} ${i >= STRIP_SKELETONS ? "pointer-coarse:hidden" : i >= capacity ? "pointer-coarse:block" : ""}`}
+            />
+          ))
+        : view.items.map((item, i) => (
+            <li key={item.id} className={`${ITEM} ${spill(i, capacity)}`}>
               {renderItem(item)}
             </li>
           ));
     body = (
-      <ul
-        ref={ref}
-        className={coarse ? "flex gap-3 overflow-x-auto" : "grid gap-x-5 gap-y-6"}
-        style={coarse ? undefined : { gridTemplateColumns: cardGridTemplate(columns, CLIP_GRID) }}
-      >
+      <ul ref={ref} className={LIST} style={{ gridTemplateColumns: cardGridTemplate(columns, CLIP_GRID) }}>
         {cards}
       </ul>
     );

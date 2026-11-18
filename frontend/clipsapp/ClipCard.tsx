@@ -92,13 +92,13 @@ export default function ClipCard({ file, cover, dot, now, showAge }: ClipCardPro
       <Cover cover={cover} className="aspect-[4/3] rounded-xl">
         {dot && (
           <span
-            role="img"
-            aria-label={t("unreadLabel")}
+            aria-hidden="true"
             data-testid="unread-dot"
             className="absolute left-2.5 top-2.5 size-2.5 rounded-full bg-accent ring-2 ring-bg-primary"
           />
         )}
       </Cover>
+      {dot && <span className="sr-only">{t("unreadLabel")}</span>}
       <p className="mt-2.5 line-clamp-2 text-[15px] font-semibold leading-[1.45] text-text-primary group-hover:text-accent">
         {clipTitle(file)}
       </p>

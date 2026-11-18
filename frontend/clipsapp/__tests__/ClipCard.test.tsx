@@ -70,9 +70,12 @@ describe("SPEC-ADDON-138 the card", () => {
 
   it("draws the dot only when told to", () => {
     const { rerender } = render(<ClipCard file={file()} cover={undefined} dot now={NOW} showAge />);
-    expect(screen.getByTestId("unread-dot")).toBeInTheDocument();
+    expect(screen.getByTestId("unread-dot")).toHaveAttribute("aria-hidden", "true");
+    expect(screen.getByRole("link").textContent).toContain("Unread");
+    expect(screen.getByRole("link", { name: /Unread/ })).toBeInTheDocument();
     rerender(<ClipCard file={file()} cover={undefined} dot={false} now={NOW} showAge />);
     expect(screen.queryByTestId("unread-dot")).toBeNull();
+    expect(screen.getByRole("link").textContent).not.toContain("Unread");
   });
 
   it("puts the picture back when a new cover arrives after the old one failed", () => {
