@@ -91,15 +91,16 @@ function isListing(state: LoadState<unknown>): boolean {
 }
 
 /**
- * The Notes app's target: every active note of the drive, a collection, or a
- * Smart Collection. One that is gone, cannot be resolved, or whose members
+ * An app's target: every active note of the drive, a collection, or a
+ * Smart Collection. `app` names where the choice is saved and must be a
+ * stable value; Notes' own is the default. One that is gone, cannot be resolved, or whose members
  * cannot be evaluated is ignored while its saved id stays, as the other apps do.
  */
-export function useNotesTarget(drive: string): NotesTargetState {
-  const [held, setHeld] = useState(() => ({ drive, id: readAppTarget(drive, NOTES_APP) }));
+export function useNotesTarget(drive: string, app: AppKey = NOTES_APP): NotesTargetState {
+  const [held, setHeld] = useState(() => ({ drive, id: readAppTarget(drive, app) }));
   let savedId = held.id;
   if (held.drive !== drive) {
-    savedId = readAppTarget(drive, NOTES_APP);
+    savedId = readAppTarget(drive, app);
     setHeld({ drive, id: savedId });
   }
 
@@ -175,10 +176,10 @@ export function useNotesTarget(drive: string): NotesTargetState {
 
   const choose = useCallback(
     (id: string) => {
-      writeAppTarget(drive, NOTES_APP, id);
+      writeAppTarget(drive, app, id);
       setHeld({ drive, id });
     },
-    [drive],
+    [drive, app],
   );
 
   return {

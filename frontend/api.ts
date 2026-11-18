@@ -755,3 +755,23 @@ export function getConnectionsGraph(
 ): Promise<ConnectionsGraphResponse> {
   return request<ConnectionsGraphResponse>(drive, "/connections-graph");
 }
+
+export interface ClipCover {
+  image_id: string | null;
+  image_url: string | null;
+  site: string | null;
+}
+
+/** Up to 60 clips' cover and site; an id the route refuses is absent from the answer. */
+export async function fetchClipCovers(
+  drive: string,
+  fileIds: string[],
+): Promise<Record<string, ClipCover>> {
+  if (fileIds.length === 0) return {};
+  const res = await request<{ covers: Record<string, ClipCover> }>(
+    drive,
+    "/clip-covers",
+    { method: "POST", body: JSON.stringify({ file_ids: fileIds }) },
+  );
+  return res.covers;
+}

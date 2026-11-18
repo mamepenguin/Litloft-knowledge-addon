@@ -1,0 +1,64 @@
+"use client";
+
+import { useCallback } from "react";
+
+import type { ClipSort, ShelfId } from "./clipsUrl";
+import { shelfIdString } from "./clipsUrl";
+import { isViewerRequired, loadShelfPage, type ReadyNotesTarget } from "./requests";
+import { usePagedClips } from "./usePagedClips";
+
+export interface ShelfDataOptions {
+  drive: string;
+  /** `null` while the target is not ready; Recently opened does not need one. */
+  target: ReadyNotesTarget | null;
+  shelf: ShelfId;
+  sort: ClipSort;
+  /** Home's shelves are one page of `size`; a shelf page pages by `size`. */
+  size: number;
+  paged: boolean;
+  /** The nickname the shelf was asked under; another one starts it over. */
+  profileKey: string;
+  refresh: number;
+  onViewerRequired: () => void;
+}
+
+/** One shelf's cards as the page asks for them. */
+export function useShelfData({
+  drive,
+  target,
+  shelf,
+  sort,
+  size,
+  paged,
+  profileKey,
+  refresh,
+  onViewerRequired,
+}: ShelfDataOptions) {
+  const recent = shelf.kind === "recent";
+  const ready = recent || target !== null;
+  const scope = ready
+    ? [drive, recent ? "-" : target?.key, shelfIdString(shelf), sort, size, paged, profileKey].join("|")
+    : null;
+
+  const fetchPage = useCallback(
+    (page: number, signal: AbortSignal) =>
+      loadShelfPage(drive, target, shelf, { page: paged ? page : undefined, perShelf: size, sort }, { signal }),
+    [drive, target, shelf, size, paged, sort],
+  );
+  const onError = useCallback(
+    (error: unknown) => {
+      if (isViewerRequired(error)) onViewerRequired();
+    },
+    [onViewerRequired],
+  );
+
+  return usePagedClips({
+    scope,
+    fetchPage,
+    pageSize: size,
+    refresh,
+    cap: paged ? undefined : size,
+    replaceOnRefresh: recent,
+    onError,
+  });
+}

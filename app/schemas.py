@@ -151,6 +151,20 @@ class NoteOpeningsResponse(BaseModel):
     openings: dict[str, str]
 
 
+class ClipCoversRequest(BaseModel):
+    file_ids: list[str]
+
+
+class ClipCover(BaseModel):
+    image_id: str | None = None
+    image_url: str | None = None
+    site: str | None = None
+
+
+class ClipCoversResponse(BaseModel):
+    covers: dict[str, ClipCover]
+
+
 class SearchHit(BaseModel):
     file_id: str
     filename: str

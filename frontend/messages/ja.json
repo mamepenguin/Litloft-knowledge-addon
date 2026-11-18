@@ -394,27 +394,46 @@
       "includeClips": "クリップを含める"
     },
     "clips": {
-      "heading": "クリップ",
       "count": "{count} 件",
       "action": "Web ページをクリップ",
+      "target": "対象",
+      "allClips": "すべてのクリップ",
+      "unavailable": "使えません",
       "tabsLabel": "クリップの表示",
       "home": "ホーム",
-      "all": "すべて",
+      "library": "ライブラリ",
       "shelf": {
         "unread": "未読",
         "recentlyOpened": "最近開いた",
         "unverified": "未確認",
         "newClips": "新しいクリップ"
       },
+      "seeAll": "すべて表示",
+      "seeAllIn": "すべて表示: {name}",
+      "markVerified": "確認済みにする",
+      "saveFailed": "保存できませんでした",
+      "groupMenu": "まとめ方",
+      "sortMenu": "並び順",
+      "group": {
+        "tags": "タグ別",
+        "none": "まとめない"
+      },
+      "sort": {
+        "newest": "クリップした順",
+        "oldest": "古い順",
+        "title": "タイトル順"
+      },
+      "untagged": "タグなし",
+      "minutes": "{count} 分",
+      "noClipsHere": "ここにはクリップがありません",
+      "noClipsInTarget": "この対象にはクリップがありません",
+      "backHome": "‹ ホーム",
+      "backLibrary": "‹ ライブラリ",
+      "loadFailed": "読み込めませんでした",
+      "retry": "再試行",
+      "unreadLabel": "未読",
       "emptyTitle": "まだクリップがありません",
-      "emptyBody": "クリップした Web ページはここに集まります。フォルダのメニューやブックマークレットからもクリップできます。",
-      "loadMore": "さらに表示",
-      "age": {
-        "today": "今日",
-        "week": "過去 7 日",
-        "month": "過去 30 日",
-        "earlier": "それ以前"
-      }
+      "emptyBody": "クリップした Web ページはここに集まります。フォルダのメニューやブックマークレットからもクリップできます。"
     },
     "noteScope": {
       "label": "ノート"
