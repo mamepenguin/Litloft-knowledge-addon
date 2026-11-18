@@ -91,7 +91,9 @@ describe("SPEC-ADDON-138 I4 the unread dots", () => {
 
   it("drops an answer that belongs to a nickname that has gone", async () => {
     let release!: (s: Set<string>) => void;
-    loadUnreadAmong.mockImplementationOnce(() => new Promise((res) => (release = res)));
+    loadUnreadAmong
+      .mockImplementationOnce(() => new Promise((res) => (release = res)))
+      .mockResolvedValueOnce(new Set());
     const meta = new ClipMeta("d", () => {});
     meta.ensure(["u1"], "alice");
     meta.ensure(["u1"], "bob");
@@ -99,7 +101,7 @@ describe("SPEC-ADDON-138 I4 the unread dots", () => {
     release(new Set(["u1"]));
     await flush();
 
-    expect(meta.hasDot("u1", "alice")).toBe(false);
+    expect(meta.hasDot("u1", "bob")).toBe(false);
   });
 
   it("tells the page about a 400 viewer_required and draws nothing for those cards", async () => {

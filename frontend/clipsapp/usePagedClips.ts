@@ -49,8 +49,9 @@ function appendUnseen<T extends { id: string }>(drawn: readonly T[], page: reado
  * Pages of one shelf, in the order the server gave them. A refresh puts the
  * fresh first page in front and keeps every drawn card the page does not
  * name, so nothing already on screen leaves; a failed refresh changes nothing.
- * `remove` takes a card out without asking again, and what was removed or is
- * being saved never comes back from a refresh that was already on its way.
+ * `remove` takes a card out without asking again, a removed card never comes
+ * back from a refresh that was already on its way, and a card being saved is
+ * not pushed out by one.
  */
 export function usePagedClips<T extends { id: string }>(options: PagedOptions<T>) {
   const { scope, pageSize, refresh } = options;
@@ -83,17 +84,18 @@ export function usePagedClips<T extends { id: string }>(options: PagedOptions<T>
         const removed = goneIds(scope);
         setHeld((prev) => {
           const base = prev !== null && prev.scope === scope ? prev : empty<T>(scope);
-          const drawn = new Set(base.items.map((item) => item.id));
-          const fresh = page.items.filter(
-            (item) => !removed.has(item.id) && (!saving.current.has(item.id) || drawn.has(item.id)),
-          );
+          const fresh = page.items.filter((item) => !removed.has(item.id));
           const { cap, replaceOnRefresh } = latest.current;
           const merged = replaceOnRefresh
             ? fresh
             : [...fresh, ...base.items.filter((item) => !fresh.some((f) => f.id === item.id))];
           return {
             ...base,
-            items: cap === undefined ? merged : merged.slice(0, cap),
+            // A card being saved stays where it is, even past the cap.
+            items:
+              cap === undefined
+                ? merged
+                : merged.filter((item, i) => i < cap || saving.current.has(item.id)),
             count: page.count,
             phase: "ready",
             exhausted: false,

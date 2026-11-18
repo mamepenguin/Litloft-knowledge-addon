@@ -106,7 +106,7 @@ describe("SPEC-ADDON-138 paging and removal", () => {
     expect(result.current.hasMore).toBe(false);
   });
 
-  it("does not bring back a removed or saving card from a refresh that was already on its way", async () => {
+  it("does not bring back a removed card from a refresh that was already on its way", async () => {
     let release!: (p: PagedPage<Item>) => void;
     let hold = false;
     const { result, rerender } = setup({ scope: "s", refresh: 0 }, (n) =>
@@ -115,11 +115,25 @@ describe("SPEC-ADDON-138 paging and removal", () => {
     await waitFor(() => expect(result.current.phase).toBe("ready"));
 
     hold = true;
-    act(() => result.current.setSaving("c", true));
     rerender({ scope: "s", refresh: 1 });
     act(() => result.current.remove("a"));
     await act(async () => release(page(["a", "b", "c"])));
-    expect(ids(result.current.items)).toEqual(["b"]);
+    expect(ids(result.current.items)).toEqual(["b", "c"]);
+  });
+
+  it("keeps a card that is being saved in place when a refresh would push it past the cap", async () => {
+    let answer = page(["a", "b"]);
+    const { result, rerender } = setup({ scope: "s", refresh: 0 }, async () => answer, { cap: 2 });
+    await waitFor(() => expect(ids(result.current.items)).toEqual(["a", "b"]));
+
+    act(() => result.current.setSaving("b", true));
+    answer = page(["n", "a"]);
+    rerender({ scope: "s", refresh: 1 });
+    await waitFor(() => expect(ids(result.current.items)).toEqual(["n", "a", "b"]));
+
+    act(() => result.current.setSaving("b", false));
+    rerender({ scope: "s", refresh: 2 });
+    await waitFor(() => expect(ids(result.current.items)).toEqual(["n", "a"]));
   });
 
   it("asks nothing for a null scope", () => {

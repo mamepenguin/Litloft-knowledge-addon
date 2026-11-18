@@ -660,8 +660,19 @@ describe("SPEC-ADDON-140 asking for covers", () => {
     expect(asked.filter((id) => id === "k05")).toHaveLength(1);
   });
 
-  it("SPEC-ADDON-140 asks again at the next refresh for the cards whose ask failed, and for the clip the event names", async () => {
+  it("SPEC-ADDON-140 asks again at the next refresh for the cards whose ask failed", async () => {
     fetchClipCovers.mockRejectedValueOnce(new Error("down"));
+    render(<ClipsPage />);
+    await screen.findByText("Clip u1");
+    await settle();
+    const first = fetchClipCovers.mock.calls.length;
+
+    emit("knowledge.clip.ready", { job_id: 1, file_id: "elsewhere" });
+    await waitFor(() => expect(fetchClipCovers.mock.calls.length).toBeGreaterThan(first));
+    expect(fetchClipCovers.mock.calls.slice(first).flatMap((c) => c[1] as string[])).toContain("u1");
+  });
+
+  it("SPEC-ADDON-140 asks again, at the refresh, for the clip the event names and for no other that was answered", async () => {
     render(<ClipsPage />);
     await screen.findByText("Clip u1");
     await settle();
@@ -669,7 +680,7 @@ describe("SPEC-ADDON-140 asking for covers", () => {
 
     emit("knowledge.clip.ready", { job_id: 1, file_id: "u2" });
     await waitFor(() => expect(fetchClipCovers.mock.calls.length).toBeGreaterThan(first));
-    expect(fetchClipCovers.mock.calls.slice(first).flatMap((c) => c[1] as string[])).toContain("u2");
+    expect(fetchClipCovers.mock.calls.slice(first).flatMap((c) => c[1] as string[])).toEqual(["u2"]);
   });
 });
 
@@ -1139,6 +1150,20 @@ describe("SPEC-ADDON-138 the Target", () => {
     const asked = counts()[counts().length - 1];
     expect(asked.url.searchParams.has("collection")).toBe(false);
     expect(["type", "origin", "limit"].map((k) => q(asked, k))).toEqual(["text", "webclip", "1"]);
+  });
+
+  it("SPEC-ADDON-138 keeps the menu's shown targets under Clips' own key", async () => {
+    fake.collections = [
+      { id: "c1", name: "Soups" },
+      { id: "c2", name: "Salads" },
+    ];
+    window.localStorage.setItem(`litloft.addon.knowledge-clips.targets.${encodeURIComponent(DRIVE)}`, JSON.stringify(["collection:c2"]));
+    render(<ClipsPage />);
+    await screen.findByText("Clip u1");
+
+    fireEvent.click(within(header()).getByRole("button", { name: /Target/ }));
+    await screen.findByRole("menuitemradio", { name: /Salads/ });
+    expect(screen.queryByRole("menuitemradio", { name: /Soups/ })).toBeNull();
   });
 
   it("SPEC-ADDON-138 does not read Notes' saved target", async () => {
