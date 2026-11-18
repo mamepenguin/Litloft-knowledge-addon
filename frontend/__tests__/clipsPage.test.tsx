@@ -1055,7 +1055,7 @@ describe("SPEC-ADDON-139 shelf pages", () => {
     fake.clips = Array.from({ length: 70 }, (_, i) =>
       clip(`w${String(i).padStart(3, "0")}`, {
         trust_tier: "unverified",
-        created_at: `2026-09-01T09:${String(i).padStart(2, "0")}:00Z`,
+        created_at: new Date(Date.UTC(2026, 8, 1, 9, i)).toISOString(),
       }),
     );
     render(<ClipsPage />);

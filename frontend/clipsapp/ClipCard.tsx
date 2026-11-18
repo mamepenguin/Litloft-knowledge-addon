@@ -5,11 +5,11 @@ import Link from "next/link";
 import { useLocale, useTranslations } from "next-intl";
 
 import { splitFilename } from "@/lib/filename";
+import { formatRelativeAge } from "@/lib/format";
 import { buildCanonicalFileUrl } from "@/lib/canonicalFileUrl";
 import type { FileItem } from "@/types";
 
 import type { ClipCover } from "../api";
-import { formatNoteTime } from "../noteDates";
 
 /** About 500 Japanese characters or 250 English words; one rate serves both. */
 const BYTES_PER_MINUTE = 1500;
@@ -62,11 +62,11 @@ export function Cover({
 export function useMetaLine() {
   const t = useTranslations("knowledge.clips");
   const locale = useLocale();
-  return (file: FileItem, site: string | null | undefined, now: Date, parts: { minutes: boolean; age: boolean }) =>
+  return (file: FileItem, site: string | null | undefined, _now: Date, parts: { minutes: boolean; age: boolean }) =>
     [
       site,
       parts.minutes ? t("minutes", { count: readingMinutes(file.file_size) }) : null,
-      parts.age ? formatNoteTime(file.created_at, now, locale) : null,
+      parts.age ? formatRelativeAge(file.created_at, locale) : null,
     ]
       .filter((part): part is string => Boolean(part))
       .join(" · ");

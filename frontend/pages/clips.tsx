@@ -254,7 +254,7 @@ export default function ClipsPage() {
           />
         }
       >
-        <div className="px-4 pb-10 pt-6">
+        <div className={`px-4 pb-10 ${view.view === "home" ? "pt-8" : view.view === "library" ? "pt-4" : "pt-6"}`}>
           {clipMounted && (
             <div id={clipRegionId} className="mb-6" hidden={!clipOpen}>
               <ClipSection onClipAdded={refreshClips} />

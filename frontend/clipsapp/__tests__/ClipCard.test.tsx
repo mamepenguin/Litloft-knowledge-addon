@@ -68,6 +68,15 @@ describe("SPEC-ADDON-138 the card", () => {
     expect(screen.getByText("2 min")).toBeInTheDocument();
   });
 
+  it("SPEC-ADDON-138 draws the age as a relative age of created_at, on a card and on an Unverified row", () => {
+    const created_at = new Date(Date.now() - 3 * 86_400_000).toISOString();
+    const { unmount } = render(<ClipCard file={file({ created_at })} cover={undefined} dot={false} now={NOW} showAge />);
+    expect(screen.getByText("2 min · 3 days ago")).toBeInTheDocument();
+    unmount();
+    render(<ClipRow file={file({ created_at })} cover={undefined} now={NOW} status="idle" onVerify={() => {}} />);
+    expect(screen.getByText("3 days ago")).toBeInTheDocument();
+  });
+
   it("contains the absolutely placed Unread label in the card link, so a sideways strip does not widen the page", () => {
     render(<ClipCard file={file()} cover={undefined} dot now={NOW} showAge />);
     const link = screen.getByRole("link");
