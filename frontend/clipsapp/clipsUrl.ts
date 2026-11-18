@@ -64,7 +64,7 @@ export function readClipsView(params: URLSearchParams): ClipsView {
 /** Whether the URL names a view, a shelf, a group or a sort the page does not know. */
 export function needsRewrite(params: URLSearchParams): boolean {
   const view = params.get("view");
-  if (view === "shelf") return parseShelfId(params.get("shelf")) === null;
+  if (view === "shelf" && parseShelfId(params.get("shelf")) === null) return true;
   if (view !== "all" && view !== "shelf") return false;
   const sort = params.get("sort");
   const group = params.get("group");
