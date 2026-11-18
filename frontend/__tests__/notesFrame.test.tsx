@@ -5,6 +5,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import type { AnchorHTMLAttributes, MouseEvent } from "react";
+import { usePathname } from "next/navigation";
 
 import type { WireCall } from "@/__tests__/helpers/wireFetch";
 import {
@@ -87,7 +88,13 @@ vi.mock("@/lib/memberTarget", async () => {
   };
 });
 
-const Page = (await import("../Page")).default;
+const KnowledgePage = (await import("../Page")).default;
+
+/** The App Router stops drawing a page whose route the URL has left. */
+function Page() {
+  const pathname = usePathname();
+  return pathname === BASE ? <KnowledgePage /> : null;
+}
 
 const TARGET_KEY = `litloft.addon.knowledge.target.${DRIVE}`;
 
@@ -357,7 +364,9 @@ describe("SPEC-ADDON-130 frame step 2, I9: the Target", () => {
       expect(server.calls.filter(isFilesQuery)).toEqual([]);
       expect(localStorage.getItem(TARGET_KEY)).toBe("sf-beach");
       fireEvent.click(screen.getByRole("button", { name: /Target/ }));
-      expect(await screen.findByText(/Unavailable/)).toBeInTheDocument();
+      const item = await screen.findByRole("menuitemradio", { name: /Beach/ });
+      expect(item).toBeDisabled();
+      expect(item).toHaveAttribute("title", "Unavailable");
     },
   );
 

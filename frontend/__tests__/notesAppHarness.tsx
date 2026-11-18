@@ -44,6 +44,10 @@ export const nav = {
   go(kind: "push" | "replace", href: string) {
     const url = new URL(href, current.href);
     nav.log.push({ kind, href, url });
+    // The App Router answers the same URL with the same search params; a page
+    // that stays mounted on a route this harness does not switch must not be
+    // told it moved.
+    if (url.href === current.href) return;
     current = url;
     snapshot = new URLSearchParams(url.search);
     listeners.forEach((l) => l());

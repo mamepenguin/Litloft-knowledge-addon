@@ -10,6 +10,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import type { AnchorHTMLAttributes, MouseEvent } from "react";
 
+import { dirtyRegistry } from "@/lib/dirtyRegistry";
 import { navigationGuard } from "@/lib/navigationGuard";
 import {
   BASE,
@@ -53,8 +54,11 @@ vi.mock("../KnowledgeEditSection", async () => {
     useEffect(() => {
       if (edit.renderNothing || !handle) return;
       handle.current = { dirty: () => edit.dirty, flush: () => edit.flush!() };
+      // The real editor publishes unsaved text here, and the guard asks for it.
+      dirtyRegistry.set("stub-editor", "knowledge-editor", edit.dirty);
       return () => {
         handle.current = null;
+        dirtyRegistry.set("stub-editor", "knowledge-editor", false);
       };
     }, [handle]);
     if (edit.renderNothing) return null;
@@ -327,7 +331,7 @@ describe("SPEC-ADDON-132 Library step 1: the rail, Tags and the segment", () => 
       ["0", "24", "48", "72", "96", "120", "144", "168", "192"],
     );
     expect(screen.queryAllByText(/^tag200\b/)).toEqual([]);
-    expect(screen.queryAllByText(/^tag000\b/)).toHaveLength(1);
+    expect(controls("tag000")).toHaveLength(1);
   });
 
   it("SPEC-ADDON-132 a later tag page that fails keeps the entries drawn and follows them with Try again", async () => {

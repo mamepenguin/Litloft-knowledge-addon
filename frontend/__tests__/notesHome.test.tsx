@@ -174,7 +174,10 @@ describe("SPEC-ADDON-131 Home step 1: Continue writing", () => {
 
   it("SPEC-ADDON-131 does not follow the Target", async () => {
     localStorage.setItem(TARGET_KEY, "sf-trip");
-    server = installNotesServer({ notes: notes(3), history: HISTORY.slice(0, 1) });
+    server = installNotesServer({
+      notes: notes(3).map((n, i) => (i === 0 ? { ...n, tags: ["trip"] } : n)),
+      history: HISTORY.slice(0, 1),
+    });
     const base = server.override;
     server.override = (call: WireCall) =>
       call.url.pathname === `/api/drives/${DRIVE}/smart-folders`
@@ -309,7 +312,7 @@ describe("SPEC-ADDON-131 Home step 2: Notes with sources", () => {
     for (const call of asked) expect((call.body as { file_ids: string[] }).file_ids).toEqual(["n2", "n5", "n7"]);
 
     const box = section("Notes with sources");
-    const titles = within(box).getAllByText(/^N note \d$/).map((e) => e.textContent);
+    const titles = (await within(box).findAllByText(/^N note \d$/)).map((e) => e.textContent);
     expect(titles).toEqual(["N note 2", "N note 5", "N note 7"]);
     expect(within(box).getAllByText("1:02:05").length).toBeGreaterThan(0);
     expect(deepest(box, "Lectures · 1:02:05")).toHaveLength(1);
