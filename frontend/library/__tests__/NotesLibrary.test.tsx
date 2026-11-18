@@ -459,8 +459,14 @@ describe("SPEC-ADDON-132 Library step 3: choosing a note", () => {
 });
 
 describe("SPEC-ADDON-132 Library step 4 and I21: reading and the view record", () => {
-  it("records one empty view per note shown, and none again after Done", async () => {
+  it("records nothing for the first row shown with no note", async () => {
     await mount();
+    await screen.findByTestId("md");
+    expect(recordFileView).not.toHaveBeenCalled();
+  });
+
+  it("records one empty view per note shown, and none again after Done", async () => {
+    await mount({ query: "view=all&note=a" });
     await screen.findByTestId("md");
     expect(recordFileView).toHaveBeenCalledTimes(1);
     expect(recordFileView).toHaveBeenCalledWith("a");
@@ -473,7 +479,7 @@ describe("SPEC-ADDON-132 Library step 4 and I21: reading and the view record", (
   });
 
   it("records the next note when another is shown", async () => {
-    const { again } = await mount();
+    const { again } = await mount({ query: "view=all&note=a" });
     await screen.findByTestId("md");
     params = new URLSearchParams("view=all&note=b");
     again();
