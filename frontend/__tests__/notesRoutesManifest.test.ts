@@ -26,3 +26,16 @@ describe("SPEC-ADDON-131 the proxy routes for notes with sources", () => {
     expect(route?.drive_optional ?? false).toBe(false);
   });
 });
+
+describe("SPEC-ADDON-140 the proxy route for clip covers", () => {
+  it("SPEC-ADDON-140 /clip-covers is proxied for POST, drive-scoped, with no feature gate", () => {
+    const route = manifest.proxy.routes.find((r) => r.path === "/clip-covers") as
+      | (Record<string, unknown> & { methods: string[]; drive_optional?: boolean })
+      | undefined;
+
+    expect(route?.methods).toEqual(["POST"]);
+    expect(route?.drive_optional ?? false).toBe(false);
+    expect(route?.pre_check ?? null).toBeNull();
+    expect(route?.addon_feature ?? null).toBeNull();
+  });
+});
