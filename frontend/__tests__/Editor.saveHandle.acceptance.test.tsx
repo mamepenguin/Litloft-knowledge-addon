@@ -243,23 +243,30 @@ describe("SPEC-ADDON-132 step 6: dirty and flush", () => {
 });
 
 describe("SPEC-ADDON-132 Library step 5: the toolbar's rule", () => {
+  const chrome = { viewMode: "edit" as const, setViewMode: () => undefined, publishSaveState: () => undefined, isMobile: false };
+
   function toolbarRoot(): HTMLElement {
     return document.querySelector(".sticky.top-0 > div") as HTMLElement;
   }
 
-  it("a host that supplies the chrome gets a toolbar with no rule under it; the file page keeps it", async () => {
-    const chrome = { viewMode: "edit" as const, setViewMode: () => undefined, publishSaveState: () => undefined, isMobile: false };
-    const { unmount } = render(
+  // The file page wraps the editor in the same provider the Notes pane does.
+  function underChrome(props: Partial<ComponentProps<typeof Editor>>) {
+    return render(
       <MarkdownChromeProvider value={chrome}>
-        <Editor fileId="f1" filename="note.md" drive="d" onBack={() => undefined} inlineMode fillHeight />
+        <Editor fileId="f1" filename="note.md" drive="d" onBack={() => undefined} inlineMode fillHeight {...props} />
       </MarkdownChromeProvider>,
     );
-    await loaded();
-    expect(toolbarRoot().className).not.toContain("border-b");
-    unmount();
+  }
 
-    mount({ current: null }, { fillHeight: true });
+  it("the file page, under the chrome provider, keeps the rule under the toolbar", async () => {
+    underChrome({});
     await loaded();
     expect(toolbarRoot().className).toContain("border-b");
+  });
+
+  it("a host that asks for it gets a toolbar with no rule under it", async () => {
+    underChrome({ toolbarRuleless: true } as object);
+    await loaded();
+    expect(toolbarRoot().className).not.toContain("border-b");
   });
 });
