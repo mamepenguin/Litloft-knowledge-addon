@@ -105,17 +105,6 @@ export default function NotesLibrary({ drive, target, total }: NotesLibraryProps
     if (conflicting) navigate({ folder: null }, "replace");
   }, [conflicting, navigate]);
 
-  // A Target change keeps the selection and drops the note.
-  const targetKey = ready?.key ?? null;
-  const lastTargetKey = useRef<string | null>(null);
-  useEffect(() => {
-    if (targetKey === null) return;
-    if (lastTargetKey.current !== null && lastTargetKey.current !== targetKey) {
-      navigate({ note: null }, "replace");
-    }
-    lastTargetKey.current = targetKey;
-  }, [targetKey, navigate]);
-
   const saveHandle = useRef<EditorSaveHandle | null>(null);
   const gateRef = useRef<PaneGate | null>(null);
   const gate = useCallback<PaneGate>((proceed) => {

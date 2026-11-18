@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, type MouseEvent } from "react";
+import { useEffect, useMemo, useRef, type MouseEvent } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { FilePlus, NotebookPen } from "lucide-react";
@@ -20,6 +20,7 @@ import { listNotes } from "./notesapp/listing";
 import { SkeletonRows } from "./notesapp/Skeleton";
 import { NOTES_APP, NOTES_BASE_KINDS, useNotesTarget } from "./notesapp/useNotesTarget";
 import NotesLibrary from "./library/NotesLibrary";
+import { libraryHref } from "./library/libraryUrl";
 
 const PANEL_ID = "notes-app-panel";
 
@@ -35,6 +36,25 @@ export default function NotesPage() {
 
   const notesTarget = useNotesTarget(drive);
   const { target } = notesTarget;
+
+  // A Target change keeps the selection and drops the note. It is kept here,
+  // not in the Library, because the Library is unmounted while a target is
+  // being looked up and would not see the change.
+  const targetKey = target.status === "ready" ? target.key : null;
+  const lastTargetKey = useRef<string | null>(null);
+  const latest = useRef({ pathname, searchParams });
+  useEffect(() => {
+    latest.current = { pathname, searchParams };
+  });
+  useEffect(() => {
+    if (targetKey === null) return;
+    const changed = lastTargetKey.current !== null && lastTargetKey.current !== targetKey;
+    lastTargetKey.current = targetKey;
+    const { pathname: path, searchParams: current } = latest.current;
+    if (changed && current.has("note")) {
+      router.replace(libraryHref(path, new URLSearchParams(current), { note: null }));
+    }
+  }, [targetKey, router]);
 
   // The scope line shows nothing but the drive until this has answered, so a
   // count that is loading or failed is never read as `0`.

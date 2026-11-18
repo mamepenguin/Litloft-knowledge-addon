@@ -105,7 +105,7 @@ export default function NotePanePresenter(props: NotePanePresenterProps) {
             type="button"
             onClick={props.onDone}
             disabled={mode === "waiting"}
-            className={`${PILL} bg-text-primary text-white hover:opacity-90 disabled:opacity-60`}
+            className={`${PILL} bg-text-primary text-bg-primary hover:opacity-90 disabled:opacity-60`}
           >
             <Check size={14} strokeWidth={2} aria-hidden="true" />
             {t("done")}
