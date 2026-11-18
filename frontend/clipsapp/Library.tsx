@@ -29,7 +29,7 @@ export interface LibraryProps {
 function Menus({ group, sort, onNavigate }: Pick<LibraryProps, "group" | "sort" | "onNavigate">) {
   const t = useTranslations("knowledge.clips");
   return (
-    <div className="flex items-center gap-2 pb-6">
+    <div className="flex items-center gap-2 pb-10">
       <ToolbarMenu label={t("groupMenu")} value={t(`group.${group}`)} icon={Tags} align="start">
         {(close) => (
           <MenuRadioGroup
@@ -101,7 +101,7 @@ function TagShelves({ drive, pathname, target, sort, refresh, now }: LibraryProp
     );
   }
   return (
-    <div className="flex flex-col gap-12">
+    <div className="flex flex-col gap-10">
       {data.shelves.map((shelf) => {
         const untagged = shelf.key === NO_TAG_KEY;
         return (

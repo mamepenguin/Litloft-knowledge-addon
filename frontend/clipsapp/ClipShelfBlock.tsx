@@ -48,15 +48,18 @@ export function ShelfHeading({
   title,
   count,
   seeAllHref,
+  tight = false,
 }: {
   title: string;
   /** Already in the viewer's number format. */
   count?: string;
   seeAllHref?: string;
+  /** 8px to the list below instead of 16px: the Unverified rows. */
+  tight?: boolean;
 }) {
   const t = useTranslations("knowledge.clips");
   return (
-    <div className="mb-4 flex min-w-0 items-baseline gap-2">
+    <div className={`${tight ? "mb-2" : "mb-4"} flex min-w-0 items-baseline gap-2`}>
       {title ? (
         <h2 className="min-w-0 truncate text-lg font-bold text-text-primary">{title}</h2>
       ) : (

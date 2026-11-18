@@ -121,7 +121,7 @@ function UnverifiedShelf(props: HomeProps) {
   const href = clipsHref(props.pathname, { view: "shelf", shelf: { kind: "unverified" }, sort: "newest" });
   return (
     <section className="min-w-0">
-      <ShelfHeading title={t("shelf.unverified")} seeAllHref={data.phase === "failed" ? undefined : href} />
+      <ShelfHeading tight title={t("shelf.unverified")} seeAllHref={data.phase === "failed" ? undefined : href} />
       {data.phase === "failed" ? (
         <LoadFailed onRetry={data.retry} />
       ) : data.phase === "loading" ? (
