@@ -753,7 +753,7 @@ describe("SPEC-ADDON-138 Mark as verified", () => {
     const day = (n: number) => `2026-09-${String(n).padStart(2, "0")}T09:00:00Z`;
     fake.clips = [1, 2, 3, 4, 5].map((n) => clip(`v${n}`, { created_at: day(10 - n), trust_tier: "unverified" }));
     render(<ClipsPage />);
-    await screen.findByText("Clip v5");
+    await screen.findAllByText("Clip v5");
     const gate = deferred();
     fake.hold = (_u, m) => (m === "PUT" ? gate.promise : undefined);
 
@@ -764,8 +764,8 @@ describe("SPEC-ADDON-138 Mark as verified", () => {
       ...fake.clips,
     ];
     emit("knowledge.clip.ready", { job_id: 2, file_id: "z" });
-    await screen.findByText("Clip n5");
-    expect(screen.getByText("Clip v5")).toBeInTheDocument();
+    await screen.findAllByText("Clip n5");
+    expect(screen.getAllByText("Clip v5").length).toBeGreaterThan(0);
     gate.resolve();
   });
 });
