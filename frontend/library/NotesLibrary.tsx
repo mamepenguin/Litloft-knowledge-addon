@@ -155,7 +155,8 @@ export default function NotesLibrary({ drive, target, total }: NotesLibraryProps
   const choose = (file: FileItem): boolean => {
     if (!paneDrawn) return false;
     if (replacement === file.id) setReplacement(null);
-    if (file.id !== params.note) gate(() => navigate({ note: file.id }, "replace"));
+    if (file.id !== shownId) gate(() => navigate({ note: file.id }, "replace"));
+    else if (file.id !== params.note) navigate({ note: file.id }, "replace");
     return true;
   };
 
@@ -201,7 +202,7 @@ export default function NotesLibrary({ drive, target, total }: NotesLibraryProps
     <div
       data-testid="notes-library"
       data-layout={layout ?? "unknown"}
-      className={`flex min-w-0 pt-5 ${layout === "three" ? "flex-row" : "flex-col gap-3"}`}
+      className={`flex min-w-0 pt-3 max-sm:pt-1 ${layout === "three" ? "flex-row" : "flex-col gap-3"}`}
     >
       {layout === "three" ? (
         <aside className="w-[220px] shrink-0 pr-4">
@@ -249,7 +250,7 @@ export default function NotesLibrary({ drive, target, total }: NotesLibraryProps
             onRetry={list.retry}
           />
         </div>
-        {pane !== null && <div className="min-w-0 flex-1 pl-10">{pane}</div>}
+        {pane !== null && <div className={`min-w-0 flex-1 ${paneDrawn ? "pl-10" : ""}`}>{pane}</div>}
       </div>
     </div>
   );

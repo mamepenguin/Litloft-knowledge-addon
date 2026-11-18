@@ -91,7 +91,7 @@ export function libraryHref(
   return `${pathname}?${next}`;
 }
 
-const classificationKey = (drive: string) => `litloft.addon.knowledge.classification.${drive}`;
+const classificationKey = (drive: string) => `litloft.addon.knowledge.classification.${encodeURIComponent(drive)}`;
 
 export function readClassification(drive: string): Segment {
   try {

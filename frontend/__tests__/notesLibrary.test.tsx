@@ -285,8 +285,8 @@ describe("SPEC-ADDON-132 Library step 1: the rail, Folders", () => {
 
     await waitFor(() => expect(shown("Body of Alpha")).toBe(true));
     expect(await screen.findAllByRole("button", { name: "Try again" })).toHaveLength(1);
-    expect(control("All")).toBeInTheDocument();
-    expect(control("Journal")).toBeInTheDocument();
+    expect(control("All").textContent).toBe("All");
+    expect(control("Journal").textContent).toBe("Journal");
     expect(controls("Work")).toEqual([]);
     expect(screen.getByText("Delta")).toBeInTheDocument();
   });
@@ -1131,6 +1131,31 @@ describe("SPEC-ADDON-132 Library step 4, I21: choosing the replacement", () => {
     fireEvent.click(within(screen.getByRole("region", { name: "Notes" })).getByText("Alpha"));
 
     await waitFor(() => expect(server.calls.filter(isProgress).map((c) => c.url.pathname)).toEqual(["/api/files/n1/progress"]));
+  });
+});
+
+describe("SPEC-ADDON-132 Library step 7: the row of the note on screen", () => {
+  it("SPEC-ADDON-132 I4 clicking the row of the note being edited, with no note in the URL, does not run the gate", async () => {
+    open();
+    await startEditing();
+
+    fireEvent.click(within(screen.getByRole("region", { name: "Notes" })).getByText("Alpha"));
+    await act(() => settle(100));
+
+    expect(edit.flush).not.toHaveBeenCalled();
+    expect(paneEditor()).not.toBeNull();
+    expect(nav.params.get("note")).toBe("n1");
+  });
+
+  it("SPEC-ADDON-132 an editing pane that replaces the list keeps the page gutter, with no inset", async () => {
+    open();
+    await startEditing();
+
+    act(() => setViewport(900));
+    await act(() => settle());
+
+    const pane = screen.getByRole("article", { name: "Selected note" });
+    expect(pane.parentElement!.className).not.toMatch(/\bpl-/);
   });
 });
 

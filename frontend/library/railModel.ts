@@ -37,7 +37,7 @@ export function railItems(input: RailModelInput): RailItem[] {
   const { segment, entries, selection } = input;
   const chosen = selectedKey(selection, segment);
   const items: RailItem[] = [
-    { kind: "all", key: null, count: input.allTotal, selected: selection.kind === "all" },
+    { kind: "all", key: null, count: input.railFailed ? null : input.allTotal, selected: selection.kind === "all" },
   ];
   for (const entry of entries ?? []) {
     items.push({ kind: "entry", key: entry.key, count: entry.count, selected: entry.key === chosen });

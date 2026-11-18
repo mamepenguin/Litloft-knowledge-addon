@@ -120,7 +120,7 @@ export default function NotesPage() {
           countDetail={count === null ? null : t("count", { count })}
           tabs={tabs}
           actions={
-            <Button variant="primary" onClick={openNewNote}>
+            <Button variant="primary" onClick={openNewNote} className="max-sm:mr-2 max-sm:w-[calc(100%-0.5rem)]">
               <FilePlus size={14} strokeWidth={1.8} />
               {t("newNote")}
             </Button>
@@ -145,7 +145,7 @@ export default function NotesPage() {
         />
       }
     >
-      <div id={PANEL_ID} className="px-4 pb-10 pt-6">
+      <div id={PANEL_ID} className={`px-4 pb-10 ${library && target.status !== "lookingUp" && count !== 0 ? "pt-0" : "pt-6"}`}>
         {body}
       </div>
     </PageFrame>

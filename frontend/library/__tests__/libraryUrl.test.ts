@@ -1,5 +1,7 @@
 import { afterEach, describe, expect, it } from "vitest";
 
+import { writeAppTarget } from "@/lib/appPrefs";
+
 import {
   hasConflictingSelection,
   libraryHref,
@@ -79,5 +81,16 @@ describe("SPEC-ADDON-132 I9: the stored segment", () => {
     expect(readClassification("other")).toBe("folder");
     window.localStorage.setItem("litloft.addon.knowledge.classification.d", "junk");
     expect(readClassification("d")).toBe("folder");
+  });
+});
+
+describe("SPEC-ADDON-130 I9: the Knowledge keys", () => {
+  it("the classification key encodes the drive as the target key does", () => {
+    writeAppTarget("動画 & 音", { addon: "knowledge" }, "x");
+    const targetKey = window.localStorage.key(0)!;
+    writeClassification("動画 & 音", "tag");
+
+    expect(window.localStorage.getItem(targetKey.replace(".target.", ".classification."))).toBe("tag");
+    expect(readClassification("動画 & 音")).toBe("tag");
   });
 });

@@ -62,7 +62,7 @@ describe("SPEC-ADDON-132 Library step 1: the rail's entries", () => {
       listPhase: "ready",
     });
     expect(items).toEqual([
-      { kind: "all", key: null, count: 7, selected: false },
+      { kind: "all", key: null, count: null, selected: false },
       { kind: "entry", key: "ai", count: null, selected: true },
     ]);
   });

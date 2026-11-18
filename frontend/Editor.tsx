@@ -1447,6 +1447,7 @@ export default function Editor({
         <div className="sticky top-0 z-10">
           <EditorToolbar
             versionsOnly={plainText}
+            bordered={!chrome}
             onAction={handleToolbar}
             onFileLinkRequest={plainText ? undefined : handleFileLinkRequest}
             onKeepVersion={keepCurrentVersion}
