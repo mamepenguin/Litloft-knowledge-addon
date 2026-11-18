@@ -1122,6 +1122,18 @@ describe("SPEC-ADDON-132 Library step 4, I21: only a chosen note records a view"
   });
 });
 
+describe("SPEC-ADDON-132 Library step 4, I21: choosing the replacement", () => {
+  it("SPEC-ADDON-132 I21 clicking the row a replacement put in the URL records it", async () => {
+    open(`${BASE}?view=all&note=zz`);
+    await waitFor(() => expect(nav.params.get("note")).toBe("n1"));
+    await screen.findByText("Body of Alpha");
+
+    fireEvent.click(within(screen.getByRole("region", { name: "Notes" })).getByText("Alpha"));
+
+    await waitFor(() => expect(server.calls.filter(isProgress).map((c) => c.url.pathname)).toEqual(["/api/files/n1/progress"]));
+  });
+});
+
 describe("SPEC-ADDON-132 Library: the phone's folder names", () => {
   const nested: Note[] = [
     { id: "x1", title: "Deep", folder: "Journal/2026", tags: [], updated: "2026-11-10T09:00:00Z", body: "Body of Deep" },
