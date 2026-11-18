@@ -64,6 +64,10 @@ import {
 } from "./WikiLinkAutocomplete";
 import VersionHistoryPanel from "./VersionHistoryPanel";
 import { requestVersionHistory } from "./versionHistoryChannel";
+import type {
+  EditorFlushResult,
+  EditorSaveHandle,
+} from "./editorSaveHandle";
 
 interface Props {
   fileId: string;
@@ -140,6 +144,8 @@ interface Props {
   plainText?: boolean;
   /** A search term to mark, and scroll to once, the first time Read is shown. */
   highlight?: string;
+  /** Lets the host ask whether the editor is dirty and have it save now. */
+  saveHandle?: React.MutableRefObject<EditorSaveHandle | null>;
 }
 
 /**
@@ -201,6 +207,7 @@ export default function Editor({
   onDocumentCaptureController,
   plainText = false,
   highlight,
+  saveHandle,
 }: Props) {
   const t = useTranslations("knowledge.editor");
   const tShortcuts = useTranslations("knowledge.shortcuts");
@@ -360,6 +367,7 @@ export default function Editor({
   const etagRef = useRef<string>("");
   const lastSavedRef = useRef<string>("");
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const lastSaveOutcomeRef = useRef<EditorFlushResult>("failed");
   const fileGenerationRef = useRef({ fileId, generation: 0 });
   if (fileGenerationRef.current.fileId !== fileId) {
     fileGenerationRef.current = {
@@ -581,6 +589,7 @@ export default function Editor({
     (text: string, kind?: "explicit") =>
       enqueueSaveOperation(async () => {
         const generation = fileGeneration;
+        lastSaveOutcomeRef.current = "failed";
         if (!isCurrentGeneration(generation)) return false;
         if (plainBlockRef.current) return false;
         setSaveState({ kind: "saving" });
@@ -589,6 +598,7 @@ export default function Editor({
           if (!isCurrentGeneration(generation)) return false;
           etagRef.current = result.etag;
           lastSavedRef.current = text;
+          lastSaveOutcomeRef.current = "saved";
           if (kind === "explicit" && result.versionAction === "unchanged") {
             setSaveState({ kind: "unchanged" });
           } else {
@@ -599,6 +609,7 @@ export default function Editor({
         } catch (err) {
           if (!isCurrentGeneration(generation)) return false;
           if (err instanceof ConflictError) {
+            lastSaveOutcomeRef.current = "conflict";
             setSaveState({ kind: "conflict" });
           } else {
             setSaveState({
@@ -630,6 +641,47 @@ export default function Editor({
       if (latest !== null) performSave(latest);
     }, AUTOSAVE_DEBOUNCE_MS);
   }, [content, fileId, performSave, plainBlock, readCurrentContent, restoreBusy]);
+
+  const performSaveRef = useRef(performSave);
+  performSaveRef.current = performSave;
+  const handleReady = content !== null && contentFileIdRef.current === fileId;
+  useEffect(() => {
+    if (!saveHandle || !handleReady) return;
+    const handle: EditorSaveHandle = {
+      dirty: () => {
+        const latest = readCurrentContent();
+        return latest !== null && latest !== lastSavedRef.current;
+      },
+      flush: async () => {
+        if (saveTimerRef.current) {
+          clearTimeout(saveTimerRef.current);
+          saveTimerRef.current = null;
+        }
+        // Waits for a save already in flight, so its result is in
+        // lastSavedRef before the text is compared.
+        await enqueueSaveOperation(async () => undefined);
+        for (;;) {
+          if (saveTimerRef.current) {
+            clearTimeout(saveTimerRef.current);
+            saveTimerRef.current = null;
+          }
+          const latest = readCurrentContent();
+          if (latest === null || latest === lastSavedRef.current) {
+            return "saved";
+          }
+          if (plainBlockRef.current) return "failed";
+          await performSaveRef.current(latest);
+          if (lastSaveOutcomeRef.current !== "saved") {
+            return lastSaveOutcomeRef.current;
+          }
+        }
+      },
+    };
+    saveHandle.current = handle;
+    return () => {
+      if (saveHandle.current === handle) saveHandle.current = null;
+    };
+  }, [saveHandle, fileId, handleReady, readCurrentContent, enqueueSaveOperation]);
 
   // Publish dirty state into the global registry so the Phase 2.2
   // navigation guard / browser unload handler can ask "would
