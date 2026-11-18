@@ -14,6 +14,7 @@ import {
   clips,
   findText,
   installClipsServer,
+  emit,
   isNewShelf,
   isTagShelves,
   isTrustWrite,
@@ -459,5 +460,73 @@ describe("SPEC-ADDON-139 step 12: Library cards", () => {
     render(<Page />);
 
     await waitFor(() => expect(metaNodes(/^cooking\.example · 3 min$/)).toHaveLength(1));
+  });
+});
+
+describe("SPEC-ADDON-139 review r1: Target conditions, Target change, refresh on the Library and shelf pages", () => {
+  const TRIP_CLIPS = () => [...clips(2, "t", { tags: ["trip"] }), ...clips(2, "w", { tags: ["work"] }), ...NOT_CLIPS];
+  const listing = (c: { url: URL }) => isTagShelves(c as never) || isNewShelf(c as never);
+
+  it.each([
+    ["By tag", LIBRARY],
+    ["No grouping", `${LIBRARY}&group=none`],
+  ])("SPEC-ADDON-139 I1 %s asks with the Target's conditions", async (_name, url) => {
+    localStorage.setItem(CLIPS_TARGET_KEY, "sf-trip");
+    nav.set(url);
+    serve(TRIP_CLIPS());
+    render(<Page />);
+
+    await findText(`${DRIVE} · 2 clips`);
+    await act(() => settle());
+    const asks = server.calls.filter(listing);
+    expect(asks.length).toBeGreaterThan(0);
+    for (const call of asks) expect(q(call).getAll("tag")).toEqual(["trip"]);
+    expect(screen.queryByText("W clip 1")).toBeNull();
+  });
+
+  it("SPEC-ADDON-139 step 4 a Target change starts the By tag shelves over under the new Target", async () => {
+    localStorage.setItem(CLIPS_TARGET_KEY, "sf-trip");
+    nav.set(LIBRARY);
+    serve(TRIP_CLIPS());
+    render(<Page />);
+    await screen.findByRole("heading", { level: 2, name: "trip" });
+
+    fireEvent.click(screen.getByRole("button", { name: /Target/ }));
+    fireEvent.click(await screen.findByRole("menuitemradio", { name: /Work/ }));
+
+    expect(await screen.findByRole("heading", { level: 2, name: "work" })).toBeInTheDocument();
+    await waitFor(() => expect(heading("trip")).toBeNull());
+  });
+
+  it("SPEC-ADDON-139 step 4 a Target change starts the No grouping grid over under the new Target", async () => {
+    localStorage.setItem(CLIPS_TARGET_KEY, "sf-trip");
+    nav.set(`${LIBRARY}&group=none`);
+    serve(TRIP_CLIPS());
+    render(<Page />);
+    await screen.findByText("T clip 1");
+
+    fireEvent.click(screen.getByRole("button", { name: /Target/ }));
+    fireEvent.click(await screen.findByRole("menuitemradio", { name: /Work/ }));
+
+    expect(await screen.findByText("W clip 1")).toBeInTheDocument();
+    await waitFor(() => expect(screen.queryByText("T clip 1")).toBeNull());
+  });
+
+  it("SPEC-ADDON-138 step 5 a refresh keeps the later pages a shelf page has drawn", async () => {
+    nav.set(`${CLIPS}?view=shelf&shelf=tag:curry`);
+    serve([...tagged("curry", 65, "k"), ...NOT_CLIPS]);
+    render(<Page />);
+    await screen.findByText("K clip 1");
+    await reachEnd();
+    await screen.findByText("K clip 65");
+    const firstPages = () => server.calls.filter((c) => isTagShelves(c) && (q(c).get("page") ?? "1") === "1").length;
+    const asked = firstPages();
+
+    emit("knowledge.clip.ready", { file_id: "k1", job_id: 1 });
+    await waitFor(() => expect(firstPages()).toBeGreaterThan(asked));
+    await act(() => settle());
+
+    expect(screen.getByText("K clip 1")).toBeInTheDocument();
+    expect(screen.getByText("K clip 65")).toBeInTheDocument();
   });
 });

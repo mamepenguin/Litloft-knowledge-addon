@@ -476,3 +476,17 @@ describe("SPEC-ADDON-138 Failure cases: a Home shelf", () => {
     expect(await within(shelf("Unread")).findByText("C clip 1")).toBeInTheDocument();
   });
 });
+
+describe("SPEC-ADDON-138 I5 review r1: only Mark as verified writes", () => {
+  it("SPEC-ADDON-138 I5 opening an Unverified row's clip writes no trust tier", async () => {
+    serve([...unverified(2), ...NOT_CLIPS], { history: [] });
+    render(<Page />);
+    await waitFor(() => inUnverified().getByText("V clip 1"));
+    const title = inUnverified().getByText("V clip 1").closest("a")!;
+
+    fireEvent.click(title);
+    await act(() => settle());
+
+    expect(server.calls.filter(isTrustWrite)).toHaveLength(0);
+  });
+});
