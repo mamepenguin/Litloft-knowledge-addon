@@ -46,10 +46,8 @@ function appendUnseen<T extends { id: string }>(drawn: readonly T[], page: reado
 }
 
 /**
- * Pages of one shelf, in the order the server gave them. A refresh asks every
- * page drawn again, puts the fresh pages in front in their order and keeps every
- * drawn card they do not name, so nothing already on screen leaves; a failed
- * refresh (any of its pages) changes nothing.
+ * Pages of one shelf, in the order the server gave them. A failed refresh
+ * (any of its pages) changes nothing.
  * `remove` takes a card out without asking again, a removed card never comes
  * back from a refresh that was already on its way, and a card being saved is
  * not pushed out by one.
