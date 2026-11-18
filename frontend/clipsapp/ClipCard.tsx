@@ -99,7 +99,7 @@ export default function ClipCard({ file, cover, dot, now, showAge }: ClipCardPro
         )}
       </Cover>
       {dot && <span className="sr-only">{t("unreadLabel")}</span>}
-      <p className="mt-2.5 line-clamp-2 text-[15px] font-semibold leading-[1.45] text-text-primary group-hover:text-accent">
+      <p className="mt-2.5 line-clamp-2 min-h-[2.9em] text-[15px] font-semibold leading-[1.45] text-text-primary group-hover:text-accent">
         {clipTitle(file)}
       </p>
       <p className="mt-1 min-h-4 truncate text-xs text-text-muted">

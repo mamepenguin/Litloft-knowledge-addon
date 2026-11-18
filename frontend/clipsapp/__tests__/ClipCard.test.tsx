@@ -75,6 +75,11 @@ describe("SPEC-ADDON-138 the card", () => {
     expect(link).toContainElement(screen.getByText("Unread"));
   });
 
+  it("reserves two title lines, the height of a skeleton card's title, so a one-line title does not shorten the card", () => {
+    render(<ClipCard file={file({ title: "Short" })} cover={undefined} dot={false} now={NOW} showAge />);
+    expect(screen.getByText("Short")).toHaveClass("min-h-[2.9em]", "line-clamp-2");
+  });
+
   it("draws the dot only when told to", () => {
     const { rerender } = render(<ClipCard file={file()} cover={undefined} dot now={NOW} showAge />);
     expect(screen.getByTestId("unread-dot")).toHaveAttribute("aria-hidden", "true");
