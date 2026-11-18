@@ -232,6 +232,8 @@ interface Props {
   disabled?: boolean;
   /** Plain text has no formatting: only the `…` menu is drawn. */
   versionsOnly?: boolean;
+  /** A host that frames the editor itself: no rule under the toolbar and no inset at its start. */
+  frameless?: boolean;
 }
 
 export default function EditorToolbar({
@@ -241,6 +243,7 @@ export default function EditorToolbar({
   onOpenVersionHistory,
   disabled = false,
   versionsOnly = false,
+  frameless = false,
 }: Props) {
   const t = useTranslations("knowledge.editor.toolbar");
 
@@ -276,7 +279,9 @@ export default function EditorToolbar({
   };
 
   return (
-    <div className="@container flex items-center gap-0.5 border-b border-bg-border bg-bg-card px-3 py-1.5 pointer-coarse:gap-3">
+    <div
+      className={`@container flex items-center gap-0.5 bg-bg-card py-1.5 pointer-coarse:gap-3 ${frameless ? "pr-3" : "border-b border-bg-border px-3"}`}
+    >
       {/* The formatting controls, and only those. The `…` beside them holds
           what the document as a whole does — keeping a version, opening the
           history — which is not formatting and does not belong in a group

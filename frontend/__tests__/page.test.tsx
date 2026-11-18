@@ -13,19 +13,15 @@ vi.mock("@/components/CurrentDriveProvider", () => ({
   useCurrentDrive: () => _mockDrive,
 }));
 
+const overlaySidebar = vi.fn();
 vi.mock("@/components/SidebarProvider", () => ({
-  useOverlaySidebar: () => undefined,
+  useOverlaySidebar: () => overlaySidebar(),
 }));
 
-let _searchParam: string | null = null;
+let _query = new URLSearchParams();
 const _routerReplace = vi.fn();
 vi.mock("next/navigation", () => ({
-  useSearchParams: () => ({
-    get: (k: string) => {
-      if (k === "edit") return _searchParam;
-      return null;
-    },
-  }),
+  useSearchParams: () => _query,
   useRouter: () => ({
     replace: _routerReplace,
     push: vi.fn(),
@@ -88,12 +84,14 @@ function defaultHandler(url: string) {
 }
 
 const Page = (await import("../Page")).default;
+const BASE = "/drive/test-drive/addons/knowledge";
 
 describe("KnowledgePage", () => {
   beforeEach(() => {
     _mockDrive = "test-drive";
-    _searchParam = null;
+    _query = new URLSearchParams();
     _routerReplace.mockReset();
+    overlaySidebar.mockReset();
   });
   afterEach(() => {
     cleanup();
@@ -110,7 +108,7 @@ describe("KnowledgePage", () => {
 
   it("redirects ?edit={id} to canonical 2-pane URL when inline-editor flag is on", async () => {
     vi.stubEnv("NEXT_PUBLIC_INLINE_KNOWLEDGE_EDITOR", "true");
-    _searchParam = "file-a";
+    _query = new URLSearchParams({ edit: "file-a" });
     stubFetch(defaultHandler);
 
     render(<Page />);
@@ -125,39 +123,123 @@ describe("KnowledgePage", () => {
     expect(url.searchParams.get("edit")).toBe("1");
   });
 
-  it("does NOT redirect when inline-editor flag is off", async () => {
+  it("lands on Home without edit, and sends no file request, when the inline-editor flag is off", async () => {
     vi.stubEnv("NEXT_PUBLIC_INLINE_KNOWLEDGE_EDITOR", "false");
-    _searchParam = "file-a";
+    _query = new URLSearchParams({ edit: "file-a" });
     stubFetch(defaultHandler);
 
     render(<Page />);
 
-    // Wait for any async effects to settle.
-    await waitFor(() => {
-      expect(screen.getByTestId("notes-page")).toBeTruthy();
-    });
-    expect(_routerReplace).not.toHaveBeenCalled();
+    await waitFor(() => expect(_routerReplace).toHaveBeenCalledWith(BASE));
+    expect(_routerReplace).toHaveBeenCalledTimes(1);
+    expect(screen.getByTestId("notes-page")).toBeTruthy();
+    expect(globalThis.fetch).not.toHaveBeenCalled();
   });
 
-  it("does NOT redirect non-editable mimes even when flag is on", async () => {
+  it.each([
+    ["a video", { ...fileA, id: "file-vid", mime_type: "video/mp4" }, 200],
+    ["a file that is gone", null, 404],
+  ])("lands on Home without edit for %s even when the flag is on", async (_, body, status) => {
     vi.stubEnv("NEXT_PUBLIC_INLINE_KNOWLEDGE_EDITOR", "true");
-    _searchParam = "file-vid";
-    stubFetch((url) => {
-      if (url.match(/\/api\/files\/file-vid$/)) {
-        return {
-          ok: true,
-          status: 200,
-          body: { ...fileA, id: "file-vid", mime_type: "video/mp4" },
-        };
-      }
-      return defaultHandler(url);
-    });
+    _query = new URLSearchParams({ edit: "file-vid" });
+    stubFetch(() => ({ ok: status === 200, status, body }));
 
     render(<Page />);
 
-    await waitFor(() => {
-      expect(globalThis.fetch).toHaveBeenCalled();
-    });
+    await waitFor(() => expect(_routerReplace).toHaveBeenCalledWith(BASE));
+    expect(_routerReplace).toHaveBeenCalledTimes(1);
+    expect(screen.getByTestId("notes-page")).toBeTruthy();
+  });
+
+  it("keeps the other parameters of the URL when it drops edit", async () => {
+    vi.stubEnv("NEXT_PUBLIC_INLINE_KNOWLEDGE_EDITOR", "false");
+    _query = new URLSearchParams({ view: "all", folder: "journal", edit: "file-a" });
+    stubFetch(defaultHandler);
+
+    render(<Page />);
+
+    await waitFor(() => expect(_routerReplace).toHaveBeenCalledWith(`${BASE}?view=all&folder=journal`));
+  });
+
+  it("does not touch the URL when it holds no entry parameter", async () => {
+    _query = new URLSearchParams({ view: "all", folder: "journal", q: "kyoto" });
+    stubFetch(defaultHandler);
+    render(<Page />);
+    await screen.findByTestId("notes-page");
+    expect(_routerReplace).not.toHaveBeenCalled();
+    expect(globalThis.fetch).not.toHaveBeenCalled();
+  });
+
+  it("does not call useOverlaySidebar, so the sidebar stays inline", async () => {
+    stubFetch(defaultHandler);
+    render(<Page />);
+    await screen.findByTestId("notes-page");
+    expect(overlaySidebar).not.toHaveBeenCalled();
+  });
+});
+
+describe("SPEC-ADDON-130 entry URLs", () => {
+  beforeEach(() => {
+    _mockDrive = "test-drive";
+    _routerReplace.mockReset();
+  });
+  afterEach(() => {
+    cleanup();
+    vi.unstubAllGlobals();
+  });
+
+  it("replaces ?q=<query> without a view with the Library search, and draws no page meanwhile", async () => {
+    _query = new URLSearchParams({ q: "  a&b 旅行 " });
+    render(<Page />);
+    await waitFor(() =>
+      expect(_routerReplace).toHaveBeenCalledWith(`${BASE}?view=all&q=${encodeURIComponent("a&b 旅行").replace(/%20/g, "+")}`),
+    );
+    expect(_routerReplace).toHaveBeenCalledTimes(1);
+    expect(screen.queryByTestId("notes-page")).toBeNull();
+  });
+
+  it.each([
+    ["with view=all", { view: "all", q: "kyoto" }],
+    ["blank", { q: "   " }],
+  ])("leaves ?q= alone when it is %s", async (_, query) => {
+    _query = new URLSearchParams(query);
+    render(<Page />);
+    await screen.findByTestId("notes-page");
+    expect(_routerReplace).not.toHaveBeenCalled();
+  });
+
+  it("replaces ?prefill=… with the Clips page and the same query string", async () => {
+    _query = new URLSearchParams({ prefill: "https://example.com/a?b=1", title: "T", autosubmit: "1" });
+    render(<Page />);
+    await waitFor(() =>
+      expect(_routerReplace).toHaveBeenCalledWith(`${BASE}/clips?${_query.toString()}`),
+    );
+    expect(_routerReplace).toHaveBeenCalledTimes(1);
+    expect(screen.queryByTestId("notes-page")).toBeNull();
+  });
+
+  it("sends a prefill with a q to Clips, not to the Library", async () => {
+    _query = new URLSearchParams({ prefill: "https://example.com", q: "kyoto" });
+    render(<Page />);
+    await waitFor(() => expect(_routerReplace).toHaveBeenCalled());
+    expect(_routerReplace.mock.calls.map(([to]) => to)).toEqual([`${BASE}/clips?${_query.toString()}`]);
+  });
+
+  it("encodes a drive name that needs it into the replacement", async () => {
+    _mockDrive = "動画 d";
+    _query = new URLSearchParams({ prefill: "https://example.com" });
+    render(<Page />);
+    await waitFor(() =>
+      expect(_routerReplace).toHaveBeenCalledWith(
+        `/drive/${encodeURIComponent("動画 d")}/addons/knowledge/clips?prefill=https%3A%2F%2Fexample.com`,
+      ),
+    );
+  });
+
+  it("opens the Library for ?view=all&clips=1 and does not redirect, clips being ignored", async () => {
+    _query = new URLSearchParams({ view: "all", clips: "1" });
+    render(<Page />);
+    await screen.findByTestId("notes-page");
     expect(_routerReplace).not.toHaveBeenCalled();
   });
 });

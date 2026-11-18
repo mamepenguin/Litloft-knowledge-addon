@@ -11,6 +11,7 @@ import { isInlineKnowledgeEditorEnabled } from "@/lib/featureFlags";
 import { usePolicy } from "@/hooks/usePolicy";
 import Editor from "./Editor";
 import MediaCaptureAction from "./MediaCaptureAction";
+import type { EditorSaveHandle } from "./editorSaveHandle";
 
 interface FileMeta {
   id: string;
@@ -42,15 +43,19 @@ export default function KnowledgeEditSection({
   fileId,
   drive,
   fillHeight,
+  frameless,
   plainTextDocument,
   highlight,
+  saveHandle,
 }: {
   fileId: string;
   drive: string;
   fillHeight?: boolean;
+  frameless?: boolean;
   /** Core's decision that this file is a `.txt` the editor may take. */
   plainTextDocument?: boolean;
   highlight?: string;
+  saveHandle?: React.MutableRefObject<EditorSaveHandle | null>;
 }) {
   const tEdit = useTranslations("knowledge.editSection");
   const searchParams = useSearchParams();
@@ -96,8 +101,10 @@ export default function KnowledgeEditSection({
           inlineMode
           autoFocus={autoFocus}
           fillHeight={fillHeight}
+          frameless={frameless}
           plainText={isPlainText}
           highlight={highlight}
+          saveHandle={saveHandle}
           onDocumentCaptureController={setDocumentCaptureController}
         />
         {/* The editor's own capture control, holding the editor's

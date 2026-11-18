@@ -20,6 +20,7 @@ from app.routers import (
     note_from_file,
     note_openings,
     notes,
+    notes_sources,
     search,
     tags,
     webhooks,
@@ -195,6 +196,7 @@ app.include_router(distill.router)
 app.include_router(note_from_file.router)
 app.include_router(note_openings.router)
 app.include_router(notes.router)
+app.include_router(notes_sources.router)
 app.include_router(search.router)
 app.include_router(tags.router)
 app.include_router(webhooks.router)

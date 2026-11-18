@@ -33,6 +33,8 @@ interface Props {
   onRestore: (versionId: number) => Promise<boolean>;
   /** Shows a version's text exactly as stored (plain text has no Markdown links). */
   rawPreview?: boolean;
+  /** Drawn without the rule above it, for a host that frames the editor itself. */
+  frameless?: boolean;
 }
 
 function relativeTime(value: string): string {
@@ -71,6 +73,7 @@ export default function VersionHistoryPanel({
   refreshKey,
   onRestore,
   rawPreview = false,
+  frameless = false,
 }: Props) {
   const t = useTranslations("knowledge.editor.versions");
   const sectionRef = useRef<HTMLElement | null>(null);
@@ -228,7 +231,7 @@ export default function VersionHistoryPanel({
   const hasNext = page !== null && offset + page.limit < page.total;
 
   return (
-    <section ref={sectionRef} className="border-t border-bg-border bg-bg-card">
+    <section ref={sectionRef} className={`bg-bg-card ${frameless ? "mt-4" : "border-t border-bg-border"}`}>
       <button
         type="button"
         onClick={() => setOpen((value) => !value)}
@@ -242,7 +245,7 @@ export default function VersionHistoryPanel({
       </button>
 
       {open && (
-        <div className="border-t border-bg-border p-4">
+        <div className="@container border-t border-bg-border p-4">
           {error && (
             <div
               role="status"
@@ -261,7 +264,7 @@ export default function VersionHistoryPanel({
           ) : page?.versions.length === 0 ? (
             <p className="py-8 text-center text-sm text-text-muted">{t("empty")}</p>
           ) : (
-            <div className="grid gap-4 lg:grid-cols-[minmax(14rem,20rem)_minmax(0,1fr)]">
+            <div className="grid gap-4 @xl:grid-cols-[minmax(14rem,20rem)_minmax(0,1fr)]">
               <div className="min-w-0">
                 <div className="overflow-hidden rounded-xl border border-bg-border">
                   {page?.versions.map((version) => (
