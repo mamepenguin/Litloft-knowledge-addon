@@ -412,15 +412,15 @@
       "seeAllIn": "See all: {name}",
       "markVerified": "Mark as verified",
       "saveFailed": "Couldn't save",
-      "groupMenu": "Grouping",
-      "sortMenu": "Sort",
       "group": {
-        "tags": "By tag",
-        "none": "No grouping"
+        "tags": "Tag",
+        "folder": "Folder",
+        "month": "Date Added",
+        "none": "None"
       },
       "sort": {
-        "newest": "Newest clipped",
-        "oldest": "Oldest clipped",
+        "newest": "Date Added (Newest First)",
+        "oldest": "Date Added (Oldest First)",
         "title": "Title"
       },
       "untagged": "Untagged",

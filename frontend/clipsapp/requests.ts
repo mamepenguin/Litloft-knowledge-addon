@@ -13,7 +13,7 @@ import type { ListingFilters } from "@/lib/listingRequest";
 import type { FileItem } from "@/types";
 
 import type { ReadyNotesTarget } from "../notesapp/useNotesTarget";
-import type { ClipSort, ShelfId } from "./clipsUrl";
+import { followsSort, type ClipSort, type ShelfId } from "./clipsUrl";
 
 export type { ReadyNotesTarget };
 
@@ -121,13 +121,20 @@ export async function loadShelfPage(
     return { items, count: items.length };
   }
   if (target === null) throw new Error("a shelf other than recent needs a target");
-  const tagged = shelf.kind === "tag" || shelf.kind === "untagged";
+  const shelfBy =
+    shelf.kind === "tag" || shelf.kind === "untagged"
+      ? "tag"
+      : shelf.kind === "folder"
+        ? "folder"
+        : shelf.kind === "month"
+          ? "month"
+          : "all";
   const params: ShelvesParams = {
     ...clipConditions(target, { trust: shelf.kind === "unverified" ? "unverified" : undefined }),
-    by: tagged ? "tag" : "all",
-    key: shelf.kind === "tag" ? shelf.name : shelf.kind === "untagged" ? NO_TAG_KEY : "all",
+    by: shelfBy,
+    key: shelf.kind === "tag" ? shelf.name : shelf.kind === "untagged" ? NO_TAG_KEY : shelf.kind === "folder" || shelf.kind === "month" ? shelf.key : "all",
     ...(shelf.kind === "unread" ? { opened: false } : {}),
-    ...sortParams(tagged ? sort : "newest"),
+    ...sortParams(followsSort(shelf) ? sort : "newest"),
     per_shelf: perShelf,
     ...(page !== undefined ? { page } : {}),
   };
@@ -161,10 +168,11 @@ export async function loadGridPage(
   return { items: first?.items ?? [], count: first?.count ?? 0 };
 }
 
-/** By tag: `shelf_limit` shelves from `offset`, each with its first 12 cards. */
-export function loadTagShelves(
+/** By tag, folder or month: `shelf_limit` shelves from `offset`, each with its first 12 cards. */
+export function loadGroupShelves(
   drive: string,
   target: ReadyNotesTarget,
+  by: "tag" | "folder" | "month",
   offset: number,
   sort: ClipSort,
   options?: Signal,
@@ -174,7 +182,7 @@ export function loadTagShelves(
     target,
     {
       ...clipConditions(target),
-      by: "tag",
+      by,
       ...sortParams(sort),
       per_shelf: HOME_SHELF_SIZE,
       shelf_limit: TAG_SHELVES_PER_REQUEST,

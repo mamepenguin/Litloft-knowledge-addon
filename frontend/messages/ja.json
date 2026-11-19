@@ -412,16 +412,16 @@
       "seeAllIn": "すべて表示: {name}",
       "markVerified": "確認済みにする",
       "saveFailed": "保存できませんでした",
-      "groupMenu": "まとめ方",
-      "sortMenu": "並び順",
       "group": {
-        "tags": "タグ別",
-        "none": "まとめない"
+        "tags": "タグ",
+        "folder": "フォルダ",
+        "month": "追加日",
+        "none": "なし"
       },
       "sort": {
-        "newest": "クリップした順",
-        "oldest": "古い順",
-        "title": "タイトル順"
+        "newest": "追加日（新しい順）",
+        "oldest": "追加日（古い順）",
+        "title": "タイトル"
       },
       "untagged": "タグなし",
       "minutes": "{count} 分",
