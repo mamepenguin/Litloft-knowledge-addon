@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, type MouseEvent } from "react";
+import { useEffect, useMemo, useRef, useState, type MouseEvent } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { FilePlus, NotebookPen } from "lucide-react";
@@ -13,6 +13,7 @@ import { EmptyState } from "@/components/EmptyState";
 import { PageFrame } from "@/components/PageFrame";
 import { PageTabs } from "@/components/PageTabs";
 import { useQuickNote } from "@/components/quick-note";
+import { readTargetView } from "@/lib/appPrefs";
 
 import { hasChangeGate, runGated } from "./notesapp/changeGate";
 import Home from "./notesapp/Home";
@@ -20,7 +21,7 @@ import { listNotes } from "./notesapp/listing";
 import { SkeletonRows } from "./notesapp/Skeleton";
 import { NOTES_APP, NOTES_BASE_KINDS, useNotesTarget } from "./notesapp/useNotesTarget";
 import NotesLibrary from "./library/NotesLibrary";
-import { libraryHref } from "./library/libraryUrl";
+import { isLibrarySort, libraryHref, type LibrarySort } from "./library/libraryUrl";
 
 const PANEL_ID = "notes-app-panel";
 
@@ -36,25 +37,41 @@ export default function NotesPage() {
 
   const notesTarget = useNotesTarget(drive);
   const { target } = notesTarget;
-
-  // A Target change keeps the selection and drops the note. It is kept here,
-  // not in the Library, because the Library is unmounted while a target is
-  // being looked up and would not see the change.
-  const targetKey = target.status === "ready" ? target.key : null;
-  const lastTargetKey = useRef<string | null>(null);
-  const latest = useRef({ pathname, searchParams });
+  const targetId = target.status === "ready" ? notesTarget.selectedId : null;
+  // The URL a Target was chosen on, until the router shows the URL without its sort:
+  // the replace lands after the new Target is already in force.
+  const [switchedFrom, setSwitchedFrom] = useState<string | null>(null);
+  const search = searchParams.toString();
+  const switchPending = switchedFrom !== null && switchedFrom === search;
   useEffect(() => {
-    latest.current = { pathname, searchParams };
+    if (switchedFrom !== null && !switchPending) setSwitchedFrom(null);
+  }, [switchedFrom, switchPending]);
+
+  // Kept here, not in the Library: the Library is unmounted while a Target is
+  // being looked up and would not see the change.
+  const lastTargetKey = useRef<string | null>(null);
+  const latest = useRef({ pathname, searchParams, switchPending });
+  useEffect(() => {
+    latest.current = { pathname, searchParams, switchPending };
   });
   useEffect(() => {
-    if (targetKey === null) return;
-    const changed = lastTargetKey.current !== null && lastTargetKey.current !== targetKey;
-    lastTargetKey.current = targetKey;
-    const { pathname: path, searchParams: current } = latest.current;
-    if (changed && current.has("note")) {
-      router.replace(libraryHref(path, new URLSearchParams(current), { note: null }));
+    if (targetId === null) return;
+    const previous = lastTargetKey.current;
+    lastTargetKey.current = targetId;
+    const { pathname: path, searchParams: current, switchPending: chosen } = latest.current;
+    const inLibrary = current.get("view") === "all";
+    const sortOf = (id: string): LibrarySort => {
+      const stored = readTargetView(NOTES_APP, drive, id).sort;
+      return isLibrarySort(stored) ? stored : "updated";
+    };
+    // A Target choice has already replaced the URL without its note.
+    if (previous !== null && previous !== targetId && inLibrary && current.has("note") && !chosen) {
+      const raw = current.get("sort");
+      router.replace(
+        libraryHref(path, new URLSearchParams(current), { note: null }, isLibrarySort(raw) ? raw : sortOf(targetId)),
+      );
     }
-  }, [targetKey, router]);
+  }, [targetId, router, drive]);
 
   // The scope line shows nothing but the drive until this has answered, so a
   // count that is loading or failed is never read as `0`.
@@ -103,7 +120,13 @@ export default function NotesPage() {
     body = <EmptyState icon={NotebookPen} title={t("emptyTitle")} />;
   } else {
     body = library ? (
-      <NotesLibrary drive={drive} target={target} total={count} />
+      <NotesLibrary
+        drive={drive}
+        target={target}
+        total={count}
+        targetId={notesTarget.selectedId}
+        ignoreUrlSort={switchPending}
+      />
     ) : (
       <Home drive={drive} target={target} />
     );
@@ -139,7 +162,22 @@ export default function NotesPage() {
             defaultTargetTypes: NOTES_BASE_KINDS,
             defaultTargetExcludeOrigin: "webclip",
             isUsable: notesTarget.isUsable,
-            onChoose: (id) => runGated(() => notesTarget.choose(id)),
+            onChoose: (id) => {
+              if (id === notesTarget.selectedId) return;
+              runGated(() => {
+                const { pathname: path, searchParams: current } = latest.current;
+                if (current.get("view") === "all") {
+                  const next = new URLSearchParams(current);
+                  next.delete("sort");
+                  next.delete("note");
+                  if (next.toString() !== current.toString()) {
+                    setSwitchedFrom(current.toString());
+                    router.replace(`${path}?${next}`);
+                  }
+                }
+                notesTarget.choose(id);
+              });
+            },
             onRetryFolders: notesTarget.retryFolders,
           }}
         />

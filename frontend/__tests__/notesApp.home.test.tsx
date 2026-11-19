@@ -445,7 +445,7 @@ describe("SPEC-ADDON-131 Recently updated", () => {
     render(<Home drive="d" target={DEFAULT} />);
     await screen.findByText("Note r1");
     expect(screen.getByRole("link", { name: "knowledge.notesApp.seeInLibrary" }).getAttribute("href")).toBe(
-      `${PATH}?view=all`,
+      `${PATH}?view=all&sort=updated`,
     );
   });
 

@@ -17,6 +17,7 @@ export {
   BASE,
   DRIVE,
   captureHistory,
+  deferNavigation,
   findText,
   intlModule,
   nav,
@@ -204,9 +205,43 @@ function page(list: Clip[], call: Call, perDefault: number) {
   return list.slice((n - 1) * per, n * per).map(fileItem);
 }
 
+const folderOf = (c: Clip) => c.folder ?? "web";
+const monthOf = (c: Clip) => (c.created ?? "2026-11-01T09:00:00Z").slice(0, 7);
+
+/**
+ * by=folder groups under the drive root: one subtree shelf per top-level
+ * folder, and "" for the clips directly in the root. A key ending in "/" is
+ * the clips directly in that folder. by=month groups by the month added.
+ */
+function inFolderShelf(c: Clip, key: string) {
+  const folder = folderOf(c);
+  if (key === "") return folder === "";
+  if (key.endsWith("/")) return folder === key.slice(0, -1);
+  return folder === key || folder.startsWith(`${key}/`);
+}
+
+function groupedAnswer(by: "folder" | "month", all: Clip[], call: Call): Response {
+  const p = q(call);
+  const member = (c: Clip, key: string) => (by === "folder" ? inFolderShelf(c, key) : monthOf(c) === key);
+  const shelfOf = (key: string) => {
+    const members = all.filter((c) => member(c, key));
+    return { key, label: key, count: members.length, items: page(members, call, 5) };
+  };
+  if (p.has("key")) return json({ by, base: "", total_shelves: 1, shelves: [shelfOf(p.get("key")!)] });
+  const keys = [...new Set(all.map((c) => (by === "folder" ? folderOf(c).split("/")[0] : monthOf(c))))];
+  const shelves = keys.map(shelfOf);
+  if (by === "folder") shelves.sort((a, b) => b.count - a.count || (a.key < b.key ? -1 : 1));
+  else shelves.sort((a, b) => (a.key < b.key ? 1 : -1));
+  const offset = Number(p.get("offset") ?? "0");
+  const limit = Number(p.get("shelf_limit") ?? "12");
+  return json({ by, base: "", total_shelves: shelves.length, shelves: shelves.slice(offset, offset + limit) });
+}
+
 function shelvesAnswer(server: Server, call: Call): Response {
   const p = q(call);
   const all = sort(filter(server, call), call);
+  const by = p.get("by");
+  if (by === "folder" || by === "month") return groupedAnswer(by, all, call);
   if (p.get("by") === "tag") {
     const counts = new Map<string, number>();
     for (const c of all) for (const t of c.tags ?? []) counts.set(t, (counts.get(t) ?? 0) + 1);

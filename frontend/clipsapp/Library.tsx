@@ -1,18 +1,25 @@
 "use client";
 
 import { useCallback } from "react";
-import { ArrowUpDown, Tags } from "lucide-react";
 import { useLocale, useTranslations } from "next-intl";
 
+import { GroupMenu, LibraryControlRow, SortMenu } from "@/components/appshell/ViewMenus";
 import { useNearEnd } from "@/components/appshell/useNearEnd";
-import { MenuRadioGroup, ToolbarMenu } from "@/components/ToolbarMenu";
 
-import { CLIP_GROUPS, CLIP_SORTS, clipsHref, type ClipGroup, type ClipSort, type ClipsView } from "./clipsUrl";
+import {
+  CLIP_GROUPS,
+  CLIP_SORTS,
+  clipsHref,
+  clipsShelfTitle,
+  type ClipGroup,
+  type ClipSort,
+  type ShelfId,
+} from "./clipsUrl";
 import { LoadFailed } from "./ClipShelfBlock";
 import { CoverGrid, CoverShelf } from "./CoverShelf";
 import { loadGridPage, NO_TAG_KEY, PAGE_SIZE, type ReadyNotesTarget } from "./requests";
 import { usePagedClips } from "./usePagedClips";
-import { useTagShelves } from "./useTagShelves";
+import { useGroupShelves } from "./useGroupedShelves";
 import { RetryLink } from "../notesapp/RetryLink";
 
 export interface LibraryProps {
@@ -23,40 +30,30 @@ export interface LibraryProps {
   sort: ClipSort;
   refresh: number;
   now: Date;
-  onNavigate: (view: ClipsView) => void;
+  onGroup: (group: ClipGroup) => void;
+  onSort: (sort: ClipSort) => void;
 }
 
-function Menus({ group, sort, onNavigate }: Pick<LibraryProps, "group" | "sort" | "onNavigate">) {
+function Menus({
+  group,
+  sort,
+  onGroup,
+  onSort,
+}: Pick<LibraryProps, "group" | "sort" | "onGroup" | "onSort">) {
   const t = useTranslations("knowledge.clips");
   return (
-    <div className="flex items-center gap-2 pb-10">
-      <ToolbarMenu label={t("groupMenu")} value={t(`group.${group}`)} icon={Tags} align="start">
-        {(close) => (
-          <MenuRadioGroup
-            heading={t("groupMenu")}
-            options={CLIP_GROUPS.map((value) => ({ value, label: t(`group.${value}`) }))}
-            isSelected={(value) => value === group}
-            onSelect={(value) => {
-              close();
-              if (value !== group) onNavigate({ view: "library", group: value, sort });
-            }}
-          />
-        )}
-      </ToolbarMenu>
-      <ToolbarMenu label={t("sortMenu")} value={t(`sort.${sort}`)} icon={ArrowUpDown} align="start">
-        {(close) => (
-          <MenuRadioGroup
-            heading={t("sortMenu")}
-            options={CLIP_SORTS.map((value) => ({ value, label: t(`sort.${value}`) }))}
-            isSelected={(value) => value === sort}
-            onSelect={(value) => {
-              close();
-              if (value !== sort) onNavigate({ view: "library", group, sort: value });
-            }}
-          />
-        )}
-      </ToolbarMenu>
-    </div>
+    <LibraryControlRow className="pb-10">
+      <GroupMenu
+        value={group}
+        options={CLIP_GROUPS.map((value) => ({ value, label: t(`group.${value}`) }))}
+        onChange={onGroup}
+      />
+      <SortMenu
+        value={sort}
+        options={CLIP_SORTS.map((value) => ({ value, label: t(`sort.${value}`) }))}
+        onChange={onSort}
+      />
+    </LibraryControlRow>
   );
 }
 
@@ -79,10 +76,18 @@ function MoreRow({
   );
 }
 
-function TagShelves({ drive, pathname, target, sort, refresh, now }: LibraryProps) {
+function GroupShelves({
+  drive,
+  pathname,
+  target,
+  group,
+  sort,
+  refresh,
+  now,
+}: Omit<LibraryProps, "group"> & { group: "tag" | "folder" | "month" }) {
   const t = useTranslations("knowledge.clips");
   const locale = useLocale();
-  const data = useTagShelves(drive, target, sort, refresh);
+  const data = useGroupShelves(drive, target, group, sort, refresh);
   const sentinel = useNearEnd(data.hasMore && data.more === "idle", data.loadMore);
 
   if (data.phase === "failed") return <LoadFailed onRetry={data.retry} />;
@@ -103,17 +108,21 @@ function TagShelves({ drive, pathname, target, sort, refresh, now }: LibraryProp
   return (
     <div className="flex flex-col gap-10">
       {data.shelves.map((shelf) => {
-        const untagged = shelf.key === NO_TAG_KEY;
+        const untagged = group === "tag" && shelf.key === NO_TAG_KEY;
+        const shelfId: ShelfId = untagged
+          ? { kind: "untagged" }
+          : group === "tag"
+            ? { kind: "tag", name: shelf.label }
+            : { kind: group, key: shelf.key };
+        const title = untagged
+          ? t("untagged")
+          : (clipsShelfTitle(shelfId, drive, locale) ?? shelf.label);
         return (
           <CoverShelf
             key={shelf.key}
-            title={untagged ? t("untagged") : shelf.label}
+            title={title}
             count={new Intl.NumberFormat(locale).format(shelf.count)}
-            seeAllHref={clipsHref(pathname, {
-              view: "shelf",
-              shelf: untagged ? { kind: "untagged" } : { kind: "tag", name: shelf.label },
-              sort,
-            })}
+            seeAllHref={clipsHref(pathname, { view: "shelf", shelf: shelfId, sort })}
             view={{ status: "loaded", items: shelf.items }}
             onRetry={data.retry}
             now={now}
@@ -162,9 +171,12 @@ function Ungrouped({ drive, target, sort, refresh, now }: LibraryProps) {
 export default function Library(props: LibraryProps) {
   return (
     <div>
-      <Menus group={props.group} sort={props.sort} onNavigate={props.onNavigate} />
-      {props.group === "tags" ? <TagShelves {...props} /> : <Ungrouped {...props} />}
+      <Menus group={props.group} sort={props.sort} onGroup={props.onGroup} onSort={props.onSort} />
+      {props.group === "none" ? (
+        <Ungrouped {...props} />
+      ) : (
+        <GroupShelves {...props} group={props.group === "tags" ? "tag" : props.group} />
+      )}
     </div>
   );
 }
-

@@ -1,7 +1,7 @@
 /** SPEC-ADDON-138 step 2 and SPEC-ADDON-139 step 10: the requests every listing sends. */
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { clipConditions, loadShelfPage, loadTagShelves, loadUnreadAmong, loadClipCount, sortParams } from "../requests";
+import { clipConditions, loadShelfPage, loadGroupShelves, loadUnreadAmong, loadClipCount, sortParams } from "../requests";
 import type { ReadyNotesTarget } from "../requests";
 
 const calls: { url: URL; method: string; body: unknown }[] = [];
@@ -75,22 +75,34 @@ describe("SPEC-ADDON-138 requests", () => {
     expect(calls[0].url.searchParams.get("limit")).toBe("50");
   });
 
-  it("follows the sort only for a tag shelf", async () => {
+  it("follows the sort on every shelf page that sorts, and not on the fixed ones", async () => {
     await loadShelfPage("d", DEFAULT, { kind: "unverified" }, { perShelf: 60, page: 1, sort: "title" });
     await loadShelfPage("d", DEFAULT, { kind: "tag", name: "soup" }, { perShelf: 60, page: 1, sort: "title" });
+    await loadShelfPage("d", DEFAULT, { kind: "folder", key: "web" }, { perShelf: 60, page: 1, sort: "oldest" });
+    await loadShelfPage("d", DEFAULT, { kind: "month", key: "2026-11" }, { perShelf: 60, page: 1, sort: "title" });
 
-    const [plain, tagged] = calls.map((c) => [c.url.searchParams.get("sort"), c.url.searchParams.get("order")]);
+    const [plain, tagged, folder, month] = calls.map((c) => [c.url.searchParams.get("sort"), c.url.searchParams.get("order")]);
     expect(plain).toEqual(["created_at", "desc"]);
     expect(tagged).toEqual(["title", "asc"]);
+    expect(folder).toEqual(["created_at", "asc"]);
+    expect(month).toEqual(["title", "asc"]);
+    expect([calls[2].url.searchParams.get("by"), calls[2].url.searchParams.get("key")]).toEqual(["folder", "web"]);
+    expect([calls[3].url.searchParams.get("by"), calls[3].url.searchParams.get("key")]).toEqual(["month", "2026-11"]);
   });
 
-  it("asks the tag shelves 12 at a time from an offset", async () => {
-    await loadTagShelves("d", DEFAULT, 12, "oldest");
+  it("asks the grouped shelves 12 at a time from an offset", async () => {
+    await loadGroupShelves("d", DEFAULT, "tag", 12, "oldest");
+    await loadGroupShelves("d", DEFAULT, "folder", 24, "newest");
+    await loadGroupShelves("d", DEFAULT, "month", 0, "title");
 
     const p = calls[0].url.searchParams;
     expect(["by", "per_shelf", "shelf_limit", "offset", "sort", "order"].map((k) => p.get(k))).toEqual([
       "tag", "12", "12", "12", "created_at", "asc",
     ]);
+    expect(calls[1].url.searchParams.get("by")).toBe("folder");
+    expect(calls[1].url.searchParams.get("offset")).toBe("24");
+    expect(calls[2].url.searchParams.get("by")).toBe("month");
+    expect(calls[2].url.searchParams.get("sort")).toBe("title");
   });
 
   it("asks the unread dots with the ids and no target conditions", async () => {

@@ -806,25 +806,25 @@ describe("SPEC-ADDON-139 Library", () => {
     expect(card.textContent).not.toMatch(/Sep|ago|:/);
   });
 
-  it("SPEC-ADDON-139 draws two menu buttons, By tag and Newest clipped", async () => {
+  it("SPEC-ADDON-139 draws the two view menus, 分類 and 並び順", async () => {
     render(<ClipsPage />);
     await screen.findByText("Clip a");
 
-    expect(screen.getByRole("button", { name: "Grouping: By tag" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Sort: Newest clipped" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Group By: Tag" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Sort By: Date Added (Newest First)" })).toBeInTheDocument();
   });
 
   it("SPEC-ADDON-139 pushes the choice of a sort and of a grouping into the URL", async () => {
     render(<ClipsPage />);
     await screen.findByText("Clip a");
 
-    fireEvent.click(screen.getByRole("button", { name: "Sort: Newest clipped" }));
-    fireEvent.click(screen.getByRole("menuitemradio", { name: "Oldest clipped" }));
+    fireEvent.click(screen.getByRole("button", { name: "Sort By: Date Added (Newest First)" }));
+    fireEvent.click(screen.getByRole("menuitemradio", { name: "Date Added (Oldest First)" }));
     expect(push).toHaveBeenLastCalledWith(`${PATH}?view=all&group=tags&sort=oldest`);
 
-    fireEvent.click(screen.getByRole("button", { name: "Grouping: By tag" }));
-    fireEvent.click(screen.getByRole("menuitemradio", { name: "No grouping" }));
-    expect(push).toHaveBeenLastCalledWith(`${PATH}?view=all&group=none&sort=newest`);
+    fireEvent.click(screen.getByRole("button", { name: "Group By: Tag" }));
+    fireEvent.click(screen.getByRole("menuitemradio", { name: "None" }));
+    expect(push).toHaveBeenLastCalledWith(`${PATH}?view=all&group=none&sort=oldest`);
   });
 
   it.each([

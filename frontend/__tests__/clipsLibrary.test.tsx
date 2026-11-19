@@ -12,6 +12,7 @@ import {
   NOT_CLIPS,
   captureHistory,
   clips,
+  deferred,
   findText,
   installClipsServer,
   emit,
@@ -73,10 +74,20 @@ vi.mock("@/components/SidebarProvider", async () => {
   const actual = await vi.importActual<Record<string, unknown>>("@/components/SidebarProvider");
   return { ...actual, useOverlaySidebar: (...a: unknown[]) => sidebar.overlay(...a) };
 });
+const member = vi.hoisted(() => ({ evaluation: null as null | (() => Promise<unknown>) }));
+vi.mock("@/lib/memberTarget", async () => {
+  const actual = await vi.importActual<Record<string, unknown>>("@/lib/memberTarget");
+  return {
+    ...actual,
+    evaluateMemberTarget: (...a: unknown[]) =>
+      member.evaluation ? member.evaluation() : (actual.evaluateMemberTarget as (...b: unknown[]) => unknown)(...a),
+  };
+});
 
 const Page = (await import("../pages/clips")).default;
 
 const CLIPS_TARGET_KEY = `litloft.addon.knowledge-clips.target.${DRIVE}`;
+const CLIPS_VIEW_KEY = `litloft.addon.knowledge-clips.view.${DRIVE}`;
 const NOTES_TARGET_KEY = `litloft.addon.knowledge.target.${DRIVE}`;
 const TRIP = smartFolder("sf-trip", "Trip", "tag:trip");
 const WORK = smartFolder("sf-work", "Work", "tag:work");
@@ -92,6 +103,7 @@ beforeEach(() => {
   localStorage.clear();
   nav.set(CLIPS);
   profile.nickname = "alice";
+  member.evaluation = null;
   resetSocket();
   sidebar.overlay.mockClear();
   setViewport(1440);
@@ -115,6 +127,8 @@ const shelf = (name: string) => {
 };
 const seeAll = (name: string) => screen.getByRole("link", { name: new RegExp(`See all.*${name}`) });
 const menuButton = (name: RegExp) => screen.getByRole("button", { name });
+const groupMenu = () => menuButton(/Group By/);
+const sortMenu = () => menuButton(/Sort By/);
 const tagged = (tag: string, n: number, prefix: string) => clips(n, prefix, { tags: [tag] });
 
 async function choose(button: RegExp, item: string) {
@@ -129,8 +143,8 @@ describe("SPEC-ADDON-139 step 10: Library by tag", () => {
     render(<Page />);
 
     expect(await screen.findByRole("heading", { level: 2, name: "Untagged" })).toBeInTheDocument();
-    expect(menuButton(/By tag/)).toBeInTheDocument();
-    expect(menuButton(/Newest clipped/)).toBeInTheDocument();
+    expect(menuButton(/Group By/)).toHaveTextContent("Tag");
+    expect(menuButton(/Sort By/)).toHaveTextContent("Date Added (Newest First)");
     expect(shelfHeadings()).toEqual(["curry", "soup", "Untagged"]);
     expect(within(shelf("curry")).getByText("3")).toBeInTheDocument();
     expect(within(shelf("Untagged")).getByText("2")).toBeInTheDocument();
@@ -188,7 +202,7 @@ describe("SPEC-ADDON-139 step 10: Library by tag", () => {
 
   it.each([
     ["Title", "title", "title", "asc"],
-    ["Oldest clipped", "oldest", "created_at", "asc"],
+    ["Date Added (Oldest First)", "oldest", "created_at", "asc"],
   ])("SPEC-ADDON-139 sorting by %s pushes sort=%s and asks the shelves in that order", async (item, value, sort, order) => {
     nav.set(LIBRARY);
     serve([...tagged("curry", 3, "k"), ...NOT_CLIPS]);
@@ -196,7 +210,7 @@ describe("SPEC-ADDON-139 step 10: Library by tag", () => {
     await screen.findByRole("heading", { level: 2, name: "curry" });
     const asked = server.calls.length;
 
-    await choose(/Newest clipped/, item);
+    await choose(/Sort By/, item);
 
     expect(nav.last()?.kind).toBe("push");
     expect([nav.params.get("view"), nav.params.get("sort")]).toEqual(["all", value]);
@@ -213,7 +227,7 @@ describe("SPEC-ADDON-139 step 10: Library by tag", () => {
     expect(library.searchParams.get("view")).toBe("all");
     expect(library.searchParams.get("group") ?? "tags").toBe("tags");
     expect(library.searchParams.get("sort") ?? "newest").toBe("newest");
-    expect(await screen.findByRole("button", { name: /No grouping/ })).toBeInTheDocument();
+    expect(groupMenu()).toHaveTextContent("None");
   });
 
   it("SPEC-ADDON-139 an unknown group or sort is read as the default and replaced in the URL", async () => {
@@ -222,8 +236,8 @@ describe("SPEC-ADDON-139 step 10: Library by tag", () => {
     render(<Page />);
 
     expect(await screen.findByRole("heading", { level: 2, name: "curry" })).toBeInTheDocument();
-    expect(menuButton(/By tag/)).toBeInTheDocument();
-    expect(menuButton(/Newest clipped/)).toBeInTheDocument();
+    expect(groupMenu()).toHaveTextContent("Tag");
+    expect(sortMenu()).toHaveTextContent("Date Added (Newest First)");
     await waitFor(() => expect(nav.log.some((n) => n.kind === "replace")).toBe(true));
     expect(nav.params.get("view")).toBe("all");
     expect(nav.params.get("group") ?? "tags").toBe("tags");
@@ -238,7 +252,7 @@ describe("SPEC-ADDON-139 step 10: Library with no grouping (SPEC-ADDON-100 I29 a
     render(<Page />);
     await screen.findByRole("heading", { level: 2, name: "Untagged" });
 
-    await choose(/By tag/, "No grouping");
+    await choose(/Group By/, "None");
 
     expect(nav.last()?.kind).toBe("push");
     expect(nav.params.get("group")).toBe("none");
@@ -532,5 +546,61 @@ describe("SPEC-ADDON-139 review r1: Target conditions, Target change, refresh on
     expect(await screen.findByText("Renamed 65")).toBeInTheDocument();
     const secondPages = server.calls.filter((c) => isTagShelves(c) && q(c).get("page") === "2");
     expect(secondPages.length).toBeGreaterThanOrEqual(2);
+  });
+});
+
+describe("SPEC-ADDON-147 I8: nothing is asked before the Target is ready", () => {
+  const listing = (c: { url: URL }) =>
+    ["tag", "folder", "month"].includes(c.url.searchParams.get("by") ?? "") ||
+    (isNewShelf(c as never) && c.url.searchParams.get("per_shelf") === "60");
+
+  it("while the saved Target's list is loading no shelf is asked, then the stored view is the first request", async () => {
+    localStorage.setItem(CLIPS_TARGET_KEY, "sf-trip");
+    localStorage.setItem(CLIPS_VIEW_KEY, JSON.stringify({ "sf-trip": { group: "folder", sort: "title" } }));
+    const lookup = deferred<Response>();
+    nav.set(LIBRARY);
+    serve(clips(3, "c", { tags: ["trip"] }));
+    server.override = (c) => (c.url.pathname.endsWith("/smart-folders") ? lookup.promise : null);
+    render(<Page />);
+
+    await act(() => settle(50));
+    expect(server.calls.filter(listing)).toEqual([]);
+
+    await act(async () =>
+      lookup.resolve(
+        new Response(JSON.stringify([TRIP]), {
+          status: 200,
+          headers: { "content-type": "application/json" },
+        }),
+      ),
+    );
+    expect(await screen.findByRole("heading", { level: 2, name: "web" })).toBeInTheDocument();
+    await waitFor(() => expect(nav.params.get("group")).toBe("folder"));
+    expect(server.calls.filter(listing).length).toBeGreaterThan(0);
+    for (const call of server.calls.filter(listing)) {
+      expect([q(call).get("by"), q(call).get("sort"), q(call).get("order")]).toEqual(["folder", "title", "asc"]);
+    }
+    expect(groupMenu()).toHaveTextContent("Folder");
+  });
+
+  it("while a member Target evaluates no shelf is asked, then its stored view is the first request", async () => {
+    localStorage.setItem(CLIPS_TARGET_KEY, "sf-beach");
+    localStorage.setItem(CLIPS_VIEW_KEY, JSON.stringify({ "sf-beach": { group: "month", sort: "oldest" } }));
+    const lookup = deferred<unknown>();
+    member.evaluation = () => lookup.promise;
+    nav.set(LIBRARY);
+    serve(clips(2), { smartFolders: [smartFolder("sf-beach", "Beach", "beach")] });
+    render(<Page />);
+
+    await act(() => settle(50));
+    expect(server.calls.filter(listing)).toEqual([]);
+
+    await act(async () => lookup.resolve({ status: "ready", fileIds: ["c1", "c2"] }));
+    await waitFor(() => expect(server.calls.filter(listing).length).toBeGreaterThan(0));
+    await waitFor(() => expect(nav.params.get("group")).toBe("month"));
+    for (const call of server.calls.filter(listing)) {
+      expect([q(call).get("by"), q(call).get("sort"), q(call).get("order")]).toEqual(["month", "created_at", "asc"]);
+    }
+    expect(await screen.findByRole("heading", { level: 2, name: "Nov 2026" })).toBeInTheDocument();
   });
 });

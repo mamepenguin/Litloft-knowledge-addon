@@ -151,7 +151,17 @@ vi.mock("@/lib/memberTarget", async () => {
 const Page = (await import("../Page")).default;
 
 const CLASSIFICATION_KEY = `litloft.addon.knowledge.classification.${DRIVE}`;
+const VIEW_KEY = `litloft.addon.knowledge.view.${DRIVE}`;
 const TARGET_KEY = `litloft.addon.knowledge.target.${DRIVE}`;
+
+function setView(target: string, view: Record<string, string>) {
+  localStorage.setItem(VIEW_KEY, JSON.stringify({ [target]: view }));
+}
+
+async function chooseSegment(name: "Folders" | "Tags") {
+  fireEvent.click(screen.getByRole("button", { name: /^Group By: / }));
+  fireEvent.click(await screen.findByRole("menuitemradio", { name }));
+}
 
 async function chooseTarget(name: string) {
   fireEvent.click(screen.getByRole("button", { name: /Target/ }));
@@ -244,8 +254,12 @@ describe("SPEC-ADDON-132 Library step 1: the rail, Folders", () => {
     open();
 
     await waitFor(() => expect(controls("Journal", 2)).toHaveLength(1));
-    expect(control("Folders")).toBeInTheDocument();
-    expect(control("Tags")).toBeInTheDocument();
+    const segment = screen.getByRole("button", { name: /^Group By: / });
+    expect(segment).toHaveTextContent("Folders");
+    fireEvent.click(segment);
+    expect(await screen.findByRole("menuitemradio", { name: "Folders" })).toBeInTheDocument();
+    expect(screen.getByRole("menuitemradio", { name: "Tags" })).toBeInTheDocument();
+    fireEvent.keyDown(segment, { key: "Escape" });
     expect(control("All", 4)).toBeInTheDocument();
     expect(control("Drive root", 1)).toBeInTheDocument();
     expect(control("Work", 1)).toBeInTheDocument();
@@ -314,9 +328,9 @@ describe("SPEC-ADDON-132 Library step 1: the rail, Tags and the segment", () => 
     open(`${BASE}?view=all&folder=Journal&note=n4`);
     await waitFor(() => expect(shown("Body of Delta")).toBe(true));
 
-    fireEvent.click(control("Tags"));
+    await chooseSegment("Tags");
 
-    await waitFor(() => expect(localStorage.getItem(CLASSIFICATION_KEY)).toBe("tag"));
+    await waitFor(() => expect(JSON.parse(localStorage.getItem(VIEW_KEY) ?? "{}").default?.group).toBe("tag"));
     await waitFor(() => expect(nav.params.has("folder")).toBe(false));
     expect(nav.last()?.kind).toBe("push");
     expect(nav.params.has("tag")).toBe(false);
@@ -680,7 +694,11 @@ describe("SPEC-ADDON-132 Library step 7, I4, I18: Done and the gate", () => {
 
   const GATED: Array<[string, () => void, () => boolean]> = [
     ["a tab change", () => fireEvent.click(screen.getByRole("link", { name: "Home" })), () => nav.params.get("view") !== "all"],
-    ["a segment change", () => fireEvent.click(control("Tags")), () => localStorage.getItem(CLASSIFICATION_KEY) === "tag"],
+    ["a segment change", () => {
+      const menu = screen.getByRole("button", { name: /^Group By: / });
+      fireEvent.click(menu);
+      fireEvent.click(screen.getByRole("menuitemradio", { name: "Tags" }));
+    }, () => JSON.parse(localStorage.getItem(VIEW_KEY) ?? "{}").default?.group === "tag"],
     ["a selection change", () => fireEvent.click(control("Work")), () => nav.params.get("folder") === "Work"],
     [
       "a search",
@@ -760,7 +778,7 @@ describe("SPEC-ADDON-132 Library step 1, I3: the rail and the list under a Targe
   it.each(["folder", "tag"])(
     "SPEC-ADDON-132 I3 under a member target the %s rail and the list send the same ids through the query routes",
     async (segment) => {
-      localStorage.setItem(CLASSIFICATION_KEY, segment);
+      setView("sf-beach", { group: segment });
       localStorage.setItem(TARGET_KEY, "sf-beach");
       member.evaluation = async () => ({ status: "ready", fileIds: ["n1", "n3", "n4"] });
       open(`${BASE}?view=all`, NOTES, { smartFolders: [smartFolder("sf-beach", "Beach", "beach")] });
@@ -952,7 +970,7 @@ describe("SPEC-ADDON-132 Library step 2: paging, dates, openings and history", (
   it("SPEC-ADDON-132 the sort control pushes history, drops note and names the current sort", async () => {
     open(`${BASE}?view=all&note=n3`);
     await waitFor(() => expect(shown("Body of Gamma")).toBe(true));
-    expect(screen.getByRole("button", { name: /Sort/ })).toHaveTextContent("Updated");
+    expect(screen.getByRole("button", { name: /Sort/ })).toHaveTextContent("Date Modified");
 
     await chooseSort("Title");
 
@@ -1002,7 +1020,7 @@ describe("SPEC-ADDON-132 Library: Target, rail and frame gaps", () => {
   };
 
   it.each(["folder", "tag"])("SPEC-ADDON-132 I3 a collection Target reaches the %s rail and the list with collection=", async (segment) => {
-    localStorage.setItem(CLASSIFICATION_KEY, segment);
+    setView("collection:c-mine", { group: segment });
     localStorage.setItem(TARGET_KEY, "collection:c-mine");
     const notes = NOTES.map((n) => (n.id === "n1" || n.id === "n3" ? { ...n, collections: ["Mine"] } : n));
     open(`${BASE}?view=all`, notes, { collections: [collection] });
@@ -1183,5 +1201,62 @@ describe("SPEC-ADDON-132 Library: the phone's folder names", () => {
     expect(await screen.findByRole("button", { name: /Folders: Journal \/ 2026/ })).toBeInTheDocument();
     expect(screen.getByPlaceholderText("Search Journal/2026")).toBeInTheDocument();
     expect(within(screen.getByRole("region", { name: "Notes" })).getByRole("button", { name: /Sort/ })).toBeInTheDocument();
+  });
+});
+
+describe("SPEC-ADDON-148 I8: nothing is asked before the Target is ready", () => {
+  const railCalls = () =>
+    server.calls.filter((c) => isCountsGet(c) || isCountsQuery(c) || isShelvesGet(c) || isShelvesQuery(c));
+
+  it("while the saved Target's list is loading the list and rail ask nothing, then ask its stored view first", async () => {
+    localStorage.setItem(TARGET_KEY, "sf-trip");
+    setView("sf-trip", { group: "tag", sort: "title" });
+    const lookup = deferred<Response>();
+    nav.set(`${BASE}?view=all`);
+    server = installNotesServer({ notes: NOTES, smartFolders: [smartFolder("sf-trip", "Trip", "tag:trip")] });
+    server.override = (c) => (c.url.pathname.endsWith("/smart-folders") ? lookup.promise : null);
+    render(<Page />);
+
+    await act(() => settle(50));
+    expect(listCalls()).toEqual([]);
+    expect(railCalls()).toEqual([]);
+
+    await act(async () =>
+      lookup.resolve(
+        new Response(JSON.stringify([smartFolder("sf-trip", "Trip", "tag:trip")]), {
+          status: 200,
+          headers: { "content-type": "application/json" },
+        }),
+      ),
+    );
+    await waitFor(() => expect(listCalls().length).toBeGreaterThan(0));
+    for (const call of listCalls()) expect(call.url.searchParams.get("sort")).toBe("title");
+    await act(() => settle());
+    expect(railCalls().length).toBeGreaterThan(0);
+    expect(railCalls().every((c) => c.url.pathname.includes("/shelves"))).toBe(true);
+  });
+
+  it("while a member Target evaluates nothing is asked, then its stored view is the first request", async () => {
+    localStorage.setItem(TARGET_KEY, "sf-beach");
+    setView("sf-beach", { group: "tag", sort: "title" });
+    const lookup = deferred<unknown>();
+    member.evaluation = () => lookup.promise;
+    nav.set(`${BASE}?view=all`);
+    server = installNotesServer({
+      notes: NOTES,
+      smartFolders: [smartFolder("sf-beach", "Beach", "beach")],
+    });
+    render(<Page />);
+
+    await act(() => settle(50));
+    expect(listCalls()).toEqual([]);
+    expect(railCalls()).toEqual([]);
+
+    await act(async () => lookup.resolve({ status: "ready", fileIds: ["n1", "n2"] }));
+    await waitFor(() => expect(listCalls().length).toBeGreaterThan(0));
+    for (const call of listCalls()) expect(call.url.searchParams.get("sort")).toBe("title");
+    await act(() => settle());
+    expect(railCalls().length).toBeGreaterThan(0);
+    expect(railCalls().every((c) => c.url.pathname.includes("/shelves"))).toBe(true);
   });
 });

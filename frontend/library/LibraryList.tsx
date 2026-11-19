@@ -3,10 +3,10 @@
 import { useEffect, useState, type FormEvent, type MouseEvent } from "react";
 import Link from "next/link";
 import { useLocale, useTranslations } from "next-intl";
-import { ArrowUpDown, Search } from "lucide-react";
+import { Search } from "lucide-react";
 
+import { SortMenu as ViewSortMenu } from "@/components/appshell/ViewMenus";
 import { useNearEnd } from "@/components/appshell/useNearEnd";
-import { MenuRadioGroup, ToolbarMenu } from "@/components/ToolbarMenu";
 import type { FileItem } from "@/types";
 
 import { formatNoteTime } from "../noteDates";
@@ -144,19 +144,12 @@ function Row({
 export function SortMenu({ sort, onSort }: { sort: LibrarySort; onSort: (sort: LibrarySort) => void }) {
   const t = useTranslations("knowledge.notesLibrary");
   return (
-    <ToolbarMenu label={t("sortMenu")} value={t(`sort.${sort}`)} icon={ArrowUpDown} align="end">
-      {(close) => (
-        <MenuRadioGroup
-          heading={t("sortMenu")}
-          options={LIBRARY_SORTS.map((value) => ({ value, label: t(`sort.${value}`) }))}
-          isSelected={(value) => value === sort}
-          onSelect={(value) => {
-            close();
-            onSort(value);
-          }}
-        />
-      )}
-    </ToolbarMenu>
+    <ViewSortMenu
+      value={sort}
+      options={LIBRARY_SORTS.map((value) => ({ value, label: t(`sort.${value}`) }))}
+      onChange={onSort}
+      showLabel={false}
+    />
   );
 }
 

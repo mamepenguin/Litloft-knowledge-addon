@@ -224,7 +224,7 @@ describe("SPEC-ADDON-138 step 4, step 5, I11: tabs and the clip form", () => {
     render(<Page />);
 
     fireEvent.click(await screen.findByRole("link", { name: "Library" }));
-    expect(nav.last()?.kind).toBe("push");
+    expect(nav.log.some((n) => n.kind === "push" && n.url.searchParams.get("view") === "all")).toBe(true);
     expect(nav.params.get("view")).toBe("all");
     expect(await screen.findByRole("link", { name: "Library" })).toHaveAttribute("aria-current", "page");
 
@@ -242,7 +242,7 @@ describe("SPEC-ADDON-138 step 4, step 5, I11: tabs and the clip form", () => {
     fireEvent.change(field, { target: { value: "https://example.com/recipe" } });
 
     fireEvent.click(tab("Library"));
-    await screen.findByRole("button", { name: /By tag/ });
+    await screen.findByRole("button", { name: /Group By/ });
     expect(urlField()?.value).toBe("https://example.com/recipe");
 
     fireEvent.click(tab("Home"));

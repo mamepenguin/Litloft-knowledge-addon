@@ -5,7 +5,7 @@ import { useLocale, useTranslations } from "next-intl";
 
 import { useNearEnd } from "@/components/appshell/useNearEnd";
 
-import { backTarget, clipsHref, type ClipSort, type ShelfId } from "./clipsUrl";
+import { clipsShelfTitle, backTarget, clipsHref, type ClipSort, type ShelfId } from "./clipsUrl";
 import { LoadFailed } from "./ClipShelfBlock";
 import { CoverGrid } from "./CoverShelf";
 import { UnverifiedRows } from "./Home";
@@ -25,8 +25,11 @@ export interface ShelfPageProps {
   onViewerRequired: () => void;
 }
 
-function useShelfTitle(shelf: ShelfId): string {
+function useShelfTitle(shelf: ShelfId, drive: string): string {
   const t = useTranslations("knowledge.clips");
+  const locale = useLocale();
+  const named = clipsShelfTitle(shelf, drive, locale);
+  if (named !== null) return named;
   switch (shelf.kind) {
     case "unread":
       return t("shelf.unread");
@@ -40,6 +43,8 @@ function useShelfTitle(shelf: ShelfId): string {
       return t("untagged");
     case "tag":
       return shelf.name;
+    default:
+      return "";
   }
 }
 
@@ -47,7 +52,7 @@ export default function ShelfPage(props: ShelfPageProps) {
   const { drive, pathname, shelf, sort, now } = props;
   const t = useTranslations("knowledge.clips");
   const locale = useLocale();
-  const title = useShelfTitle(shelf);
+  const title = useShelfTitle(shelf, drive);
   const back = backTarget(shelf, sort);
   const data = useShelfData({
     drive,

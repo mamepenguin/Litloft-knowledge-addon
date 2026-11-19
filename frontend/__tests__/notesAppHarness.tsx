@@ -8,6 +8,7 @@
  * server receives and what the viewer can see.
  */
 import { useSyncExternalStore } from "react";
+import { act } from "@testing-library/react";
 import { vi } from "vitest";
 
 import { installWireFetch, json, type WireCall } from "@/__tests__/helpers/wireFetch";
@@ -61,9 +62,28 @@ export const nav = {
   },
 };
 
+/**
+ * The App Router runs push and replace in a transition, so the new URL lands
+ * after the state updates made beside the call have committed. Off by default:
+ * most tests read the URL right after the call.
+ */
+const routing = { deferred: false };
+
+export function deferNavigation(on: boolean) {
+  routing.deferred = on;
+}
+
+function navigate(kind: "push" | "replace", href: string) {
+  if (!routing.deferred) {
+    nav.go(kind, href);
+    return;
+  }
+  setTimeout(() => act(() => nav.go(kind, href)), 0);
+}
+
 export const router = {
-  push: vi.fn((href: string) => nav.go("push", href)),
-  replace: vi.fn((href: string) => nav.go("replace", href)),
+  push: vi.fn((href: string) => navigate("push", href)),
+  replace: vi.fn((href: string) => navigate("replace", href)),
   back: vi.fn(),
   forward: vi.fn(),
   refresh: vi.fn(),

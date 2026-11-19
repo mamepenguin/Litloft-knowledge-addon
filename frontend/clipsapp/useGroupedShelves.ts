@@ -5,15 +5,15 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import type { Shelf } from "@/lib/api";
 
 import type { ClipSort } from "./clipsUrl";
-import { loadTagShelves, type ReadyNotesTarget } from "./requests";
+import { loadGroupShelves, type ReadyNotesTarget } from "./requests";
 
-export type TagShelvesPhase = "loading" | "ready" | "failed";
+export type GroupShelvesPhase = "loading" | "ready" | "failed";
 
 interface Held {
   scope: string;
   shelves: Shelf[];
   total: number;
-  phase: TagShelvesPhase;
+  phase: GroupShelvesPhase;
   more: "idle" | "loading" | "failed";
 }
 
@@ -22,17 +22,18 @@ function empty(scope: string): Held {
 }
 
 /**
- * By tag: the first 12 shelves, then 12 more from where the drawn ones end as
- * the viewer scrolls. A refresh replaces the first 12 and drops the rest,
- * which are asked for again when the viewer reaches them.
+ * By tag, folder or month: the first 12 shelves, then 12 more from where the
+ * drawn ones end as the viewer scrolls. A refresh replaces the first 12 and
+ * drops the rest, which are asked for again when the viewer reaches them.
  */
-export function useTagShelves(
+export function useGroupShelves(
   drive: string,
   target: ReadyNotesTarget,
+  by: "tag" | "folder" | "month",
   sort: ClipSort,
   refresh: number,
 ) {
-  const scope = [drive, target.key, sort].join("|");
+  const scope = [drive, target.key, by, sort].join("|");
   const [held, setHeld] = useState<Held | null>(null);
   const [attempt, setAttempt] = useState(0);
   const latest = useRef({ target, sort });
@@ -47,7 +48,9 @@ export function useTagShelves(
         ? { ...prev, phase: prev.phase === "ready" ? "ready" : "loading" }
         : empty(scope),
     );
-    loadTagShelves(drive, latest.current.target, 0, latest.current.sort, { signal: controller.signal }).then(
+    loadGroupShelves(drive, latest.current.target, by, 0, latest.current.sort, {
+      signal: controller.signal,
+    }).then(
       (res) => {
         if (controller.signal.aborted) return;
         setHeld({ scope, shelves: res.shelves, total: res.total_shelves, phase: "ready", more: "idle" });
@@ -60,7 +63,7 @@ export function useTagShelves(
       },
     );
     return () => controller.abort();
-  }, [drive, scope, refresh, attempt]);
+  }, [drive, scope, by, refresh, attempt]);
 
   const own = held !== null && held.scope === scope ? held : null;
 
@@ -69,7 +72,7 @@ export function useTagShelves(
     if (own.shelves.length >= own.total) return;
     const offset = own.shelves.length;
     setHeld({ ...own, more: "loading" });
-    loadTagShelves(drive, latest.current.target, offset, latest.current.sort).then(
+    loadGroupShelves(drive, latest.current.target, by, offset, latest.current.sort).then(
       (res) =>
         setHeld((prev) => {
           if (prev === null || prev.scope !== scope) return prev;
@@ -85,12 +88,12 @@ export function useTagShelves(
         }),
       () => setHeld((prev) => (prev !== null && prev.scope === scope ? { ...prev, more: "failed" } : prev)),
     );
-  }, [own, drive, scope]);
+  }, [own, drive, scope, by]);
 
   const retry = useCallback(() => setAttempt((n) => n + 1), []);
 
   return {
-    phase: own?.phase ?? ("loading" as TagShelvesPhase),
+    phase: own?.phase ?? ("loading" as GroupShelvesPhase),
     shelves: own?.shelves ?? [],
     more: own?.more ?? ("idle" as const),
     hasMore: own !== null && own.shelves.length < own.total,

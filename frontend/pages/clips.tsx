@@ -13,6 +13,7 @@ import { PageFrame } from "@/components/PageFrame";
 import { PageTabs } from "@/components/PageTabs";
 import { useProfile } from "@/components/ProfileProvider";
 import { useWebSocket } from "@/hooks/useWebSocket";
+import { readTargetView, writeTargetView, type TargetView } from "@/lib/appPrefs";
 
 import ClipSection from "../ClipSection";
 import { ClipMeta, ClipMetaContext } from "../clipsapp/clipMeta";
@@ -20,11 +21,17 @@ import { CLIPS_APP } from "../clipsapp/clipsApp";
 import {
   backTarget,
   clipsHref,
+  DEFAULT_GROUP,
+  DEFAULT_SORT,
+  hasUnknownView,
+  isClipGroup,
+  isClipSort,
   needsProfile,
-  needsRewrite,
+  needsViewFillIn,
   readClipsView,
-  rewrittenHref,
-  type ClipsView,
+  type ClipGroup,
+  type ClipSort,
+  type ResolvedClipView,
 } from "../clipsapp/clipsUrl";
 import { ClipShelfBlock } from "../clipsapp/ClipShelfBlock";
 import Home from "../clipsapp/Home";
@@ -35,6 +42,12 @@ import { useScopedLoad } from "../library/useScopedLoad";
 import { NOTES_BASE_KINDS, useNotesTarget } from "../notesapp/useNotesTarget";
 import { useNoteClock } from "../useNoteClock";
 
+interface ChosenView {
+  drive: string;
+  targetId: string;
+  view: TargetView;
+}
+
 export default function ClipsPage() {
   const drive = useCurrentDrive() ?? "";
   const router = useRouter();
@@ -44,7 +57,6 @@ export default function ClipsPage() {
   const tNav = useTranslations("knowledge.nav");
   const { nickname } = useProfile();
   const now = useNoteClock();
-  const view = readClipsView(searchParams);
 
   const prefilled = Boolean(searchParams.get("prefill"));
   const [clipOpen, setClipOpen] = useState(prefilled);
@@ -116,15 +128,101 @@ export default function ClipsPage() {
   const driveEmpty = driveCount === 0;
   const targetEmpty = targetHasNone && driveCount !== null && driveCount > 0;
 
-  const navigate = useCallback(
-    (next: ClipsView) => router.push(clipsHref(pathname, next)),
-    [router, pathname],
+  const targetId = notesTarget.selectedId;
+  const storedView = readTargetView(CLIPS_APP, drive, targetId);
+  const [chosen, setChosen] = useState<ChosenView | null>(null);
+  // The URL a Target was chosen on, until the router shows the URL without its view:
+  // the replace lands after the new Target is already in force.
+  const [switchedFrom, setSwitchedFrom] = useState<string | null>(null);
+  useEffect(() => {
+    setChosen(null);
+    setSwitchedFrom(null);
+  }, [drive]);
+
+  const heldView =
+    chosen !== null && chosen.drive === drive && chosen.targetId === targetId
+      ? { ...storedView, ...chosen.view }
+      : storedView;
+  const resolved: ResolvedClipView = {
+    group: isClipGroup(heldView.group) ? heldView.group : DEFAULT_GROUP,
+    sort: isClipSort(heldView.sort) ? heldView.sort : DEFAULT_SORT,
+  };
+
+  // A Target change carries the new Target's resolved view, not the values the
+  // previous Target's URL still holds.
+  const search = searchParams.toString();
+  const switchPending = switchedFrom !== null && switchedFrom === search;
+  const effectiveParams = useMemo(() => {
+    const next = new URLSearchParams(searchParams);
+    if (switchPending) {
+      next.delete("group");
+      next.delete("sort");
+    }
+    return next;
+  }, [searchParams, switchPending]);
+  const view = readClipsView(effectiveParams, resolved);
+
+  const saveView = useCallback(
+    (change: TargetView) => {
+      writeTargetView(CLIPS_APP, drive, targetId, change);
+      setChosen((prev) => ({
+        drive,
+        targetId,
+        view: {
+          ...(prev !== null && prev.drive === drive && prev.targetId === targetId ? prev.view : {}),
+          ...change,
+        },
+      }));
+    },
+    [drive, targetId],
   );
 
-  const unreadable = needsRewrite(searchParams);
+  const chooseGroup = useCallback(
+    (group: ClipGroup) => {
+      saveView({ group });
+      if (view.view === "library" && group !== view.group) {
+        router.push(clipsHref(pathname, { view: "library", group, sort: view.sort }));
+      }
+    },
+    [saveView, view, router, pathname],
+  );
+  const chooseSort = useCallback(
+    (sort: ClipSort) => {
+      saveView({ sort });
+      if (view.view === "library" && sort !== view.sort) {
+        router.push(clipsHref(pathname, { view: "library", group: view.group, sort }));
+      }
+    },
+    [saveView, view, router, pathname],
+  );
+
+  const chooseTarget = useCallback(
+    (id: string) => {
+      if (id === targetId) return;
+      setChosen(null);
+      if (view.view !== "home") {
+        const next = new URLSearchParams(searchParams);
+        next.delete("group");
+        next.delete("sort");
+        if (next.toString() !== search) {
+          setSwitchedFrom(search);
+          router.replace(`${pathname}?${next}`);
+        }
+      }
+      notesTarget.choose(id);
+    },
+    [notesTarget, targetId, view.view, search, searchParams, router, pathname],
+  );
+
+  const switchSettled = switchedFrom !== null && !switchPending;
   useEffect(() => {
-    if (unreadable) router.replace(rewrittenHref(pathname, searchParams));
-  }, [unreadable, router, pathname, searchParams]);
+    if (switchSettled) setSwitchedFrom(null);
+  }, [switchSettled]);
+
+  const unknownView = hasUnknownView(searchParams);
+  useEffect(() => {
+    if (unknownView) router.replace(pathname);
+  }, [unknownView, router, pathname]);
 
   const leaveForHome = view.view === "shelf" && needsProfile(view.shelf) && !withProfile && settled;
   useEffect(() => {
@@ -151,6 +249,16 @@ export default function ClipsPage() {
       ]}
     />
   );
+
+  const bodyDrawn =
+    !driveEmpty && target.status === "ready" && !targetHasNone && view.view !== "home";
+  const fillHref =
+    bodyDrawn && !switchPending && needsViewFillIn(searchParams, view)
+      ? clipsHref(pathname, view)
+      : null;
+  useEffect(() => {
+    if (fillHref !== null) router.replace(fillHref);
+  }, [fillHref, router]);
 
   let body;
   if (driveEmpty) {
@@ -189,7 +297,8 @@ export default function ClipsPage() {
         sort={view.sort}
         refresh={refresh}
         now={now}
-        onNavigate={navigate}
+        onGroup={chooseGroup}
+        onSort={chooseSort}
       />
     ) : null;
   } else if (leaveForHome) {
@@ -248,7 +357,7 @@ export default function ClipsPage() {
               defaultTargetTypes: NOTES_BASE_KINDS,
               defaultTargetOrigin: "webclip",
               isUsable: notesTarget.isUsable,
-              onChoose: notesTarget.choose,
+              onChoose: chooseTarget,
               onRetryFolders: notesTarget.retryFolders,
             }}
           />

@@ -305,7 +305,7 @@
     },
     "notesLibrary": {
       "railLabel": "Classification",
-      "segmentLabel": "Classify by",
+      "segmentLabel": "Group By",
       "folders": "Folders",
       "tags": "Tags",
       "all": "All",
@@ -316,11 +316,10 @@
       "searchFolder": "Search {folder}",
       "searchTag": "Search {tag}",
       "searchNotes": "Search notes",
-      "sortMenu": "Sort",
       "sort": {
-        "updated": "Updated",
+        "updated": "Date Modified",
         "title": "Title",
-        "created": "Created"
+        "created": "Date Created"
       },
       "noNotesHere": "No notes here",
       "loadFailed": "Couldn't load the notes",
@@ -412,15 +411,15 @@
       "seeAllIn": "See all: {name}",
       "markVerified": "Mark as verified",
       "saveFailed": "Couldn't save",
-      "groupMenu": "Grouping",
-      "sortMenu": "Sort",
       "group": {
-        "tags": "By tag",
-        "none": "No grouping"
+        "tags": "Tag",
+        "folder": "Folder",
+        "month": "Date Added",
+        "none": "None"
       },
       "sort": {
-        "newest": "Newest clipped",
-        "oldest": "Oldest clipped",
+        "newest": "Date Added (Newest First)",
+        "oldest": "Date Added (Oldest First)",
         "title": "Title"
       },
       "untagged": "Untagged",
