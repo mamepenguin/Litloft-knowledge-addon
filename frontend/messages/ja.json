@@ -407,8 +407,8 @@
         "unverified": "未確認",
         "newClips": "新しいクリップ"
       },
-      "seeAll": "すべて表示",
-      "seeAllIn": "すべて表示: {name}",
+      "seeAll": "すべて見る",
+      "seeAllIn": "すべて見る: {name}",
       "markVerified": "確認済みにする",
       "saveFailed": "保存できませんでした",
       "group": {
