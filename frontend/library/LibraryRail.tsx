@@ -41,7 +41,7 @@ function selectionOf(segment: Segment, item: RailItem): Selection {
 function SegmentMenu({ segment, onSegment }: { segment: Segment; onSegment: (s: Segment) => void }) {
   const t = useTranslations("knowledge.notesLibrary");
   return (
-    <div className="mb-3">
+    <div className="mb-3 max-w-full self-start">
       <GroupMenu
         value={segment}
         options={[
