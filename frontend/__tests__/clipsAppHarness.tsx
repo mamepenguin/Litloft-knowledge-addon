@@ -17,6 +17,7 @@ export {
   BASE,
   DRIVE,
   captureHistory,
+  deferNavigation,
   findText,
   intlModule,
   nav,

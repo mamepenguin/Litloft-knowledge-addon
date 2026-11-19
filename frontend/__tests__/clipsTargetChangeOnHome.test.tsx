@@ -6,6 +6,7 @@ import {
   CLIPS,
   DRIVE,
   captureHistory,
+  deferNavigation,
   deferred,
   installClipsServer,
   nav,
@@ -88,6 +89,7 @@ beforeEach(() => {
 });
 
 afterEach(() => {
+  deferNavigation(false);
   cleanup();
   vi.restoreAllMocks();
   vi.unstubAllGlobals();
@@ -154,5 +156,26 @@ describe("a Target chosen on Clips Home", () => {
 
     await act(() => settle());
     expect([nav.params.get("group"), nav.params.get("sort")]).toEqual(["month", "newest"]);
+  });
+});
+
+describe("a Target chosen on the Clips Library", () => {
+
+  it("fills in the view when a Target is chosen while the saved one is still being evaluated", async () => {
+    localStorage.setItem("litloft.addon.knowledge-clips.target.d", "sf-beach");
+    nav.set(LIBRARY);
+    installClipsServer({
+      files: SPREAD,
+      smartFolders: [smartFolder("sf-beach", "Beach", "beach"), smartFolder("sf-work", "Work", "tag:work")],
+    });
+    const held = deferred<unknown>();
+    member.evaluation = () => held.promise;
+    render(<Page />);
+    await act(() => settle());
+
+    await chooseTarget("Work");
+    await act(() => settle());
+
+    expect([nav.params.get("group"), nav.params.get("sort")]).toEqual(["tags", "newest"]);
   });
 });

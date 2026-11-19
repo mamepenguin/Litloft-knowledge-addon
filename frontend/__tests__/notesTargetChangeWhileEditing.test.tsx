@@ -7,6 +7,7 @@ import { navigationGuard } from "@/lib/navigationGuard";
 import {
   BASE,
   captureHistory,
+  deferNavigation,
   installNotesServer,
   nav,
   setViewport,
@@ -112,6 +113,7 @@ beforeEach(() => {
 });
 
 afterEach(() => {
+  deferNavigation(false);
   cleanup();
   navigationGuard.reset();
   vi.restoreAllMocks();
@@ -152,5 +154,25 @@ describe("a Target change while a note is being edited", () => {
     await chooseTarget("Beach");
 
     await waitFor(() => expect(nav.params.get("sort")).toBe("created"));
+  });
+});
+
+describe("a Target change when the router lands the new URL after the change", () => {
+
+  it("ends on the default Target's sort when switching to it with a note in the URL", async () => {
+    localStorage.setItem("litloft.addon.knowledge.target.d", "sf-trip");
+    localStorage.setItem(VIEW_KEY, JSON.stringify({ default: { sort: "title" } }));
+    nav.set(`${BASE}?view=all&note=n1&sort=created`);
+    installNotesServer({ notes: NOTES, smartFolders: [smartFolder("sf-trip", "Trip", "tag:trip")] });
+    render(<Page />);
+    await waitFor(() => expect(screen.queryByText("Body of Alpha")).not.toBeNull());
+
+    deferNavigation(true);
+    await chooseTarget("All notes");
+
+    await new Promise((r) => setTimeout(r, 100));
+    expect(nav.log.filter((n) => n.url.searchParams.get("sort") === "created")).toEqual([]);
+    expect(nav.params.get("sort")).toBe("title");
+    expect(nav.params.has("note")).toBe(false);
   });
 });

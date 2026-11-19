@@ -204,8 +204,10 @@ export default function ClipsPage() {
         const next = new URLSearchParams(searchParams);
         next.delete("group");
         next.delete("sort");
-        setSwitchedFrom(search);
-        router.replace(`${pathname}?${next}`);
+        if (next.toString() !== search) {
+          setSwitchedFrom(search);
+          router.replace(`${pathname}?${next}`);
+        }
       }
       notesTarget.choose(id);
     },

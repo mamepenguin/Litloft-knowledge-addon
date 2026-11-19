@@ -50,21 +50,22 @@ export default function NotesPage() {
   // Kept here, not in the Library: the Library is unmounted while a Target is
   // being looked up and would not see the change.
   const lastTargetKey = useRef<string | null>(null);
-  const latest = useRef({ pathname, searchParams });
+  const latest = useRef({ pathname, searchParams, switchPending });
   useEffect(() => {
-    latest.current = { pathname, searchParams };
+    latest.current = { pathname, searchParams, switchPending };
   });
   useEffect(() => {
     if (targetId === null) return;
     const previous = lastTargetKey.current;
     lastTargetKey.current = targetId;
-    const { pathname: path, searchParams: current } = latest.current;
+    const { pathname: path, searchParams: current, switchPending: chosen } = latest.current;
     const inLibrary = current.get("view") === "all";
     const sortOf = (id: string): LibrarySort => {
       const stored = readTargetView(NOTES_APP, drive, id).sort;
       return isLibrarySort(stored) ? stored : "updated";
     };
-    if (previous !== null && previous !== targetId && inLibrary && current.has("note")) {
+    // A Target choice has already replaced the URL without its note.
+    if (previous !== null && previous !== targetId && inLibrary && current.has("note") && !chosen) {
       const raw = current.get("sort");
       router.replace(
         libraryHref(path, new URLSearchParams(current), { note: null }, isLibrarySort(raw) ? raw : sortOf(targetId)),
@@ -169,8 +170,10 @@ export default function NotesPage() {
                   const next = new URLSearchParams(current);
                   next.delete("sort");
                   next.delete("note");
-                  setSwitchedFrom(current.toString());
-                  router.replace(`${path}?${next}`);
+                  if (next.toString() !== current.toString()) {
+                    setSwitchedFrom(current.toString());
+                    router.replace(`${path}?${next}`);
+                  }
                 }
                 notesTarget.choose(id);
               });
