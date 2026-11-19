@@ -466,7 +466,7 @@ describe("SPEC-ADDON-147 the view in force and the URL", () => {
     const before = nav.log.length;
     await chooseTarget("Work");
     await waitFor(() => expect([nav.params.get("group"), nav.params.get("sort")]).toEqual(["tags", "newest"]));
-    expect(nav.log.slice(before).map((n) => n.kind)).toEqual(["replace"]);
+    expect(nav.log.slice(before).map((n) => n.kind)).toEqual(["replace", "replace"]);
     await choose(groupButton, "None");
     await waitFor(() => expect(nav.params.get("group")).toBe("none"));
 

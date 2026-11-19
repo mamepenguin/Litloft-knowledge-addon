@@ -131,12 +131,12 @@ export default function ClipsPage() {
   const targetId = notesTarget.selectedId;
   const storedView = readTargetView(CLIPS_APP, drive, targetId);
   const [chosen, setChosen] = useState<ChosenView | null>(null);
-  // The Target chosen from a Library or shelf URL, and that URL: the new Target's view
-  // replaces the URL's group and sort only while the viewer is still on it.
-  const [switchTo, setSwitchTo] = useState<{ id: string; search: string } | null>(null);
+  // The URL a Target was chosen on, until the router shows the URL without its view:
+  // the replace lands after the new Target is already in force.
+  const [switchedFrom, setSwitchedFrom] = useState<string | null>(null);
   useEffect(() => {
     setChosen(null);
-    setSwitchTo(null);
+    setSwitchedFrom(null);
   }, [drive]);
 
   const heldView =
@@ -151,7 +151,7 @@ export default function ClipsPage() {
   // A Target change carries the new Target's resolved view, not the values the
   // previous Target's URL still holds.
   const search = searchParams.toString();
-  const switchPending = switchTo !== null && switchTo.search === search;
+  const switchPending = switchedFrom !== null && switchedFrom === search;
   const effectiveParams = useMemo(() => {
     const next = new URLSearchParams(searchParams);
     if (switchPending) {
@@ -200,25 +200,22 @@ export default function ClipsPage() {
     (id: string) => {
       if (id === targetId) return;
       setChosen(null);
-      if (view.view !== "home") setSwitchTo({ id, search });
+      if (view.view !== "home") {
+        const next = new URLSearchParams(searchParams);
+        next.delete("group");
+        next.delete("sort");
+        setSwitchedFrom(search);
+        router.replace(`${pathname}?${next}`);
+      }
       notesTarget.choose(id);
     },
-    [notesTarget, targetId, view.view, search],
+    [notesTarget, targetId, view.view, search, searchParams, router, pathname],
   );
 
-  const switchHref =
-    switchPending && target.status === "ready" && targetId === switchTo.id ? clipsHref(pathname, view) : null;
-  const switchSettled =
-    switchTo !== null && (!switchPending || (target.status === "ready" && targetId !== switchTo.id));
+  const switchSettled = switchedFrom !== null && !switchPending;
   useEffect(() => {
-    if (switchSettled) {
-      setSwitchTo(null);
-      return;
-    }
-    if (switchHref === null) return;
-    router.replace(switchHref);
-    setSwitchTo(null);
-  }, [switchHref, switchSettled, router]);
+    if (switchSettled) setSwitchedFrom(null);
+  }, [switchSettled]);
 
   const unknownView = hasUnknownView(searchParams);
   useEffect(() => {

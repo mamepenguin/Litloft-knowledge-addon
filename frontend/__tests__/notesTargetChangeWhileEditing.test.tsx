@@ -84,6 +84,16 @@ vi.mock("@/components/FileDetail/hooks/usePlainTextDocument", () => ({
   usePlainTextDocument: () => ({ decided: true, plainTextDocument: false }),
 }));
 
+const member = vi.hoisted(() => ({ evaluation: null as null | (() => Promise<unknown>) }));
+vi.mock("@/lib/memberTarget", async () => {
+  const actual = await vi.importActual<Record<string, unknown>>("@/lib/memberTarget");
+  return {
+    ...actual,
+    evaluateMemberTarget: (...a: unknown[]) =>
+      member.evaluation ? member.evaluation() : (actual.evaluateMemberTarget as (...b: unknown[]) => unknown)(...a),
+  };
+});
+
 const Page = (await import("../Page")).default;
 
 const VIEW_KEY = "litloft.addon.knowledge.view.d";
@@ -98,6 +108,7 @@ beforeEach(() => {
   navigationGuard.reset();
   setViewport(1440);
   captureHistory();
+  member.evaluation = null;
 });
 
 afterEach(() => {
@@ -128,5 +139,18 @@ describe("a Target change while a note is being edited", () => {
     await waitFor(() => expect(nav.params.get("sort")).toBe("title"));
     expect(nav.params.get("folder")).toBe("Journal");
     expect(nav.params.has("note")).toBe(false);
+  });
+
+  it("shows the default Target's sort when a chosen member Target falls back to it", async () => {
+    localStorage.setItem(VIEW_KEY, JSON.stringify({ default: { sort: "created" } }));
+    nav.set(`${BASE}?view=all&sort=title`);
+    installNotesServer({ notes: NOTES, smartFolders: [smartFolder("sf-beach", "Beach", "beach")] });
+    render(<Page />);
+    await waitFor(() => expect(screen.queryByText("Alpha")).not.toBeNull());
+
+    member.evaluation = async () => ({ status: "tooLarge" });
+    await chooseTarget("Beach");
+
+    await waitFor(() => expect(nav.params.get("sort")).toBe("created"));
   });
 });

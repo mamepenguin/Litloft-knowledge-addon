@@ -137,4 +137,22 @@ describe("a Target chosen on Clips Home", () => {
     await act(() => settle());
     expect([nav.params.get("group"), nav.params.get("sort")]).toEqual(["folder", "title"]);
   });
+
+  it("shows the default Target's view when a member Target chosen on the Library falls back to it", async () => {
+    localStorage.setItem(VIEW_KEY, JSON.stringify({ default: { group: "month" }, "sf-work": { group: "folder", sort: "title" } }));
+    localStorage.setItem("litloft.addon.knowledge-clips.target.d", "sf-work");
+    nav.set(`${LIBRARY}&group=folder&sort=title`);
+    installClipsServer({
+      files: SPREAD,
+      smartFolders: [smartFolder("sf-work", "Work", "tag:work"), smartFolder("sf-beach", "Beach", "beach")],
+    });
+    render(<Page />);
+    await screen.findByRole("heading", { level: 2, name: "news" });
+
+    member.evaluation = async () => ({ status: "tooLarge" });
+    await chooseTarget("Beach");
+
+    await act(() => settle());
+    expect([nav.params.get("group"), nav.params.get("sort")]).toEqual(["month", "newest"]);
+  });
 });

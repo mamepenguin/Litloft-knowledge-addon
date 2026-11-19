@@ -38,7 +38,14 @@ export default function NotesPage() {
   const notesTarget = useNotesTarget(drive);
   const { target } = notesTarget;
   const targetId = target.status === "ready" ? notesTarget.selectedId : null;
-  const [switchingFor, setSwitchingFor] = useState<string | null>(null);
+  // The URL a Target was chosen on, until the router shows the URL without its sort:
+  // the replace lands after the new Target is already in force.
+  const [switchedFrom, setSwitchedFrom] = useState<string | null>(null);
+  const search = searchParams.toString();
+  const switchPending = switchedFrom !== null && switchedFrom === search;
+  useEffect(() => {
+    if (switchedFrom !== null && !switchPending) setSwitchedFrom(null);
+  }, [switchedFrom, switchPending]);
 
   // Kept here, not in the Library: the Library is unmounted while a Target is
   // being looked up and would not see the change.
@@ -57,21 +64,13 @@ export default function NotesPage() {
       const stored = readTargetView(NOTES_APP, drive, id).sort;
       return isLibrarySort(stored) ? stored : "updated";
     };
-    if (switchingFor !== null && switchingFor === targetId) {
-      setSwitchingFor(null);
-      if (inLibrary) {
-        router.replace(libraryHref(path, new URLSearchParams(current), { note: null }, sortOf(targetId)));
-      }
-      return;
-    }
-    if (switchingFor !== null && switchingFor !== targetId) setSwitchingFor(null);
     if (previous !== null && previous !== targetId && inLibrary && current.has("note")) {
       const raw = current.get("sort");
       router.replace(
         libraryHref(path, new URLSearchParams(current), { note: null }, isLibrarySort(raw) ? raw : sortOf(targetId)),
       );
     }
-  }, [targetId, switchingFor, router, drive]);
+  }, [targetId, router, drive]);
 
   // The scope line shows nothing but the drive until this has answered, so a
   // count that is loading or failed is never read as `0`.
@@ -125,7 +124,7 @@ export default function NotesPage() {
         target={target}
         total={count}
         targetId={notesTarget.selectedId}
-        ignoreUrlSort={switchingFor !== null && switchingFor === targetId}
+        ignoreUrlSort={switchPending}
       />
     ) : (
       <Home drive={drive} target={target} />
@@ -165,7 +164,14 @@ export default function NotesPage() {
             onChoose: (id) => {
               if (id === notesTarget.selectedId) return;
               runGated(() => {
-                setSwitchingFor(id);
+                const { pathname: path, searchParams: current } = latest.current;
+                if (current.get("view") === "all") {
+                  const next = new URLSearchParams(current);
+                  next.delete("sort");
+                  next.delete("note");
+                  setSwitchedFrom(current.toString());
+                  router.replace(`${path}?${next}`);
+                }
                 notesTarget.choose(id);
               });
             },
