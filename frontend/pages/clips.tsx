@@ -206,17 +206,17 @@ export default function ClipsPage() {
     switchTo !== null && target.status === "ready" && targetId === switchTo && view.view !== "home"
       ? clipsHref(pathname, view)
       : null;
-  const switchedAway =
-    switchTo !== null && target.status === "ready" && targetId !== switchTo;
+  const switchSettled =
+    switchTo !== null && target.status === "ready" && (targetId !== switchTo || view.view === "home");
   useEffect(() => {
-    if (switchedAway) {
+    if (switchSettled) {
       setSwitchTo(null);
       return;
     }
     if (switchHref === null) return;
     router.replace(switchHref);
     setSwitchTo(null);
-  }, [switchHref, switchedAway, router]);
+  }, [switchHref, switchSettled, router]);
 
   const unknownView = hasUnknownView(searchParams);
   useEffect(() => {

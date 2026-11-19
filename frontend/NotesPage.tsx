@@ -164,8 +164,10 @@ export default function NotesPage() {
             isUsable: notesTarget.isUsable,
             onChoose: (id) => {
               if (id === notesTarget.selectedId) return;
-              setSwitchingFor(id);
-              runGated(() => notesTarget.choose(id));
+              runGated(() => {
+                setSwitchingFor(id);
+                notesTarget.choose(id);
+              });
             },
             onRetryFolders: notesTarget.retryFolders,
           }}
