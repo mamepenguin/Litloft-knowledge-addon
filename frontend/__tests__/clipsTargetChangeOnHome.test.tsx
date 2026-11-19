@@ -6,6 +6,7 @@ import {
   CLIPS,
   DRIVE,
   captureHistory,
+  deferred,
   installClipsServer,
   nav,
   profile,
@@ -53,6 +54,16 @@ vi.mock("@/components/SidebarProvider", async () => {
   return { ...actual, useOverlaySidebar: () => undefined };
 });
 
+const member = vi.hoisted(() => ({ evaluation: null as null | (() => Promise<unknown>) }));
+vi.mock("@/lib/memberTarget", async () => {
+  const actual = await vi.importActual<Record<string, unknown>>("@/lib/memberTarget");
+  return {
+    ...actual,
+    evaluateMemberTarget: (...a: unknown[]) =>
+      member.evaluation ? member.evaluation() : (actual.evaluateMemberTarget as (...b: unknown[]) => unknown)(...a),
+  };
+});
+
 const Page = (await import("../pages/clips")).default;
 
 const VIEW_KEY = `litloft.addon.knowledge-clips.view.${DRIVE}`;
@@ -73,6 +84,7 @@ beforeEach(() => {
   resetSocket();
   setViewport(1440);
   captureHistory();
+  member.evaluation = null;
 });
 
 afterEach(() => {
@@ -100,6 +112,27 @@ describe("a Target chosen on Clips Home", () => {
     await act(() => settle());
 
     nav.set(`${LIBRARY}&group=folder&sort=title`);
+
+    await act(() => settle());
+    expect([nav.params.get("group"), nav.params.get("sort")]).toEqual(["folder", "title"]);
+  });
+
+  it("leaves a Library URL reached while the chosen member Target is still evaluating with its own group and sort", async () => {
+    localStorage.setItem(VIEW_KEY, JSON.stringify({ "sf-beach": { group: "none" } }));
+    nav.set(`${LIBRARY}&group=folder&sort=title`);
+    installClipsServer({ files: SPREAD, smartFolders: [smartFolder("sf-beach", "Beach", "beach")] });
+    render(<Page />);
+    await screen.findByRole("heading", { level: 2, name: "web" });
+
+    fireEvent.click(screen.getByRole("link", { name: "Home" }));
+    await screen.findByRole("heading", { level: 2, name: "Unread" });
+    const held = deferred<unknown>();
+    member.evaluation = () => held.promise;
+    await chooseTarget("Beach");
+
+    nav.set(`${LIBRARY}&group=folder&sort=title`);
+    await act(() => settle());
+    held.resolve({ status: "ready", fileIds: ["w1", "w2", "n1", "n2", "r1"] });
 
     await act(() => settle());
     expect([nav.params.get("group"), nav.params.get("sort")]).toEqual(["folder", "title"]);

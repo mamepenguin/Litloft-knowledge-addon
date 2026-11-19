@@ -131,7 +131,9 @@ export default function ClipsPage() {
   const targetId = notesTarget.selectedId;
   const storedView = readTargetView(CLIPS_APP, drive, targetId);
   const [chosen, setChosen] = useState<ChosenView | null>(null);
-  const [switchTo, setSwitchTo] = useState<string | null>(null);
+  // The Target chosen from a Library or shelf URL, and that URL: the new Target's view
+  // replaces the URL's group and sort only while the viewer is still on it.
+  const [switchTo, setSwitchTo] = useState<{ id: string; search: string } | null>(null);
   useEffect(() => {
     setChosen(null);
     setSwitchTo(null);
@@ -148,14 +150,16 @@ export default function ClipsPage() {
 
   // A Target change carries the new Target's resolved view, not the values the
   // previous Target's URL still holds.
+  const search = searchParams.toString();
+  const switchPending = switchTo !== null && switchTo.search === search;
   const effectiveParams = useMemo(() => {
     const next = new URLSearchParams(searchParams);
-    if (switchTo !== null) {
+    if (switchPending) {
       next.delete("group");
       next.delete("sort");
     }
     return next;
-  }, [searchParams, switchTo]);
+  }, [searchParams, switchPending]);
   const view = readClipsView(effectiveParams, resolved);
 
   const saveView = useCallback(
@@ -196,18 +200,16 @@ export default function ClipsPage() {
     (id: string) => {
       if (id === targetId) return;
       setChosen(null);
-      setSwitchTo(id);
+      if (view.view !== "home") setSwitchTo({ id, search });
       notesTarget.choose(id);
     },
-    [notesTarget, targetId],
+    [notesTarget, targetId, view.view, search],
   );
 
   const switchHref =
-    switchTo !== null && target.status === "ready" && targetId === switchTo && view.view !== "home"
-      ? clipsHref(pathname, view)
-      : null;
+    switchPending && target.status === "ready" && targetId === switchTo.id ? clipsHref(pathname, view) : null;
   const switchSettled =
-    switchTo !== null && target.status === "ready" && (targetId !== switchTo || view.view === "home");
+    switchTo !== null && (!switchPending || (target.status === "ready" && targetId !== switchTo.id));
   useEffect(() => {
     if (switchSettled) {
       setSwitchTo(null);
@@ -252,7 +254,7 @@ export default function ClipsPage() {
   const bodyDrawn =
     !driveEmpty && target.status === "ready" && !targetHasNone && view.view !== "home";
   const fillHref =
-    bodyDrawn && switchTo === null && needsViewFillIn(searchParams, view)
+    bodyDrawn && !switchPending && needsViewFillIn(searchParams, view)
       ? clipsHref(pathname, view)
       : null;
   useEffect(() => {
