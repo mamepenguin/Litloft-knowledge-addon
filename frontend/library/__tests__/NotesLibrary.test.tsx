@@ -270,7 +270,7 @@ describe("SPEC-ADDON-132 Library step 1: the rail", () => {
     ]);
     expect(maxInFlight).toBe(1);
     expect(within(rail).queryByText("no_tag")).toBeNull();
-    expect(within(rail).getAllByRole("button")).toHaveLength(2 + 1 + 29);
+    expect(within(rail).getAllByRole("button")).toHaveLength(1 + 1 + 29);
   });
 
   it("a later tag page failing keeps the tags drawn and offers a retry", async () => {
@@ -396,7 +396,7 @@ describe("SPEC-ADDON-132 Library step 2: the list", () => {
 
   it("a URL naming both a folder and a tag is repaired to the tag", async () => {
     await mount({ query: "view=all&folder=Notes&tag=ai" });
-    await waitFor(() => expect(replace).toHaveBeenCalledWith(`${PATH}?view=all&tag=ai`));
+    await waitFor(() => expect(replace).toHaveBeenCalledWith(`${PATH}?view=all&tag=ai&sort=updated`));
   });
 });
 
@@ -428,7 +428,7 @@ describe("SPEC-ADDON-132 Library step 3: choosing a note", () => {
   it("total 0 replaces note with the first row", async () => {
     getDriveFilesWithFileIds.mockResolvedValue(page([]));
     await mount({ query: "view=all&note=z" });
-    await waitFor(() => expect(replace).toHaveBeenCalledWith(`${PATH}?view=all&note=a`));
+    await waitFor(() => expect(replace).toHaveBeenCalledWith(`${PATH}?view=all&note=a&sort=updated`));
     await waitFor(() => expect(screen.getByTestId("md").textContent).toBe("body of a"));
   });
 
@@ -436,7 +436,7 @@ describe("SPEC-ADDON-132 Library step 3: choosing a note", () => {
     getDriveFiles.mockResolvedValue(page([]));
     getDriveFilesWithFileIds.mockResolvedValue(page([]));
     await mount({ query: "view=all&note=z" });
-    await waitFor(() => expect(replace).toHaveBeenCalledWith(`${PATH}?view=all`));
+    await waitFor(() => expect(replace).toHaveBeenCalledWith(`${PATH}?view=all&sort=updated`));
     expect(screen.queryByRole("article")).toBeNull();
   });
 
@@ -444,7 +444,7 @@ describe("SPEC-ADDON-132 Library step 3: choosing a note", () => {
     getDriveFilesWithFileIds.mockRejectedValueOnce(new Error("x"));
     await mount({ query: "view=all&note=z" });
     expect(await screen.findByText("notesLibrary.loadFailedNote")).toBeInTheDocument();
-    expect(replace).not.toHaveBeenCalled();
+    expect(replace.mock.calls.every(([href]) => String(href).includes("note=z"))).toBe(true);
     getDriveFilesWithFileIds.mockResolvedValue(page([note("z")]));
     fireEvent.click(screen.getByRole("button", { name: "notesLibrary.retry" }));
     await waitFor(() => expect(screen.getByTestId("md").textContent).toBe("body of z"));
@@ -454,7 +454,7 @@ describe("SPEC-ADDON-132 Library step 3: choosing a note", () => {
     await mount();
     await screen.findByTestId("md");
     fireEvent.click(screen.getByText("Note b"));
-    await waitFor(() => expect(replace).toHaveBeenCalledWith(`${PATH}?view=all&note=b`));
+    await waitFor(() => expect(replace).toHaveBeenCalledWith(`${PATH}?view=all&sort=updated&note=b`));
   });
 });
 
@@ -603,6 +603,7 @@ describe("SPEC-ADDON-132 Library step 9 and I6: widths", () => {
     await mount({ width: 800, query: "view=all&note=zzz" });
     const row = (await screen.findByText("Note b")).closest("a")!;
     expect(row.getAttribute("href")).toBe("/drive/d/Notes?file=b");
+    replace.mockClear();
     let preventedByRow = true;
     document.addEventListener(
       "click",
@@ -721,12 +722,13 @@ describe("SPEC-ADDON-132 Library step 7 and I4: Done and the gate", () => {
     editor.flush = vi.fn((): Promise<FlushResult> => new Promise((resolve) => (finish = resolve)));
     await mount();
     await startEditing();
+    replace.mockClear();
     fireEvent.click(screen.getByText("Note b"));
     await waitFor(() => expect(editor.flush).toHaveBeenCalledTimes(1));
     expect(replace).not.toHaveBeenCalled();
     expect(screen.getByText("notesLibrary.saving")).toBeInTheDocument();
     await act(async () => finish("saved"));
-    expect(replace).toHaveBeenCalledWith(`${PATH}?view=all&note=b`);
+    expect(replace).toHaveBeenCalledWith(`${PATH}?view=all&sort=updated&note=b`);
     expect(navigationGuard.getPending()).toBeNull();
   });
 
@@ -734,6 +736,7 @@ describe("SPEC-ADDON-132 Library step 7 and I4: Done and the gate", () => {
     editor.flush = vi.fn((): Promise<FlushResult> => new Promise(() => {}));
     await mount();
     await startEditing();
+    replace.mockClear();
     fireEvent.click(screen.getByText("Note b"));
     await waitFor(() => expect(editor.flush).toHaveBeenCalledTimes(1));
     fireEvent.click(screen.getByText("Note c"));
@@ -746,11 +749,12 @@ describe("SPEC-ADDON-132 Library step 7 and I4: Done and the gate", () => {
     editor.flush = vi.fn(async () => "failed" as const);
     await mount();
     await startEditing();
+    replace.mockClear();
     fireEvent.click(screen.getByText("Note b"));
     await waitFor(() => expect(navigationGuard.getPending()).not.toBeNull());
     expect(replace).not.toHaveBeenCalled();
     act(() => navigationGuard.confirm());
-    expect(replace).toHaveBeenCalledWith(`${PATH}?view=all&note=b`);
+    expect(replace).toHaveBeenCalledWith(`${PATH}?view=all&sort=updated&note=b`);
     await waitFor(() => expect(screen.queryByTestId("editor")).toBeNull());
   });
 
@@ -758,6 +762,7 @@ describe("SPEC-ADDON-132 Library step 7 and I4: Done and the gate", () => {
     editor.flush = vi.fn(async () => "conflict" as const);
     await mount();
     await startEditing();
+    replace.mockClear();
     fireEvent.click(screen.getByText("Note b"));
     await waitFor(() => expect(navigationGuard.getPending()).not.toBeNull());
     act(() => navigationGuard.cancel());
@@ -773,11 +778,15 @@ describe("SPEC-ADDON-132 Library step 7 and I4: Done and the gate", () => {
     const proceeded: string[] = [];
     editor.flush = vi.fn(async () => "saved" as const);
 
-    fireEvent.click(screen.getByRole("button", { name: "notesLibrary.tags" }));
+    fireEvent.click(screen.getByRole("button", { name: /appView\.groupBy/ }));
+    fireEvent.click(screen.getByRole("menuitemradio", { name: "notesLibrary.tags" }));
     await waitFor(() => expect(push).toHaveBeenCalledTimes(1));
     expect(editor.flush).toHaveBeenCalledTimes(1);
-    expect(push).toHaveBeenLastCalledWith(`${PATH}?view=all`);
-    expect(window.localStorage.getItem("litloft.addon.knowledge.classification.d")).toBe("tag");
+    expect(push).toHaveBeenLastCalledWith(`${PATH}?view=all&sort=updated`);
+    expect(JSON.parse(window.localStorage.getItem("litloft.addon.knowledge.view.d") ?? "{}")).toEqual({
+      default: { group: "tag" },
+    });
+    expect(window.localStorage.getItem("litloft.addon.knowledge.classification.d")).toBeNull();
     await waitFor(() => expect(screen.queryByTestId("editor")).toBeNull());
 
     // A frame change (a tab, the Target) while an editor is mounted.
@@ -797,7 +806,7 @@ describe("SPEC-ADDON-132 Library step 7 and I4: Done and the gate", () => {
     editor.flush = vi.fn((): Promise<FlushResult> => new Promise(() => {}));
     await mount();
     await startEditing();
-    fireEvent.click(screen.getByRole("button", { name: /notesLibrary.sortMenu/ }));
+    fireEvent.click(screen.getByRole("button", { name: /appView\.sortBy/ }));
     fireEvent.click(screen.getByRole("menuitemradio", { name: "notesLibrary.sort.title" }));
     await waitFor(() => expect(editor.flush).toHaveBeenCalledTimes(1));
     expect(push).not.toHaveBeenCalled();
@@ -814,7 +823,7 @@ describe("SPEC-ADDON-132 Library step 7 and I4: Done and the gate", () => {
     await waitFor(() => expect(editor.flush).toHaveBeenCalledTimes(1));
     expect(push).not.toHaveBeenCalled();
     await act(async () => finish("saved"));
-    expect(push).toHaveBeenCalledWith(`${PATH}?view=all&q=hello`);
+    expect(push).toHaveBeenCalledWith(`${PATH}?view=all&sort=updated&q=hello`);
   });
 
   it("the file page link waits for the save, then navigates", async () => {
@@ -832,8 +841,9 @@ describe("SPEC-ADDON-132 Library step 7 and I4: Done and the gate", () => {
   it("outside the editor a change happens at once, with no save asked for", async () => {
     await mount();
     await screen.findByTestId("md");
+    replace.mockClear();
     fireEvent.click(screen.getByText("Note b"));
-    expect(replace).toHaveBeenCalledWith(`${PATH}?view=all&note=b`);
+    expect(replace).toHaveBeenCalledWith(`${PATH}?view=all&sort=updated&note=b`);
     expect(editor.flush).not.toHaveBeenCalled();
   });
 });

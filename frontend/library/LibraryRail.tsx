@@ -4,6 +4,7 @@ import type { ReactNode } from "react";
 import { useTranslations } from "next-intl";
 import { Folder, Layers, Tag as TagIcon } from "lucide-react";
 
+import { GroupMenu } from "@/components/appshell/ViewMenus";
 import { MenuRadioGroup, ToolbarMenu } from "@/components/ToolbarMenu";
 
 import { lastSegment } from "./LibraryList";
@@ -37,26 +38,18 @@ function selectionOf(segment: Segment, item: RailItem): Selection {
   return segment === "tag" ? { kind: "tag", name: item.key ?? "" } : { kind: "folder", path: item.key ?? "" };
 }
 
-function SegmentSwitch({ segment, onSegment }: { segment: Segment; onSegment: (s: Segment) => void }) {
+function SegmentMenu({ segment, onSegment }: { segment: Segment; onSegment: (s: Segment) => void }) {
   const t = useTranslations("knowledge.notesLibrary");
-  const option = (value: Segment, label: string) => (
-    <button
-      type="button"
-      aria-pressed={segment === value}
-      onClick={() => onSegment(value)}
-      className={`h-[30px] flex-1 rounded-lg text-[13px] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus-ring pointer-coarse:min-h-11 ${
-        segment === value
-          ? "bg-bg-card font-semibold text-text-primary shadow-sm"
-          : "text-text-muted hover:text-text-primary"
-      }`}
-    >
-      {label}
-    </button>
-  );
   return (
-    <div role="group" aria-label={t("segmentLabel")} className="mb-3 flex rounded-[10px] bg-bg-elevated p-[3px]">
-      {option("folder", t("folders"))}
-      {option("tag", t("tags"))}
+    <div className="mb-3">
+      <GroupMenu
+        value={segment}
+        options={[
+          { value: "folder" as Segment, label: t("folders") },
+          { value: "tag" as Segment, label: t("tags") },
+        ]}
+        onChange={onSegment}
+      />
     </div>
   );
 }
@@ -91,7 +84,7 @@ export function LibraryRail(props: LibraryRailProps) {
   const Icon = segment === "tag" ? TagIcon : Folder;
   return (
     <nav aria-label={t("railLabel")} className="flex flex-col">
-      <SegmentSwitch segment={segment} onSegment={props.onSegment} />
+      <SegmentMenu segment={segment} onSegment={props.onSegment} />
       <ul className="flex flex-col gap-0.5">
         {items.map((item) => (
           <li key={item.key ?? "\u0000all"}>

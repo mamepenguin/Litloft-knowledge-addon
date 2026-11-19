@@ -4,23 +4,26 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 
 import { buildCanonicalFileUrl } from "@/lib/canonicalFileUrl";
+import { readTargetView, writeTargetView, type TargetView } from "@/lib/appPrefs";
 import type { FileItem } from "@/types";
 
 import { registerChangeGate } from "../notesapp/changeGate";
-import type { NotesTarget } from "../notesapp/useNotesTarget";
+import { NOTES_APP, type NotesTarget } from "../notesapp/useNotesTarget";
 import { useNoteClock } from "../useNoteClock";
 import { useNoteOpenings } from "../useNoteOpenings";
 import { LibraryList, SortMenu } from "./LibraryList";
 import { LibraryRail, LibraryRailMenu } from "./LibraryRail";
 import {
   hasConflictingSelection,
+  isLibrarySort,
+  isSegment,
+  legacySegment,
   libraryHref,
-  readClassification,
   readLibraryParams,
   segmentOf,
   selectionOf,
-  writeClassification,
   type LibraryChange,
+  type LibrarySort,
   type Segment,
   type Selection,
 } from "./libraryUrl";
@@ -38,30 +41,55 @@ export interface NotesLibraryProps {
   target: NotesTarget;
   /** The scope line's total; `null` while it is unknown. */
   total: number | null;
+  /** The Target in force, as its view is saved. */
+  targetId?: string;
+  /** A Target change is in flight: the URL still names the previous Target's sort. */
+  ignoreUrlSort?: boolean;
 }
 
-export default function NotesLibrary({ drive, target, total }: NotesLibraryProps) {
+interface ChosenView {
+  drive: string;
+  targetId: string;
+  view: TargetView;
+}
+
+export default function NotesLibrary({ drive, target, total, targetId = "default", ignoreUrlSort = false }: NotesLibraryProps) {
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const now = useNoteClock();
   const layout = useLibraryLayout();
 
-  const params = readLibraryParams(searchParams);
-  const selection = selectionOf(params);
-  const [stored, setStored] = useState<Segment | null>(null);
+  // The router object is not part of what a navigation depends on: a caller
+  // that hands back a new one on every render must not re-run the effects.
+  const routerRef = useRef(router);
   useEffect(() => {
-    setStored(readClassification(drive));
-  }, [drive]);
-  const segment = segmentOf(params, stored ?? "folder");
-  const segmentKnown = stored !== null || params.tag !== null || params.folder !== null;
+    routerRef.current = router;
+  });
+
+  const storedView = readTargetView(NOTES_APP, drive, targetId);
+  const [chosen, setChosen] = useState<ChosenView | null>(null);
+  const heldView =
+    chosen !== null && chosen.drive === drive && chosen.targetId === targetId
+      ? { ...storedView, ...chosen.view }
+      : storedView;
+  const rawSort = searchParams.get("sort");
+  const sort: LibrarySort =
+    !ignoreUrlSort && isLibrarySort(rawSort) ? rawSort : isLibrarySort(heldView.sort) ? heldView.sort : "updated";
+
+  const params = readLibraryParams(searchParams, sort);
+  const selection = selectionOf(params);
+  const segment = segmentOf(
+    params,
+    isSegment(heldView.group) ? heldView.group : ((targetId === "default" ? legacySegment(drive) : null) ?? "folder"),
+  );
 
   const ready = target.status === "ready" ? target : null;
   const [refresh, setRefresh] = useState(0);
   const onSaved = useCallback(() => setRefresh((n) => n + 1), []);
 
-  const rail = useRailEntries(drive, segmentKnown ? ready : null, segment, refresh);
-  const list = useNotesList(drive, ready, selection, params.sort, params.q, refresh);
+  const rail = useRailEntries(drive, ready, segment, refresh);
+  const list = useNotesList(drive, ready, selection, sort, params.q, refresh);
   const rowIds = useMemo(() => list.rows.map((row) => row.id), [list.rows]);
   const openings = useNoteOpenings(drive, rowIds);
 
@@ -79,17 +107,42 @@ export default function NotesLibrary({ drive, target, total }: NotesLibraryProps
     ? resolveShownNote(params.note, rowIds, list.phase, check)
     : ({ kind: "none", removeNote: false } as const);
 
-  const latest = useRef({ pathname, searchParams });
+  const latest = useRef({ pathname, searchParams, sort });
   useEffect(() => {
-    latest.current = { pathname, searchParams };
+    latest.current = { pathname, searchParams, sort };
   });
   const navigate = useCallback(
     (change: LibraryChange, how: "push" | "replace") => {
-      const { pathname: path, searchParams: current } = latest.current;
-      router[how](libraryHref(path, new URLSearchParams(current), change));
+      const { pathname: path, searchParams: current, sort: currentSort } = latest.current;
+      routerRef.current[how](libraryHref(path, new URLSearchParams(current), change, currentSort));
     },
-    [router],
+    [],
   );
+
+  const saveView = useCallback(
+    (change: TargetView) => {
+      writeTargetView(NOTES_APP, drive, targetId, change);
+      setChosen((prev) => ({
+        drive,
+        targetId,
+        view: {
+          ...(prev !== null && prev.drive === drive && prev.targetId === targetId ? prev.view : {}),
+          ...change,
+        },
+      }));
+    },
+    [drive, targetId],
+  );
+
+  // Placed before the note replacements below: each of those names the sort
+  // too, and running later keeps the note it writes.
+  const fillHref =
+    ready !== null && !ignoreUrlSort && !isLibrarySort(rawSort)
+      ? libraryHref(pathname, new URLSearchParams(searchParams), {}, sort)
+      : null;
+  useEffect(() => {
+    if (fillHref !== null) routerRef.current.replace(fillHref);
+  }, [fillHref]);
 
   // A note the URL names that the target or the notes do not hold is replaced
   // by the first row, or dropped when there is none.
@@ -117,12 +170,16 @@ export default function NotesLibrary({ drive, target, total }: NotesLibraryProps
   }, []);
   useEffect(() => registerChangeGate(gate), [gate]);
 
-  const chooseSegment = (next: Segment) =>
+  const chooseSegment = (next: Segment) => {
+    if (next === segment) {
+      saveView({ group: next });
+      return;
+    }
     gate(() => {
-      writeClassification(drive, next);
-      setStored(next);
+      saveView({ group: next });
       navigate({ folder: null, tag: null, note: null }, "push");
     });
+  };
   const select = (next: Selection) =>
     gate(() =>
       navigate(
@@ -138,9 +195,11 @@ export default function NotesLibrary({ drive, target, total }: NotesLibraryProps
     if (q === params.q) return;
     gate(() => navigate({ q, note: null }, "push"));
   };
-  const sort = (next: typeof params.sort) => {
-    if (next === params.sort) return;
-    gate(() => navigate({ sort: next, note: null }, "push"));
+  const sortBy = (next: LibrarySort) => {
+    gate(() => {
+      saveView({ sort: next });
+      if (latest.current.searchParams.get("sort") !== next) navigate({ sort: next, note: null }, "push");
+    });
   };
 
   const shownId = shown.kind === "show" ? shown.id : null;
@@ -217,7 +276,7 @@ export default function NotesLibrary({ drive, target, total }: NotesLibraryProps
           <div className="min-w-0 flex-1">
             <LibraryRailMenu {...railProps} short={layout === "list"} />
           </div>
-          {layout === "list" && <SortMenu sort={params.sort} onSort={sort} />}
+          {layout === "list" && <SortMenu sort={sort} onSort={sortBy} />}
         </div>
       )}
       <div className="flex min-w-0 flex-1">
@@ -239,13 +298,13 @@ export default function NotesLibrary({ drive, target, total }: NotesLibraryProps
             hasMore={list.hasMore}
             selection={selection}
             query={params.q}
-            sort={params.sort}
+            sort={sort}
             selectedId={paneDrawn ? shownId : null}
             now={now}
             hrefFor={(file) => buildCanonicalFileUrl(file, file.id)}
             onChoose={choose}
             onSearch={search}
-            onSort={sort}
+            onSort={sortBy}
             onLoadMore={list.loadMore}
             onRetry={list.retry}
           />

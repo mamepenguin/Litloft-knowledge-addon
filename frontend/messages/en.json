@@ -305,7 +305,7 @@
     },
     "notesLibrary": {
       "railLabel": "Classification",
-      "segmentLabel": "Classify by",
+      "segmentLabel": "Group By",
       "folders": "Folders",
       "tags": "Tags",
       "all": "All",
@@ -316,11 +316,10 @@
       "searchFolder": "Search {folder}",
       "searchTag": "Search {tag}",
       "searchNotes": "Search notes",
-      "sortMenu": "Sort",
       "sort": {
-        "updated": "Updated",
+        "updated": "Date Modified",
         "title": "Title",
-        "created": "Created"
+        "created": "Date Created"
       },
       "noNotesHere": "No notes here",
       "loadFailed": "Couldn't load the notes",

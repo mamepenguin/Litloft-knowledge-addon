@@ -400,7 +400,7 @@ describe("SPEC-ADDON-130 frame step 2, I9: the Target", () => {
     fireEvent.click(screen.getByRole("link", { name: "Library" }));
 
     await waitFor(() => expect(nav.params.get("view")).toBe("all"));
-    expect(nav.last()?.kind).toBe("push");
+    expect(nav.log.some((n) => n.kind === "push" && n.url.searchParams.get("view") === "all")).toBe(true);
     await act(() => settle());
     expect(textNodes(`${DRIVE} · 2 notes`)).not.toHaveLength(0);
     expect(localStorage.getItem(TARGET_KEY)).toBe("sf-trip");

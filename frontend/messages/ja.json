@@ -305,7 +305,7 @@
     },
     "notesLibrary": {
       "railLabel": "分類",
-      "segmentLabel": "分類の軸",
+      "segmentLabel": "分類",
       "folders": "フォルダ",
       "tags": "タグ",
       "all": "すべて",
@@ -316,11 +316,10 @@
       "searchFolder": "{folder} を検索",
       "searchTag": "{tag} を検索",
       "searchNotes": "ノートを検索",
-      "sortMenu": "並べ替え",
       "sort": {
-        "updated": "更新順",
-        "title": "タイトル順",
-        "created": "作成順"
+        "updated": "変更日",
+        "title": "タイトル",
+        "created": "作成日"
       },
       "noNotesHere": "ここにはノートがありません",
       "loadFailed": "ノートを読み込めませんでした",

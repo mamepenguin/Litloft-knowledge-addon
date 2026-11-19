@@ -1,7 +1,14 @@
+import { readLegacyGroup } from "@/lib/appPrefs";
 import type { ListingSortField, SortOrder } from "@/types";
+
+import { NOTES_APP } from "../notesapp/useNotesTarget";
 
 export type LibrarySort = "updated" | "title" | "created";
 export const LIBRARY_SORTS: LibrarySort[] = ["updated", "title", "created"];
+
+export function isLibrarySort(value: unknown): value is LibrarySort {
+  return LIBRARY_SORTS.includes(value as LibrarySort);
+}
 
 export const SORT_REQUEST: Record<LibrarySort, { sort: ListingSortField; order: SortOrder }> = {
   updated: { sort: "updated_at", order: "desc" },
@@ -10,6 +17,10 @@ export const SORT_REQUEST: Record<LibrarySort, { sort: ListingSortField; order: 
 };
 
 export type Segment = "folder" | "tag";
+
+export function isSegment(value: unknown): value is Segment {
+  return value === "folder" || value === "tag";
+}
 
 /** What the rail has selected. `path` `""` is the drive root. */
 export type Selection =
@@ -26,12 +37,13 @@ export interface LibraryParams {
   note: string | null;
 }
 
-export function readLibraryParams(params: URLSearchParams): LibraryParams {
-  const sort = params.get("sort");
+/** `sort` is the Target's resolved sort, used when the URL states none. */
+export function readLibraryParams(params: URLSearchParams, sort: LibrarySort = "updated"): LibraryParams {
+  const raw = params.get("sort");
   return {
     folder: params.get("folder"),
     tag: params.get("tag") || null,
-    sort: LIBRARY_SORTS.includes(sort as LibrarySort) ? (sort as LibrarySort) : "updated",
+    sort: isLibrarySort(raw) ? raw : sort,
     q: params.get("q")?.trim() ?? "",
     note: params.get("note") || null,
   };
@@ -51,6 +63,12 @@ export function segmentOf(params: LibraryParams, stored: Segment): Segment {
   return stored;
 }
 
+/** The segment the drive had before it was kept per Target; the default Target only. */
+export function legacySegment(drive: string): Segment | null {
+  const value = readLegacyGroup(drive, NOTES_APP);
+  return isSegment(value) ? value : null;
+}
+
 /** The URL names both a folder and a tag, which `selectionOf` reads as the tag. */
 export function hasConflictingSelection(params: URLSearchParams): boolean {
   return Boolean(params.get("tag")) && params.has("folder");
@@ -66,12 +84,14 @@ export type LibraryChange = Partial<{
 
 /**
  * The URL with `change` applied. Parameters the Library does not own are kept.
- * Defaults (sort `updated`, an empty search) are left out.
+ * `sort` is the sort in force and is always written, so every URL the Library
+ * builds names it; an empty search is left out.
  */
 export function libraryHref(
   pathname: string,
   current: URLSearchParams,
   change: LibraryChange,
+  sort: LibrarySort,
 ): string {
   const next = new URLSearchParams(current);
   next.set("view", "all");
@@ -85,26 +105,8 @@ export function libraryHref(
     else next.set("folder", change.folder);
   }
   if ("tag" in change) apply("tag", change.tag);
-  if ("sort" in change) apply("sort", change.sort === "updated" ? null : change.sort);
+  next.set("sort", change.sort ?? sort);
   if ("q" in change) apply("q", change.q?.trim());
   if ("note" in change) apply("note", change.note);
   return `${pathname}?${next}`;
-}
-
-const classificationKey = (drive: string) => `litloft.addon.knowledge.classification.${encodeURIComponent(drive)}`;
-
-export function readClassification(drive: string): Segment {
-  try {
-    return window.localStorage.getItem(classificationKey(drive)) === "tag" ? "tag" : "folder";
-  } catch {
-    return "folder";
-  }
-}
-
-export function writeClassification(drive: string, segment: Segment): void {
-  try {
-    window.localStorage.setItem(classificationKey(drive), segment);
-  } catch {
-    // The choice is a convenience; the segment still changes for this visit.
-  }
 }

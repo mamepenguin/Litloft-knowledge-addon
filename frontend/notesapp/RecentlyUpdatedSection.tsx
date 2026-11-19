@@ -45,7 +45,7 @@ export default function RecentlyUpdatedSection({
 
   const libraryLink = (
     <Link
-      href={`${pathname}?${new URLSearchParams({ view: "all" })}`}
+      href={`${pathname}?${new URLSearchParams({ view: "all", sort: "updated" })}`}
       className="flex items-center gap-0.5 text-sm text-text-muted transition-colors hover:text-accent"
     >
       {t("seeInLibrary")}
