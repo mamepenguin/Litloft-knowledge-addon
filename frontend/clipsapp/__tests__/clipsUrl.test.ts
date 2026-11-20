@@ -118,6 +118,7 @@ describe("SPEC-ADDON-159 the name in the URL", () => {
     ["view=all&q=", ""],
     ["view=all", ""],
     [`view=all&q=${"x".repeat(250)}`, "x".repeat(200)],
+    [`view=all&q=${encodeURIComponent(`  ${"a".repeat(199)}  b  `)}`, "a".repeat(199)],
   ])("SPEC-ADDON-159 I6 I10 reads %s as the name %j", (query, name) => {
     expect(readClipFilters(sp(query))).toMatchObject({ name });
   });

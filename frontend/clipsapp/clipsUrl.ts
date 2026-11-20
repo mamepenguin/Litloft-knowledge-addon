@@ -1,3 +1,4 @@
+import { normaliseName } from "@/components/appshell/NameFilter";
 import { formatMonth, isMonthKey } from "@/lib/formatMonth";
 
 export const CLIP_SORTS = ["newest", "oldest", "title"] as const;
@@ -17,9 +18,10 @@ export type ClipState = "all" | ClipTrust;
 export interface ClipFilters {
   tags: readonly string[];
   trust: ClipTrust | null;
+  name: string;
 }
 
-export const NO_CLIP_FILTERS: ClipFilters = { tags: [], trust: null };
+export const NO_CLIP_FILTERS: ClipFilters = { tags: [], trust: null, name: "" };
 
 export type ShelfId =
   | { kind: "unread" }
@@ -51,6 +53,7 @@ export function readClipFilters(params: URLSearchParams): ClipFilters {
   return {
     tags: params.getAll("tag").filter((tag) => tag !== ""),
     trust: isClipTrust(rawTrust) ? rawTrust : null,
+    name: normaliseName(params.get("q") ?? ""),
   };
 }
 
@@ -60,12 +63,12 @@ export function hasUnreadableTrust(params: URLSearchParams): boolean {
 }
 
 export function hasClipFilters(filters: ClipFilters): boolean {
-  return filters.tags.length > 0 || filters.trust !== null;
+  return filters.tags.length > 0 || filters.trust !== null || filters.name !== "";
 }
 
 /** A stable key for a filter set, for a request's load scope and conditions. */
 export function clipFiltersKey(filters: ClipFilters): string {
-  return JSON.stringify([filters.tags, filters.trust]);
+  return JSON.stringify([filters.tags, filters.trust, filters.name]);
 }
 
 export function parseShelfId(raw: string | null): ShelfId | null {
@@ -193,6 +196,7 @@ export function clipsHref(
   }
   for (const tag of filters.tags) query.append("tag", tag);
   if (filters.trust !== null) query.set("trust", filters.trust);
+  if (filters.name !== "") query.set("q", filters.name);
   return `${pathname}?${query}`;
 }
 

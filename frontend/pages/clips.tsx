@@ -6,6 +6,7 @@ import { useTranslations } from "next-intl";
 import { Newspaper, Plus } from "lucide-react";
 
 import { AppHeader } from "@/components/appshell/AppHeader";
+import { NameFilter, normaliseName } from "@/components/appshell/NameFilter";
 import { Button } from "@/components/Button";
 import { useCurrentDrive } from "@/components/CurrentDriveProvider";
 import { EmptyState } from "@/components/EmptyState";
@@ -31,6 +32,7 @@ import {
   needsViewFillIn,
   readClipFilters,
   readClipsView,
+  shelfIdString,
   type ClipGroup,
   type ClipSort,
   type ClipState,
@@ -168,11 +170,39 @@ export default function ClipsPage() {
       next.delete("sort");
       next.delete("tag");
       next.delete("trust");
+      next.delete("q");
     }
     return next;
   }, [searchParams, switchPending, targetApplied]);
   const view = readClipsView(effectiveParams, resolved);
   const filters = readClipFilters(effectiveParams);
+
+  const applyName = useCallback(
+    (next: string) => {
+      const applied = normaliseName(next);
+      const params = new URLSearchParams(searchParams);
+      params.delete("target");
+      if (applied === "") params.delete("q");
+      else params.set("q", applied);
+      const query = params.toString();
+      router.replace(query === "" ? pathname : `${pathname}?${query}`);
+    },
+    [searchParams, router, pathname],
+  );
+
+  const libraryView =
+    view.view === "library" ||
+    (view.view === "shelf" && backTarget(view.shelf, view.sort).view === "library");
+  const rawName = searchParams.get("q");
+  useEffect(() => {
+    if (!libraryView || rawName === null) return;
+    if (rawName === filters.name && rawName !== "") return;
+    const next = new URLSearchParams(searchParams);
+    if (filters.name === "") next.delete("q");
+    else next.set("q", filters.name);
+    const query = next.toString();
+    router.replace(query === "" ? pathname : `${pathname}?${query}`);
+  }, [libraryView, rawName, filters.name, searchParams, router, pathname]);
 
   const saveView = useCallback(
     (change: TargetView) => {
@@ -250,6 +280,7 @@ export default function ClipsPage() {
         const withoutFilters = new URLSearchParams(searchParams);
         withoutFilters.delete("tag");
         withoutFilters.delete("trust");
+        withoutFilters.delete("q");
         withoutFilters.delete("target");
         const base = withoutFilters.toString();
         const next = new URLSearchParams(withoutFilters);
@@ -305,6 +336,8 @@ export default function ClipsPage() {
     view.view === "library" || (view.view === "shelf" && backTarget(view.shelf, view.sort).view === "library")
       ? "library"
       : "home";
+  const bodyDrawn =
+    !driveEmpty && target.status === "ready" && !targetHasNone && view.view !== "home";
   const tabs = driveEmpty ? undefined : (
     <PageTabs
       label={t("tabsLabel")}
@@ -314,11 +347,17 @@ export default function ClipsPage() {
         { key: "home", label: t("home"), href: pathname },
         { key: "library", label: t("library"), href: `${pathname}?view=all` },
       ]}
+      trailing={
+        bodyDrawn && tabCurrent === "library" ? (
+          <NameFilter
+            value={filters.name}
+            onApply={applyName}
+            scopeKey={`${view.view}|${view.view === "shelf" ? shelfIdString(view.shelf) : ""}`}
+          />
+        ) : undefined
+      }
     />
   );
-
-  const bodyDrawn =
-    !driveEmpty && target.status === "ready" && !targetHasNone && view.view !== "home";
   // The one replace that fills the view in also removes `target`, so the Target
   // change and the URL cleanup land together.
   const fillHref =

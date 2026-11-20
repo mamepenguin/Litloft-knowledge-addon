@@ -470,6 +470,21 @@ describe("SPEC-ADDON-159 I6 what drops q", () => {
     for (const call of server.calls.slice(calls)) expect(q(call).has("search")).toBe(false);
   });
 
+  it("SPEC-ADDON-159 I6 a Home-shortcut landing on a Target other than the one in force drops q, and no request carries it", async () => {
+    nav.set(`${LIBRARY}&group=tags&sort=newest&q=${NAME}&target=sf-work`);
+    serve();
+    render(<Page />);
+
+    await waitFor(() => expect(nav.params.has("target")).toBe(false));
+    await waitFor(() => expect(nav.params.has("q")).toBe(false));
+    await waitFor(() => expect(server.calls.some(listing)).toBe(true));
+    await act(() => settle());
+
+    expect(nav.log.every((n) => n.kind === "replace")).toBe(true);
+    expect(server.calls.filter((c) => q(c).get("search") === NAME)).toEqual([]);
+    for (const call of server.calls.filter(listing)) expect(q(call).has("search")).toBe(false);
+  });
+
   it("SPEC-ADDON-159 I6 the Home and Library tab links carry none, while the Library's See all links do", async () => {
     nav.set(`${LIBRARY}&group=tags&sort=newest&q=${NAME}`);
     serve();
@@ -515,6 +530,21 @@ describe("SPEC-ADDON-159 I10 normalising q", () => {
     await libraryDrawn();
     for (const call of server.calls.filter((c) => q(c).has("search"))) expect(q(call).get("search")).toBe("x".repeat(200));
     expect(server.calls.filter(listing).every((c) => q(c).get("search") === "x".repeat(200))).toBe(true);
+  });
+
+  it("SPEC-ADDON-159 I10 q is trimmed, cut to 200 and trimmed again before it is replaced and requested", async () => {
+    const raw = `  ${"a".repeat(199)}  b  `;
+    nav.set(`${LIBRARY}&group=tags&sort=newest&q=${encodeURIComponent(raw)}`);
+    serve();
+    render(<Page />);
+
+    await waitFor(() => expect(nav.params.get("q")).toBe("a".repeat(199)));
+    expect(nav.log.every((n) => n.kind === "replace")).toBe(true);
+    await libraryDrawn();
+    for (const call of server.calls.filter((c) => q(c).has("search"))) {
+      expect(q(call).get("search")).toBe("a".repeat(199));
+    }
+    expect(server.calls.filter(listing).every((c) => q(c).get("search") === "a".repeat(199))).toBe(true);
   });
 });
 
