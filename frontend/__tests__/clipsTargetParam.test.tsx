@@ -187,6 +187,19 @@ describe.each([
 ])("SPEC-ADDON-157 Clips %s opened with ?target=", (_, url) => {
   const withTarget = (id: string) => `${url}${url.includes("?") ? "&" : "?"}target=${encodeURIComponent(id)}`;
 
+  it("SPEC-ADDON-157 I4 the Target menu opened while pending asks no count and offers no Home row", async () => {
+    open(withTarget("collection:c-trip"), isCollections);
+    await waitFor(() => expect(server.calls.some(isCollections)).toBe(true));
+    await act(() => settle());
+
+    fireEvent.click(targetButton());
+    await screen.findAllByRole("menuitemradio");
+    await act(() => settle());
+
+    expect(screen.queryByRole("menuitem", { name: "Put on Home" })).toBeNull();
+    expect(underTarget()).toEqual([]);
+  });
+
   it("SPEC-ADDON-157 I4 I5 I6 holds every request until the collection list resolves the id, then saves it and removes target", async () => {
     open(withTarget("collection:c-trip"), isCollections);
     await waitFor(() => expect(server.calls.some(isCollections)).toBe(true));
