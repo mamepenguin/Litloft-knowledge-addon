@@ -4,7 +4,8 @@ import { useCallback, useEffect, useRef, useState } from "react";
 
 import type { Shelf } from "@/lib/api";
 
-import type { ClipSort } from "./clipsUrl";
+import type { ClipFilters, ClipSort } from "./clipsUrl";
+import { clipFiltersKey, NO_CLIP_FILTERS } from "./clipsUrl";
 import { loadGroupShelves, type ReadyNotesTarget } from "./requests";
 
 export type GroupShelvesPhase = "loading" | "ready" | "failed";
@@ -32,13 +33,14 @@ export function useGroupShelves(
   by: "tag" | "folder" | "month",
   sort: ClipSort,
   refresh: number,
+  filters: ClipFilters = NO_CLIP_FILTERS,
 ) {
-  const scope = [drive, target.key, by, sort].join("|");
+  const scope = [drive, target.key, by, sort, clipFiltersKey(filters)].join("|");
   const [held, setHeld] = useState<Held | null>(null);
   const [attempt, setAttempt] = useState(0);
-  const latest = useRef({ target, sort });
+  const latest = useRef({ target, sort, filters });
   useEffect(() => {
-    latest.current = { target, sort };
+    latest.current = { target, sort, filters };
   });
 
   useEffect(() => {
@@ -48,7 +50,7 @@ export function useGroupShelves(
         ? { ...prev, phase: prev.phase === "ready" ? "ready" : "loading" }
         : empty(scope),
     );
-    loadGroupShelves(drive, latest.current.target, by, 0, latest.current.sort, {
+    loadGroupShelves(drive, latest.current.target, by, 0, latest.current.sort, latest.current.filters, {
       signal: controller.signal,
     }).then(
       (res) => {
@@ -72,7 +74,7 @@ export function useGroupShelves(
     if (own.shelves.length >= own.total) return;
     const offset = own.shelves.length;
     setHeld({ ...own, more: "loading" });
-    loadGroupShelves(drive, latest.current.target, by, offset, latest.current.sort).then(
+    loadGroupShelves(drive, latest.current.target, by, offset, latest.current.sort, latest.current.filters).then(
       (res) =>
         setHeld((prev) => {
           if (prev === null || prev.scope !== scope) return prev;

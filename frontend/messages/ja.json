@@ -423,6 +423,12 @@
         "title": "タイトル"
       },
       "untagged": "タグなし",
+      "state": {
+        "all": "すべて",
+        "unverified": "未確認",
+        "verified": "確認済み"
+      },
+      "filterEmpty": "条件に合う項目はありません",
       "minutes": "{count} 分",
       "noClipsHere": "ここにはクリップがありません",
       "noClipsInTarget": "この対象にはクリップがありません",

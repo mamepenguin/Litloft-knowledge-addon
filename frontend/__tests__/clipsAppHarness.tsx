@@ -149,7 +149,13 @@ export const isDotAsk = (c: Call) => isShelves(c) && q(c).getAll("ids").length >
 export const isUnreadShelf = (c: Call) => isShelves(c) && q(c).get("opened") === "false" && !isDotAsk(c);
 export const isUnverifiedShelf = (c: Call) => isShelves(c) && q(c).get("trust") === "unverified";
 export const isNewShelf = (c: Call) =>
-  isShelves(c) && q(c).get("by") === "all" && !q(c).has("opened") && !q(c).has("trust") && !isDotAsk(c);
+  isShelves(c) &&
+  q(c).get("by") === "all" &&
+  !q(c).has("opened") &&
+  // The Library's None grid is `per_shelf=60` and may carry the state filter;
+  // Home's New clips shelf is the smaller one without it.
+  (!q(c).has("trust") || q(c).get("per_shelf") === "60") &&
+  !isDotAsk(c);
 export const isTagShelves = (c: Call) => isShelves(c) && q(c).get("by") === "tag";
 export const coverIds = (c: Call) => ((c.body as { file_ids?: string[] } | null)?.file_ids ?? []) as string[];
 

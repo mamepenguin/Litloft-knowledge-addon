@@ -423,6 +423,12 @@
         "title": "Title"
       },
       "untagged": "Untagged",
+      "state": {
+        "all": "All",
+        "unverified": "Unverified",
+        "verified": "Verified"
+      },
+      "filterEmpty": "Nothing matches these filters",
       "minutes": "{count} min",
       "noClipsHere": "No clips here",
       "noClipsInTarget": "No clips in this Target",

@@ -24,13 +24,16 @@ import {
   DEFAULT_GROUP,
   DEFAULT_SORT,
   hasUnknownView,
+  hasUnreadableTrust,
   isClipGroup,
   isClipSort,
   needsProfile,
   needsViewFillIn,
+  readClipFilters,
   readClipsView,
   type ClipGroup,
   type ClipSort,
+  type ClipState,
   type ResolvedClipView,
 } from "../clipsapp/clipsUrl";
 import { ClipShelfBlock } from "../clipsapp/ClipShelfBlock";
@@ -157,10 +160,13 @@ export default function ClipsPage() {
     if (switchPending) {
       next.delete("group");
       next.delete("sort");
+      next.delete("tag");
+      next.delete("trust");
     }
     return next;
   }, [searchParams, switchPending]);
   const view = readClipsView(effectiveParams, resolved);
+  const filters = readClipFilters(effectiveParams);
 
   const saveView = useCallback(
     (change: TargetView) => {
@@ -181,19 +187,52 @@ export default function ClipsPage() {
     (group: ClipGroup) => {
       saveView({ group });
       if (view.view === "library" && group !== view.group) {
-        router.push(clipsHref(pathname, { view: "library", group, sort: view.sort }));
+        router.push(clipsHref(pathname, { view: "library", group, sort: view.sort }, filters));
       }
     },
-    [saveView, view, router, pathname],
+    [saveView, view, filters, router, pathname],
   );
   const chooseSort = useCallback(
     (sort: ClipSort) => {
       saveView({ sort });
       if (view.view === "library" && sort !== view.sort) {
-        router.push(clipsHref(pathname, { view: "library", group: view.group, sort }));
+        router.push(clipsHref(pathname, { view: "library", group: view.group, sort }, filters));
       }
     },
-    [saveView, view, router, pathname],
+    [saveView, view, filters, router, pathname],
+  );
+
+  const replaceFilters = useCallback(
+    (change: { tags?: readonly string[]; trust?: ClipState }) => {
+      const next = new URLSearchParams(searchParams);
+      if (change.tags !== undefined) {
+        next.delete("tag");
+        for (const tag of change.tags) next.append("tag", tag);
+      }
+      if (change.trust !== undefined) {
+        if (change.trust === "all") next.delete("trust");
+        else next.set("trust", change.trust);
+      }
+      const query = next.toString();
+      router.replace(query === "" ? pathname : `${pathname}?${query}`);
+    },
+    [searchParams, router, pathname],
+  );
+
+  const toggleTag = useCallback(
+    (name: string) => {
+      const folded = name.toLowerCase();
+      const chosen = filters.tags.some((tag) => tag.toLowerCase() === folded);
+      replaceFilters({
+        tags: chosen ? filters.tags.filter((tag) => tag.toLowerCase() !== folded) : [...filters.tags, name],
+      });
+    },
+    [filters.tags, replaceFilters],
+  );
+  const clearTags = useCallback(() => replaceFilters({ tags: [] }), [replaceFilters]);
+  const chooseState = useCallback(
+    (state: ClipState) => replaceFilters({ trust: state }),
+    [replaceFilters],
   );
 
   const chooseTarget = useCallback(
@@ -201,11 +240,20 @@ export default function ClipsPage() {
       if (id === targetId) return;
       setChosen(null);
       if (view.view !== "home") {
-        const next = new URLSearchParams(searchParams);
+        const withoutFilters = new URLSearchParams(searchParams);
+        withoutFilters.delete("tag");
+        withoutFilters.delete("trust");
+        const base = withoutFilters.toString();
+        const next = new URLSearchParams(withoutFilters);
         next.delete("group");
         next.delete("sort");
-        if (next.toString() !== search) {
-          setSwitchedFrom(search);
+        const filtersChanged = base !== search;
+        const viewChanged = next.toString() !== base;
+        if (filtersChanged || viewChanged) setSwitchedFrom(search);
+        if (filtersChanged) {
+          router.replace(base === "" ? pathname : `${pathname}?${base}`);
+        }
+        if (viewChanged) {
           router.replace(`${pathname}?${next}`);
         }
       }
@@ -223,6 +271,15 @@ export default function ClipsPage() {
   useEffect(() => {
     if (unknownView) router.replace(pathname);
   }, [unknownView, router, pathname]);
+
+  const unreadableTrust = view.view !== "home" && hasUnreadableTrust(searchParams);
+  useEffect(() => {
+    if (!unreadableTrust) return;
+    const next = new URLSearchParams(searchParams);
+    next.delete("trust");
+    const query = next.toString();
+    router.replace(query === "" ? pathname : `${pathname}?${query}`);
+  }, [unreadableTrust, searchParams, router, pathname]);
 
   const leaveForHome = view.view === "shelf" && needsProfile(view.shelf) && !withProfile && settled;
   useEffect(() => {
@@ -254,7 +311,7 @@ export default function ClipsPage() {
     !driveEmpty && target.status === "ready" && !targetHasNone && view.view !== "home";
   const fillHref =
     bodyDrawn && !switchPending && needsViewFillIn(searchParams, view)
-      ? clipsHref(pathname, view)
+      ? clipsHref(pathname, view, filters)
       : null;
   useEffect(() => {
     if (fillHref !== null) router.replace(fillHref);
@@ -295,10 +352,15 @@ export default function ClipsPage() {
         target={readyTarget}
         group={view.group}
         sort={view.sort}
+        filters={filters}
         refresh={refresh}
         now={now}
         onGroup={chooseGroup}
         onSort={chooseSort}
+        onToggleTag={toggleTag}
+        onClearTags={clearTags}
+        onState={chooseState}
+        onViewerRejected={onViewerRequired}
       />
     ) : null;
   } else if (leaveForHome) {
@@ -313,6 +375,7 @@ export default function ClipsPage() {
         target={readyTarget}
         shelf={view.shelf}
         sort={view.sort}
+        filters={filters}
         nickname={nickname}
         refresh={refresh}
         now={now}

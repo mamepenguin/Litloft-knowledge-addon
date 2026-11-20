@@ -3,17 +3,26 @@ import {
   getDriveFilesWithFileIds,
   getShelves,
   getShelvesWithFileIds,
+  getTagCounts,
+  getTagCountsWithFileIds,
   getWatchHistory,
   setFileTrustTier,
   type ShelfItem,
   type ShelvesParams,
 } from "@/lib/api";
 import { ApiStatusError } from "@/lib/apiError";
+import { mergeLibraryTags } from "@/components/appshell/libraryFilters";
 import type { ListingFilters } from "@/lib/listingRequest";
 import type { FileItem } from "@/types";
 
 import type { ReadyNotesTarget } from "../notesapp/useNotesTarget";
-import { followsSort, type ClipSort, type ShelfId } from "./clipsUrl";
+import {
+  followsSort,
+  NO_CLIP_FILTERS,
+  type ClipFilters,
+  type ClipSort,
+  type ShelfId,
+} from "./clipsUrl";
 
 export type { ReadyNotesTarget };
 
@@ -35,14 +44,14 @@ function asList(value: string | readonly string[] | undefined): string[] {
 /** The target's conditions; `type` and `origin` are fixed last so nothing widens them. */
 export function clipConditions(
   target: ReadyNotesTarget,
-  extra: { trust?: "unverified" } = {},
+  filters: ClipFilters = NO_CLIP_FILTERS,
 ): ListingFilters {
   const own = target.params;
-  const tags = asList(own?.tag);
+  const tags = mergeLibraryTags(asList(own?.tag), filters.tags);
   return {
     ...(own ?? {}),
     ...(tags.length > 0 ? { tag: tags } : {}),
-    ...(extra.trust ? { trust: extra.trust } : {}),
+    ...(filters.trust !== null ? { trust: filters.trust } : {}),
     type: "text",
     origin: CLIP_ORIGIN,
   };
@@ -111,7 +120,12 @@ export async function loadShelfPage(
   /** `null` only for Recently opened, which ignores the target. */
   target: ReadyNotesTarget | null,
   shelf: ShelfId,
-  { page, perShelf, sort }: { page?: number; perShelf: number; sort: ClipSort },
+  {
+    page,
+    perShelf,
+    sort,
+    filters = NO_CLIP_FILTERS,
+  }: { page?: number; perShelf: number; sort: ClipSort; filters?: ClipFilters },
   options?: Signal,
 ): Promise<ClipPage> {
   if (shelf.kind === "recent") {
@@ -129,8 +143,15 @@ export async function loadShelfPage(
         : shelf.kind === "month"
           ? "month"
           : "all";
+  // The fixed Home shelves ignore the Library's filters; Unverified keeps its own.
+  const applied: ClipFilters =
+    shelf.kind === "unverified"
+      ? { tags: [], trust: "unverified" }
+      : followsSort(shelf)
+        ? filters
+        : NO_CLIP_FILTERS;
   const params: ShelvesParams = {
-    ...clipConditions(target, { trust: shelf.kind === "unverified" ? "unverified" : undefined }),
+    ...clipConditions(target, applied),
     by: shelfBy,
     key: shelf.kind === "tag" ? shelf.name : shelf.kind === "untagged" ? NO_TAG_KEY : shelf.kind === "folder" || shelf.kind === "month" ? shelf.key : "all",
     ...(shelf.kind === "unread" ? { opened: false } : {}),
@@ -149,13 +170,14 @@ export async function loadGridPage(
   target: ReadyNotesTarget,
   page: number,
   sort: ClipSort,
+  filters: ClipFilters = NO_CLIP_FILTERS,
   options?: Signal,
 ): Promise<ClipPage> {
   const res = await shelves(
     drive,
     target,
     {
-      ...clipConditions(target),
+      ...clipConditions(target, filters),
       by: "all",
       key: "all",
       ...sortParams(sort),
@@ -175,13 +197,14 @@ export function loadGroupShelves(
   by: "tag" | "folder" | "month",
   offset: number,
   sort: ClipSort,
+  filters: ClipFilters = NO_CLIP_FILTERS,
   options?: Signal,
 ) {
   return shelves(
     drive,
     target,
     {
-      ...clipConditions(target),
+      ...clipConditions(target, filters),
       by,
       ...sortParams(sort),
       per_shelf: HOME_SHELF_SIZE,
@@ -190,6 +213,19 @@ export function loadGroupShelves(
     },
     options,
   );
+}
+
+/** The Tag menu's candidates under the target, the state and the chosen tags. */
+export function loadTagCounts(
+  drive: string,
+  target: ReadyNotesTarget,
+  filters: ClipFilters,
+  options?: Signal,
+) {
+  const params = clipConditions(target, filters);
+  return target.fileIds === null
+    ? getTagCounts(drive, params, options)
+    : getTagCountsWithFileIds(drive, params, target.fileIds, options);
 }
 
 /** Which of these clips the viewer has not opened. Asked without a target. */

@@ -337,7 +337,7 @@ describe("SPEC-ADDON-151 I4 Library-origin shelf pages", () => {
     expect(back.searchParams.get("trust")).toBe("verified");
   });
 
-  it("SPEC-ADDON-151 I5 a shelf page's sort fill-in keeps tag and trust", async () => {
+  it("SPEC-ADDON-151 I5 a shelf page's sort filled in keeps tag and trust", async () => {
     nav.set(`${CLIPS}?view=shelf&shelf=tag%3Atrip&tag=work&trust=verified`);
     serve();
     render(<Page />);
@@ -444,7 +444,7 @@ describe("SPEC-ADDON-151 I5 what keeps and what drops the filters", () => {
     expect(nav.params.get("trust")).toBe("verified");
   });
 
-  it("SPEC-ADDON-151 I5 the group and sort fill-in keeps them", async () => {
+  it("SPEC-ADDON-151 I5 the group and sort filled in keeps them", async () => {
     nav.set(`${LIBRARY}&tag=trip&trust=verified`);
     serve();
     render(<Page />);

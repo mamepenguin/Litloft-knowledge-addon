@@ -2,8 +2,8 @@
 
 import { useCallback } from "react";
 
-import type { ClipSort, ShelfId } from "./clipsUrl";
-import { shelfIdString } from "./clipsUrl";
+import type { ClipFilters, ClipSort, ShelfId } from "./clipsUrl";
+import { clipFiltersKey, NO_CLIP_FILTERS, shelfIdString } from "./clipsUrl";
 import { isViewerRequired, loadShelfPage, type ReadyNotesTarget } from "./requests";
 import { usePagedClips } from "./usePagedClips";
 
@@ -16,6 +16,7 @@ export interface ShelfDataOptions {
   /** Home's shelves are one page of `size`; a shelf page pages by `size`. */
   size: number;
   paged: boolean;
+  filters?: ClipFilters;
   /** The nickname the shelf was asked under; another one starts it over. */
   profileKey: string;
   refresh: number;
@@ -30,6 +31,7 @@ export function useShelfData({
   sort,
   size,
   paged,
+  filters,
   profileKey,
   refresh,
   onViewerRequired,
@@ -37,13 +39,22 @@ export function useShelfData({
   const recent = shelf.kind === "recent";
   const ready = recent || target !== null;
   const scope = ready
-    ? [drive, recent ? "-" : target?.key, shelfIdString(shelf), sort, size, paged, profileKey].join("|")
+    ? [
+        drive,
+        recent ? "-" : target?.key,
+        shelfIdString(shelf),
+        sort,
+        size,
+        paged,
+        profileKey,
+        clipFiltersKey(filters ?? NO_CLIP_FILTERS),
+      ].join("|")
     : null;
 
   const fetchPage = useCallback(
     (page: number, signal: AbortSignal) =>
-      loadShelfPage(drive, target, shelf, { page: paged ? page : undefined, perShelf: size, sort }, { signal }),
-    [drive, target, shelf, size, paged, sort],
+      loadShelfPage(drive, target, shelf, { page: paged ? page : undefined, perShelf: size, sort, filters }, { signal }),
+    [drive, target, shelf, size, paged, sort, filters],
   );
   const onError = useCallback(
     (error: unknown) => {
