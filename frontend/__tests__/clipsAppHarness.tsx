@@ -130,6 +130,8 @@ export interface Server {
   covers: Record<string, Cover>;
   smartFolders: unknown[];
   collections: unknown[];
+  /** Applies `search` to listings and shelves. Off by default, so the suites written before it see the same server. */
+  matchSearch: boolean;
   override: (call: Call) => Answer;
   /** The default answer, for an override that only delays it. */
   answer: (call: Call) => Response;
@@ -186,6 +188,12 @@ function filter(server: Server, call: Call): Clip[] {
   const ids = p.getAll("ids");
   if (ids.length) out = out.filter((c) => ids.includes(c.id));
   for (const tag of p.getAll("tag")) out = out.filter((c) => (c.tags ?? []).some((t) => t.toLowerCase() === tag.toLowerCase()));
+  const search = p.get("search");
+  if (server.matchSearch && search) {
+    // The core's `search`: a substring of the title or the folder path, folding ASCII case only.
+    const fold = (s: string) => s.replace(/[A-Z]/g, (ch) => ch.toLowerCase());
+    out = out.filter((c) => fold(c.title).includes(fold(search)) || fold(folderOf(c)).includes(fold(search)));
+  }
   const named = p.getAll("collection");
   const body = call.body as { file_ids?: string[] } | null;
   if (named.length || body?.file_ids) {
@@ -324,6 +332,7 @@ export function installClipsServer(init: Partial<Pick<Server, "files" | "history
     covers: init.covers ?? {},
     smartFolders: init.smartFolders ?? [],
     collections: init.collections ?? [],
+    matchSearch: false,
     override: () => null,
     answer: (call) => answer(server, call),
   };
