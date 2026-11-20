@@ -8,6 +8,19 @@ export const CLIP_GROUPS = ["tags", "folder", "month", "none"] as const;
 export type ClipGroup = (typeof CLIP_GROUPS)[number];
 export const DEFAULT_GROUP: ClipGroup = "tags";
 
+export const CLIP_TRUSTS = ["unverified", "verified"] as const;
+export type ClipTrust = (typeof CLIP_TRUSTS)[number];
+
+/** `all` is the state menu's first choice; the rest set `trust` in the URL. */
+export type ClipState = "all" | ClipTrust;
+
+export interface ClipFilters {
+  tags: readonly string[];
+  trust: ClipTrust | null;
+}
+
+export const NO_CLIP_FILTERS: ClipFilters = { tags: [], trust: null };
+
 export type ShelfId =
   | { kind: "unread" }
   | { kind: "recent" }
@@ -26,6 +39,33 @@ export function isClipSort(value: string | null | undefined): value is ClipSort 
 
 export function isClipGroup(value: string | null | undefined): value is ClipGroup {
   return CLIP_GROUPS.some((group) => group === value);
+}
+
+export function isClipTrust(value: string | null | undefined): value is ClipTrust {
+  return CLIP_TRUSTS.some((trust) => trust === value);
+}
+
+/** The filters the URL states; a `trust` it cannot read is left out. */
+export function readClipFilters(params: URLSearchParams): ClipFilters {
+  const rawTrust = params.get("trust");
+  return {
+    tags: params.getAll("tag").filter((tag) => tag !== ""),
+    trust: isClipTrust(rawTrust) ? rawTrust : null,
+  };
+}
+
+/** Whether the URL carries a `trust` the app cannot read, which is replaced away. */
+export function hasUnreadableTrust(params: URLSearchParams): boolean {
+  return params.has("trust") && !isClipTrust(params.get("trust"));
+}
+
+export function hasClipFilters(filters: ClipFilters): boolean {
+  return filters.tags.length > 0 || filters.trust !== null;
+}
+
+/** A stable key for a filter set, for a request's load scope and conditions. */
+export function clipFiltersKey(filters: ClipFilters): string {
+  return JSON.stringify([filters.tags, filters.trust]);
 }
 
 export function parseShelfId(raw: string | null): ShelfId | null {
@@ -137,7 +177,11 @@ export function clipsShelfTitle(
   return null;
 }
 
-export function clipsHref(pathname: string, view: ClipsView): string {
+export function clipsHref(
+  pathname: string,
+  view: ClipsView,
+  filters: ClipFilters = NO_CLIP_FILTERS,
+): string {
   if (view.view === "home") return pathname;
   const query = new URLSearchParams({ view: view.view === "library" ? "all" : "shelf" });
   if (view.view === "library") {
@@ -147,6 +191,8 @@ export function clipsHref(pathname: string, view: ClipsView): string {
     query.set("shelf", shelfIdString(view.shelf));
     if (followsSort(view.shelf)) query.set("sort", view.sort);
   }
+  for (const tag of filters.tags) query.append("tag", tag);
+  if (filters.trust !== null) query.set("trust", filters.trust);
   return `${pathname}?${query}`;
 }
 

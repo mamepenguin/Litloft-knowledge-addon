@@ -5,7 +5,7 @@ import { useLocale, useTranslations } from "next-intl";
 
 import { useNearEnd } from "@/components/appshell/useNearEnd";
 
-import { clipsShelfTitle, backTarget, clipsHref, type ClipSort, type ShelfId } from "./clipsUrl";
+import { clipsShelfTitle, backTarget, clipsHref, NO_CLIP_FILTERS, type ClipFilters, type ClipSort, type ShelfId } from "./clipsUrl";
 import { LoadFailed } from "./ClipShelfBlock";
 import { CoverGrid } from "./CoverShelf";
 import { UnverifiedRows } from "./Home";
@@ -19,6 +19,7 @@ export interface ShelfPageProps {
   target: ReadyNotesTarget | null;
   shelf: ShelfId;
   sort: ClipSort;
+  filters: ClipFilters;
   nickname: string | null;
   refresh: number;
   now: Date;
@@ -49,11 +50,12 @@ function useShelfTitle(shelf: ShelfId, drive: string): string {
 }
 
 export default function ShelfPage(props: ShelfPageProps) {
-  const { drive, pathname, shelf, sort, now } = props;
+  const { drive, pathname, shelf, sort, filters, now } = props;
   const t = useTranslations("knowledge.clips");
   const locale = useLocale();
   const title = useShelfTitle(shelf, drive);
   const back = backTarget(shelf, sort);
+  const backFilters = back.view === "library" ? filters : NO_CLIP_FILTERS;
   const data = useShelfData({
     drive,
     target: props.target,
@@ -61,6 +63,7 @@ export default function ShelfPage(props: ShelfPageProps) {
     sort,
     size: shelf.kind === "recent" ? WATCH_HISTORY_MAX : PAGE_SIZE,
     paged: true,
+    filters: backFilters,
     profileKey: props.nickname ?? "",
     refresh: props.refresh,
     onViewerRequired: props.onViewerRequired,
@@ -92,7 +95,7 @@ export default function ShelfPage(props: ShelfPageProps) {
   return (
     <div>
       <Link
-        href={clipsHref(pathname, back)}
+        href={clipsHref(pathname, back, backFilters)}
         className="mb-4 inline-flex items-center gap-0.5 text-sm text-text-muted transition-colors hover:text-text-primary pointer-coarse:min-h-11"
       >
         {t(back.view === "home" ? "backHome" : "backLibrary")}

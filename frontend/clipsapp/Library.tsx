@@ -1,23 +1,36 @@
 "use client";
 
 import { useCallback } from "react";
+import { Search } from "lucide-react";
 import { useLocale, useTranslations } from "next-intl";
 
+import { EmptyState } from "@/components/EmptyState";
+import { FilterMenus } from "@/components/appshell/FilterMenus";
 import { GroupMenu, LibraryControlRow, SortMenu } from "@/components/appshell/ViewMenus";
 import { useNearEnd } from "@/components/appshell/useNearEnd";
 
 import {
   CLIP_GROUPS,
   CLIP_SORTS,
+  clipFiltersKey,
   clipsHref,
   clipsShelfTitle,
+  hasClipFilters,
+  type ClipFilters,
   type ClipGroup,
   type ClipSort,
+  type ClipState,
   type ShelfId,
 } from "./clipsUrl";
 import { LoadFailed } from "./ClipShelfBlock";
 import { CoverGrid, CoverShelf } from "./CoverShelf";
-import { loadGridPage, NO_TAG_KEY, PAGE_SIZE, type ReadyNotesTarget } from "./requests";
+import {
+  loadGridPage,
+  loadTagCounts,
+  NO_TAG_KEY,
+  PAGE_SIZE,
+  type ReadyNotesTarget,
+} from "./requests";
 import { usePagedClips } from "./usePagedClips";
 import { useGroupShelves } from "./useGroupedShelves";
 import { RetryLink } from "../notesapp/RetryLink";
@@ -28,21 +41,81 @@ export interface LibraryProps {
   target: ReadyNotesTarget;
   group: ClipGroup;
   sort: ClipSort;
+  filters: ClipFilters;
   refresh: number;
   now: Date;
   onGroup: (group: ClipGroup) => void;
   onSort: (sort: ClipSort) => void;
+  onToggleTag: (name: string) => void;
+  onClearTags: () => void;
+  onState: (state: ClipState) => void;
+  onViewerRejected: () => void;
+}
+
+function listOf(value: string | readonly string[] | undefined): string[] {
+  return value === undefined ? [] : ([value].flat() as string[]);
 }
 
 function Menus({
   group,
   sort,
+  filters,
+  drive,
+  target,
   onGroup,
   onSort,
-}: Pick<LibraryProps, "group" | "sort" | "onGroup" | "onSort">) {
+  onToggleTag,
+  onClearTags,
+  onState,
+  onViewerRejected,
+}: Pick<
+  LibraryProps,
+  | "group"
+  | "sort"
+  | "filters"
+  | "drive"
+  | "target"
+  | "onGroup"
+  | "onSort"
+  | "onToggleTag"
+  | "onClearTags"
+  | "onState"
+  | "onViewerRejected"
+>) {
   const t = useTranslations("knowledge.clips");
+  const loadCandidates = useCallback(
+    (signal: AbortSignal) => loadTagCounts(drive, target, filters, { signal }),
+    [drive, target, filters],
+  );
+  const conditionsKey = JSON.stringify({
+    target: target.key,
+    tags: filters.tags,
+    trust: filters.trust,
+  });
   return (
-    <LibraryControlRow className="pb-10">
+    <LibraryControlRow
+      className="pb-10"
+      filters={
+        <FilterMenus
+          tags={filters.tags}
+          onToggle={onToggleTag}
+          onClear={onClearTags}
+          loadCandidates={loadCandidates}
+          conditionsKey={conditionsKey}
+          excludeTags={listOf(target.params?.tag)}
+          state={{
+            options: [
+              { value: "all", label: t("state.all") },
+              { value: "unverified", label: t("state.unverified") },
+              { value: "verified", label: t("state.verified") },
+            ],
+            value: filters.trust ?? "all",
+            onChange: (value) => onState(value as ClipState),
+          }}
+          onViewerRejected={onViewerRejected}
+        />
+      }
+    >
       <GroupMenu
         value={group}
         options={CLIP_GROUPS.map((value) => ({ value, label: t(`group.${value}`) }))}
@@ -76,23 +149,33 @@ function MoreRow({
   );
 }
 
+function FilteredEmpty() {
+  const t = useTranslations("knowledge.clips");
+  return <EmptyState icon={Search} title={t("filterEmpty")} />;
+}
+
 function GroupShelves({
   drive,
   pathname,
   target,
   group,
   sort,
+  filters,
   refresh,
   now,
 }: Omit<LibraryProps, "group"> & { group: "tag" | "folder" | "month" }) {
   const t = useTranslations("knowledge.clips");
   const locale = useLocale();
-  const data = useGroupShelves(drive, target, group, sort, refresh);
+  const data = useGroupShelves(drive, target, group, sort, refresh, filters);
   const sentinel = useNearEnd(data.hasMore && data.more === "idle", data.loadMore);
 
   if (data.phase === "failed") return <LoadFailed onRetry={data.retry} />;
   if (data.phase === "ready" && data.shelves.length === 0) {
-    return <p className="py-6 text-sm text-text-muted">{t("noClipsHere")}</p>;
+    return hasClipFilters(filters) ? (
+      <FilteredEmpty />
+    ) : (
+      <p className="py-6 text-sm text-text-muted">{t("noClipsHere")}</p>
+    );
   }
   if (data.phase === "loading") {
     return (
@@ -122,7 +205,7 @@ function GroupShelves({
             key={shelf.key}
             title={title}
             count={new Intl.NumberFormat(locale).format(shelf.count)}
-            seeAllHref={clipsHref(pathname, { view: "shelf", shelf: shelfId, sort })}
+            seeAllHref={clipsHref(pathname, { view: "shelf", shelf: shelfId, sort }, filters)}
             view={{ status: "loaded", items: shelf.items }}
             onRetry={data.retry}
             now={now}
@@ -136,14 +219,15 @@ function GroupShelves({
   );
 }
 
-function Ungrouped({ drive, target, sort, refresh, now }: LibraryProps) {
+function Ungrouped({ drive, target, sort, filters, refresh, now }: LibraryProps) {
   const t = useTranslations("knowledge.clips");
   const fetchPage = useCallback(
-    (page: number, signal: AbortSignal) => loadGridPage(drive, target, page, sort, { signal }),
-    [drive, target, sort],
+    (page: number, signal: AbortSignal) =>
+      loadGridPage(drive, target, page, sort, filters, { signal }),
+    [drive, target, sort, filters],
   );
   const data = usePagedClips({
-    scope: [drive, target.key, sort, "grid"].join("|"),
+    scope: [drive, target.key, sort, "grid", clipFiltersKey(filters)].join("|"),
     fetchPage,
     pageSize: PAGE_SIZE,
     refresh,
@@ -152,7 +236,11 @@ function Ungrouped({ drive, target, sort, refresh, now }: LibraryProps) {
 
   if (data.phase === "failed") return <LoadFailed onRetry={data.retry} />;
   if (data.phase === "ready" && data.items.length === 0) {
-    return <p className="py-6 text-sm text-text-muted">{t("noClipsHere")}</p>;
+    return hasClipFilters(filters) ? (
+      <FilteredEmpty />
+    ) : (
+      <p className="py-6 text-sm text-text-muted">{t("noClipsHere")}</p>
+    );
   }
   return (
     <>
@@ -171,7 +259,7 @@ function Ungrouped({ drive, target, sort, refresh, now }: LibraryProps) {
 export default function Library(props: LibraryProps) {
   return (
     <div>
-      <Menus group={props.group} sort={props.sort} onGroup={props.onGroup} onSort={props.onSort} />
+      <Menus {...props} />
       {props.group === "none" ? (
         <Ungrouped {...props} />
       ) : (

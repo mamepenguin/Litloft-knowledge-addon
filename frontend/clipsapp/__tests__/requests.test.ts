@@ -38,7 +38,7 @@ describe("SPEC-ADDON-138 clip conditions", () => {
   });
 
   it("adds the shelf's trust condition", () => {
-    expect(clipConditions(DEFAULT, { trust: "unverified" })).toMatchObject({ trust: "unverified", origin: "webclip" });
+    expect(clipConditions(DEFAULT, { tags: [], trust: "unverified" })).toMatchObject({ trust: "unverified", origin: "webclip" });
   });
 });
 
