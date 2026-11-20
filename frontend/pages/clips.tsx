@@ -42,7 +42,7 @@ import Library from "../clipsapp/Library";
 import { loadClipCount, loadDriveClipCount } from "../clipsapp/requests";
 import ShelfPage from "../clipsapp/ShelfPage";
 import { useScopedLoad } from "../library/useScopedLoad";
-import { NOTES_BASE_KINDS, useNotesTarget } from "../notesapp/useNotesTarget";
+import { NOTES_BASE_KINDS, rememberAppUrl, useNotesTarget } from "../notesapp/useNotesTarget";
 import { useNoteClock } from "../useNoteClock";
 
 interface ChosenView {
@@ -90,11 +90,6 @@ export default function ClipsPage() {
     },
     [meta],
   );
-  const metaContext = useMemo(
-    () => ({ meta, refresh, dotsKey: withProfile ? nickname : null }),
-    [meta, refresh, withProfile, nickname],
-  );
-
   // The event already held when the page mounted belongs to an earlier visit.
   const ready = useWebSocket("knowledge.clip.ready");
   const seenReady = useRef<unknown>(undefined);
@@ -110,9 +105,20 @@ export default function ClipsPage() {
     }
   }, [ready, refreshClips]);
 
-  const notesTarget = useNotesTarget(drive, CLIPS_APP);
+  const [targetApplied, setTargetApplied] = useState(false);
+  const onTargetApplied = useCallback(() => setTargetApplied(true), []);
+  const notesTarget = useNotesTarget(
+    drive,
+    CLIPS_APP,
+    searchParams.get("target"),
+    onTargetApplied,
+  );
   const { target } = notesTarget;
   const readyTarget = target.status === "ready" ? target : null;
+  const metaContext = useMemo(
+    () => ({ meta, refresh, dotsKey: withProfile ? nickname : null }),
+    [meta, refresh, withProfile, nickname],
+  );
 
   const counted = useScopedLoad(
     readyTarget ? `${drive}|${readyTarget.key}` : null,
@@ -157,14 +163,14 @@ export default function ClipsPage() {
   const switchPending = switchedFrom !== null && switchedFrom === search;
   const effectiveParams = useMemo(() => {
     const next = new URLSearchParams(searchParams);
-    if (switchPending) {
+    if (switchPending || targetApplied) {
       next.delete("group");
       next.delete("sort");
       next.delete("tag");
       next.delete("trust");
     }
     return next;
-  }, [searchParams, switchPending]);
+  }, [searchParams, switchPending, targetApplied]);
   const view = readClipsView(effectiveParams, resolved);
   const filters = readClipFilters(effectiveParams);
 
@@ -205,6 +211,7 @@ export default function ClipsPage() {
   const replaceFilters = useCallback(
     (change: { tags?: readonly string[]; trust?: ClipState }) => {
       const next = new URLSearchParams(searchParams);
+      next.delete("target");
       if (change.tags !== undefined) {
         next.delete("tag");
         for (const tag of change.tags) next.append("tag", tag);
@@ -243,6 +250,7 @@ export default function ClipsPage() {
         const withoutFilters = new URLSearchParams(searchParams);
         withoutFilters.delete("tag");
         withoutFilters.delete("trust");
+        withoutFilters.delete("target");
         const base = withoutFilters.toString();
         const next = new URLSearchParams(withoutFilters);
         next.delete("group");
@@ -269,8 +277,9 @@ export default function ClipsPage() {
 
   const unknownView = hasUnknownView(searchParams);
   useEffect(() => {
-    if (unknownView) router.replace(pathname);
-  }, [unknownView, router, pathname]);
+    if (!unknownView) return;
+    router.replace(notesTarget.pending ? rememberAppUrl(pathname) : pathname);
+  }, [unknownView, notesTarget.pending, router, pathname]);
 
   const unreadableTrust = view.view !== "home" && hasUnreadableTrust(searchParams);
   useEffect(() => {
@@ -283,8 +292,9 @@ export default function ClipsPage() {
 
   const leaveForHome = view.view === "shelf" && needsProfile(view.shelf) && !withProfile && settled;
   useEffect(() => {
-    if (leaveForHome) router.replace(pathname);
-  }, [leaveForHome, router, pathname]);
+    if (!leaveForHome) return;
+    router.replace(notesTarget.pending ? rememberAppUrl(pathname) : pathname);
+  }, [leaveForHome, notesTarget.pending, router, pathname]);
 
   const toggleClip = () => {
     setClipMounted(true);
@@ -309,13 +319,34 @@ export default function ClipsPage() {
 
   const bodyDrawn =
     !driveEmpty && target.status === "ready" && !targetHasNone && view.view !== "home";
+  // The one replace that fills the view in also removes `target`, so the Target
+  // change and the URL cleanup land together.
   const fillHref =
-    bodyDrawn && !switchPending && needsViewFillIn(searchParams, view)
+    bodyDrawn &&
+    !switchPending &&
+    (needsViewFillIn(searchParams, view) || targetApplied || searchParams.has("target"))
       ? clipsHref(pathname, view, filters)
       : null;
   useEffect(() => {
     if (fillHref !== null) router.replace(fillHref);
   }, [fillHref, router]);
+
+  const removeTargetHref =
+    !notesTarget.pending && fillHref === null && searchParams.has("target")
+      ? (() => {
+          const next = new URLSearchParams(searchParams);
+          next.delete("target");
+          const query = next.toString();
+          return query === "" ? pathname : `${pathname}?${query}`;
+        })()
+      : null;
+  useEffect(() => {
+    if (removeTargetHref !== null) router.replace(removeTargetHref);
+  }, [removeTargetHref, router]);
+
+  useEffect(() => {
+    if (targetApplied && !searchParams.has("target")) setTargetApplied(false);
+  }, [targetApplied, searchParams]);
 
   let body;
   if (driveEmpty) {
@@ -409,6 +440,7 @@ export default function ClipsPage() {
             target={{
               drive,
               app: CLIPS_APP,
+              homeEntry: notesTarget.pending ? undefined : "knowledge/clips",
               name: notesTarget.known ? (notesTarget.name ?? t("allClips")) : null,
               folders: notesTarget.folders,
               collections: { list: notesTarget.collections, retry: notesTarget.retryCollections },

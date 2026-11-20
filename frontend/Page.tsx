@@ -31,11 +31,15 @@ export default function KnowledgePage() {
     router.replace(`${base}/clips?${searchParams.toString()}`);
   }, [prefilled, drive, base, router, searchParams]);
 
-  // The landing's old search box. The Library searches its own list.
+  // The landing's old search box. The Library searches its own list. The page
+  // is not drawn until this lands, so a pending `target` must ride along.
   useEffect(() => {
     if (prefilled || !searchOnHome) return;
-    router.replace(`${base}?${new URLSearchParams({ view: "all", q: query })}`);
-  }, [prefilled, searchOnHome, query, base, router]);
+    const next = new URLSearchParams({ view: "all", q: query });
+    const target = searchParams.get("target");
+    if (target !== null) next.set("target", target);
+    router.replace(`${base}?${next}`);
+  }, [prefilled, searchOnHome, query, base, router, searchParams]);
 
   // Legacy ?edit=ID deep-link: redirect to core's 2-pane canonical URL
   // so the file opens in the inline KnowledgeEditSection instead of here.

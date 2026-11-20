@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState, type MouseEvent } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type MouseEvent } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { FilePlus, NotebookPen } from "lucide-react";
@@ -35,7 +35,14 @@ export default function NotesPage() {
   const library = searchParams.get("view") === "all";
   const folder = searchParams.get("folder");
 
-  const notesTarget = useNotesTarget(drive);
+  const [targetChanged, setTargetChanged] = useState(false);
+  const onTargetApplied = useCallback(() => setTargetChanged(true), []);
+  const notesTarget = useNotesTarget(
+    drive,
+    NOTES_APP,
+    searchParams.get("target"),
+    onTargetApplied,
+  );
   const { target } = notesTarget;
   const targetId = target.status === "ready" ? notesTarget.selectedId : null;
   // The URL a Target was chosen on, until the router shows the URL without its sort:
@@ -85,6 +92,21 @@ export default function NotesPage() {
   const { state: counted } = useLoad(loadCount);
   const count = target.status === "empty" ? 0 : counted.status === "loaded" ? counted.data : null;
 
+  // The Library's fill removes `target` with the same replace; when it is not
+  // drawn (Home, an empty Target) this replace removes it alone.
+  const libraryDrawn = library && target.status !== "lookingUp" && count !== 0;
+  useEffect(() => {
+    if (notesTarget.pending || !searchParams.has("target") || libraryDrawn) return;
+    const next = new URLSearchParams(searchParams);
+    next.delete("target");
+    const query = next.toString();
+    router.replace(query ? `${pathname}?${query}` : pathname);
+  }, [notesTarget.pending, searchParams, libraryDrawn, router, pathname]);
+
+  useEffect(() => {
+    if (targetChanged && !searchParams.has("target")) setTargetChanged(false);
+  }, [targetChanged, searchParams]);
+
   const openNewNote = () =>
     quickNote.open(library && folder !== null ? { drive, folder } : { drive });
 
@@ -126,6 +148,7 @@ export default function NotesPage() {
         total={count}
         targetId={notesTarget.selectedId}
         ignoreUrlSort={switchPending}
+        targetChanged={targetChanged}
       />
     ) : (
       <Home drive={drive} target={target} />
@@ -151,6 +174,7 @@ export default function NotesPage() {
           target={{
             drive,
             app: NOTES_APP,
+            homeEntry: notesTarget.pending ? undefined : "knowledge",
             name: notesTarget.known ? (notesTarget.name ?? t("allNotes")) : null,
             folders: notesTarget.folders,
             collections: { list: notesTarget.collections, retry: notesTarget.retryCollections },
@@ -170,6 +194,7 @@ export default function NotesPage() {
                   const next = new URLSearchParams(current);
                   next.delete("sort");
                   next.delete("note");
+                  next.delete("target");
                   if (next.toString() !== current.toString()) {
                     setSwitchedFrom(current.toString());
                     router.replace(`${path}?${next}`);

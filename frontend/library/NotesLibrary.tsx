@@ -45,6 +45,8 @@ export interface NotesLibraryProps {
   targetId?: string;
   /** A Target change is in flight: the URL still names the previous Target's sort. */
   ignoreUrlSort?: boolean;
+  /** The Target was just applied from the URL: its view replaces what the URL names. */
+  targetChanged?: boolean;
 }
 
 interface ChosenView {
@@ -53,7 +55,14 @@ interface ChosenView {
   view: TargetView;
 }
 
-export default function NotesLibrary({ drive, target, total, targetId = "default", ignoreUrlSort = false }: NotesLibraryProps) {
+export default function NotesLibrary({
+  drive,
+  target,
+  total,
+  targetId = "default",
+  ignoreUrlSort = false,
+  targetChanged = false,
+}: NotesLibraryProps) {
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
@@ -75,7 +84,11 @@ export default function NotesLibrary({ drive, target, total, targetId = "default
       : storedView;
   const rawSort = searchParams.get("sort");
   const sort: LibrarySort =
-    !ignoreUrlSort && isLibrarySort(rawSort) ? rawSort : isLibrarySort(heldView.sort) ? heldView.sort : "updated";
+    !ignoreUrlSort && !targetChanged && isLibrarySort(rawSort)
+      ? rawSort
+      : isLibrarySort(heldView.sort)
+        ? heldView.sort
+        : "updated";
 
   const params = readLibraryParams(searchParams, sort);
   const selection = selectionOf(params);
@@ -137,8 +150,15 @@ export default function NotesLibrary({ drive, target, total, targetId = "default
   // Placed before the note replacements below: each of those names the sort
   // too, and running later keeps the note it writes.
   const fillHref =
-    ready !== null && !ignoreUrlSort && !isLibrarySort(rawSort)
-      ? libraryHref(pathname, new URLSearchParams(searchParams), {}, sort)
+    ready !== null &&
+    !ignoreUrlSort &&
+    (targetChanged || !isLibrarySort(rawSort) || searchParams.has("target"))
+      ? libraryHref(
+          pathname,
+          new URLSearchParams(searchParams),
+          targetChanged ? { note: null } : {},
+          sort,
+        )
       : null;
   useEffect(() => {
     if (fillHref !== null) routerRef.current.replace(fillHref);

@@ -95,6 +95,7 @@ export function libraryHref(
 ): string {
   const next = new URLSearchParams(current);
   next.set("view", "all");
+  next.delete("target");
   const apply = (name: string, value: string | null | undefined) => {
     if (value === null || value === undefined || value === "") next.delete(name);
     else next.set(name, value);
