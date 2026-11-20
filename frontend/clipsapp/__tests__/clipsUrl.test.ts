@@ -3,10 +3,13 @@ import { describe, expect, it } from "vitest";
 
 import {
   backTarget,
+  clipFiltersKey,
   clipsHref,
+  hasClipFilters,
   hasUnknownView,
   needsViewFillIn,
   parseShelfId,
+  readClipFilters,
   readClipsView,
   rewrittenHref,
   shelfIdString,
@@ -103,5 +106,33 @@ describe("SPEC-ADDON-147 writing the URL", () => {
     expect(backTarget({ kind: "folder", key: "web" }, "title")).toEqual({ view: "library", group: "folder", sort: "title" });
     expect(backTarget({ kind: "month", key: "2026-11" }, "title")).toEqual({ view: "library", group: "month", sort: "title" });
     expect(backTarget({ kind: "recent" }, "title")).toEqual({ view: "home" });
+  });
+});
+
+describe("SPEC-ADDON-159 the name in the URL", () => {
+  it.each([
+    ["view=all&q=kyoto", "kyoto"],
+    ["view=all&q=%20%20kyoto%20%20", "kyoto"],
+    ["view=all&q=%E4%BA%AC%E9%83%BD", "京都"],
+    ["view=all&q=%20%20%20", ""],
+    ["view=all&q=", ""],
+    ["view=all", ""],
+    [`view=all&q=${"x".repeat(250)}`, "x".repeat(200)],
+    [`view=all&q=${encodeURIComponent(`  ${"a".repeat(199)}  b  `)}`, "a".repeat(199)],
+  ])("SPEC-ADDON-159 I6 I10 reads %s as the name %j", (query, name) => {
+    expect(readClipFilters(sp(query))).toMatchObject({ name });
+  });
+
+  it("SPEC-ADDON-159 I6 a name alone counts as a filter in force, and no name and no tag or trust does not", () => {
+    expect(hasClipFilters(readClipFilters(sp("view=all&q=kyoto")))).toBe(true);
+    expect(hasClipFilters(readClipFilters(sp("view=all&q=%20")))).toBe(false);
+  });
+
+  it("SPEC-ADDON-159 I3 the filters key changes with the name", () => {
+    const none = clipFiltersKey(readClipFilters(sp("view=all&tag=trip")));
+    const kyoto = clipFiltersKey(readClipFilters(sp("view=all&tag=trip&q=kyoto")));
+    const osaka = clipFiltersKey(readClipFilters(sp("view=all&tag=trip&q=osaka")));
+    expect(new Set([none, kyoto, osaka]).size).toBe(3);
+    expect(clipFiltersKey(readClipFilters(sp("view=all&tag=trip&q=%20kyoto")))).toBe(kyoto);
   });
 });

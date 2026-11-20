@@ -5,8 +5,8 @@ import { useLocale, useTranslations } from "next-intl";
 
 import { useNearEnd } from "@/components/appshell/useNearEnd";
 
-import { clipsShelfTitle, backTarget, clipsHref, NO_CLIP_FILTERS, type ClipFilters, type ClipSort, type ShelfId } from "./clipsUrl";
-import { LoadFailed } from "./ClipShelfBlock";
+import { clipsShelfTitle, backTarget, clipsHref, hasClipFilters, NO_CLIP_FILTERS, type ClipFilters, type ClipSort, type ShelfId } from "./clipsUrl";
+import { FilteredEmpty, LoadFailed } from "./ClipShelfBlock";
 import { CoverGrid } from "./CoverShelf";
 import { UnverifiedRows } from "./Home";
 import { PAGE_SIZE, WATCH_HISTORY_MAX, type ReadyNotesTarget } from "./requests";
@@ -74,7 +74,11 @@ export default function ShelfPage(props: ShelfPageProps) {
   if (data.phase === "failed") {
     body = <LoadFailed onRetry={data.retry} />;
   } else if (data.phase === "ready" && data.items.length === 0) {
-    body = <p className="py-6 text-sm text-text-muted">{t("noClipsHere")}</p>;
+    body = hasClipFilters(backFilters) ? (
+      <FilteredEmpty />
+    ) : (
+      <p className="py-6 text-sm text-text-muted">{t("noClipsHere")}</p>
+    );
   } else if (shelf.kind === "unverified" && data.phase === "ready") {
     body = (
       <UnverifiedRows items={data.items} now={now} remove={data.remove} setSaving={data.setSaving} />

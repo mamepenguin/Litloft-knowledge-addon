@@ -52,6 +52,7 @@ export function clipConditions(
     ...(own ?? {}),
     ...(tags.length > 0 ? { tag: tags } : {}),
     ...(filters.trust !== null ? { trust: filters.trust } : {}),
+    ...(filters.name !== "" ? { search: filters.name } : {}),
     type: "text",
     origin: CLIP_ORIGIN,
   };
@@ -146,7 +147,7 @@ export async function loadShelfPage(
   // The fixed Home shelves ignore the Library's filters; Unverified keeps its own.
   const applied: ClipFilters =
     shelf.kind === "unverified"
-      ? { tags: [], trust: "unverified" }
+      ? { ...NO_CLIP_FILTERS, trust: "unverified" }
       : followsSort(shelf)
         ? filters
         : NO_CLIP_FILTERS;

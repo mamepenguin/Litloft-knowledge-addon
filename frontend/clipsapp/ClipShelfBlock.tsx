@@ -2,9 +2,10 @@
 
 import Link from "next/link";
 import type { ReactNode } from "react";
-import { ChevronRight } from "lucide-react";
+import { ChevronRight, Search } from "lucide-react";
 import { useTranslations } from "next-intl";
 
+import { EmptyState } from "@/components/EmptyState";
 import { cardGridTemplate, MIN_CARD_COLUMNS, rowsFor, useCardColumns } from "@/lib/cardGrid";
 
 import { RetryLink } from "../notesapp/RetryLink";
@@ -43,6 +44,12 @@ export function LoadFailed({ onRetry }: { onRetry: () => void }) {
       <RetryLink onRetry={onRetry} />
     </div>
   );
+}
+
+/** The empty state a name, tag or trust filter leaves behind. */
+export function FilteredEmpty() {
+  const t = useTranslations("knowledge.clips");
+  return <EmptyState icon={Search} title={t("filterEmpty")} />;
 }
 
 export function ShelfHeading({

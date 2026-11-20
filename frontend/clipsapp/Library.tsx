@@ -1,10 +1,8 @@
 "use client";
 
 import { useCallback } from "react";
-import { Search } from "lucide-react";
 import { useLocale, useTranslations } from "next-intl";
 
-import { EmptyState } from "@/components/EmptyState";
 import { FilterMenus } from "@/components/appshell/FilterMenus";
 import { GroupMenu, LibraryControlRow, SortMenu } from "@/components/appshell/ViewMenus";
 import { useNearEnd } from "@/components/appshell/useNearEnd";
@@ -22,7 +20,7 @@ import {
   type ClipState,
   type ShelfId,
 } from "./clipsUrl";
-import { LoadFailed } from "./ClipShelfBlock";
+import { FilteredEmpty, LoadFailed } from "./ClipShelfBlock";
 import { CoverGrid, CoverShelf } from "./CoverShelf";
 import {
   loadGridPage,
@@ -91,6 +89,7 @@ function Menus({
     target: target.key,
     tags: filters.tags,
     trust: filters.trust,
+    name: filters.name,
   });
   return (
     <LibraryControlRow
@@ -147,11 +146,6 @@ function MoreRow({
       <RetryLink onRetry={onRetry} />
     </div>
   );
-}
-
-function FilteredEmpty() {
-  const t = useTranslations("knowledge.clips");
-  return <EmptyState icon={Search} title={t("filterEmpty")} />;
 }
 
 function GroupShelves({
