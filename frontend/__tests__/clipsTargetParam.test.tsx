@@ -11,6 +11,7 @@ import {
   DRIVE,
   captureHistory,
   installClipsServer,
+  isDotAsk,
   isFiles,
   isShelves,
   nav,
@@ -149,7 +150,8 @@ function storage(): Record<string, string> {
 }
 
 const targetButton = () => screen.getByRole("button", { name: /Target/ });
-const underTarget = () => server.calls.filter((c) => isFiles(c) || isShelves(c));
+/** The listings a Target scopes. The unread-dot ask is scoped by card ids and carries no Target (SPEC-ADDON-138). */
+const underTarget = () => server.calls.filter((c) => (isFiles(c) || isShelves(c)) && !isDotAsk(c));
 
 /** I6: the first replace of the load removed `target`, nothing pushed, and no later navigation brought it back. */
 function expectTargetRemoved() {

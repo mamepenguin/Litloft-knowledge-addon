@@ -116,8 +116,8 @@ export default function ClipsPage() {
   const { target } = notesTarget;
   const readyTarget = target.status === "ready" ? target : null;
   const metaContext = useMemo(
-    () => ({ meta, refresh, dotsKey: withProfile ? nickname : null, target: readyTarget }),
-    [meta, refresh, withProfile, nickname, readyTarget],
+    () => ({ meta, refresh, dotsKey: withProfile ? nickname : null }),
+    [meta, refresh, withProfile, nickname],
   );
 
   const counted = useScopedLoad(

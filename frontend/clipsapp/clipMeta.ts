@@ -1,7 +1,7 @@
 import { createContext, useContext, useEffect, useSyncExternalStore } from "react";
 
 import { fetchClipCovers, type ClipCover } from "../api";
-import { isViewerRequired, loadUnreadAmong, type ReadyNotesTarget } from "./requests";
+import { isViewerRequired, loadUnreadAmong } from "./requests";
 
 const BATCH = 60;
 
@@ -70,9 +70,9 @@ export class ClipMeta {
   }
 
   /** `dotsKey` is the nickname to ask the dots for; `undefined` asks for covers only. */
-  ensure(ids: readonly string[], dotsKey?: string, target: ReadyNotesTarget | null = null): void {
+  ensure(ids: readonly string[], dotsKey?: string): void {
     this.ensureCovers(ids);
-    if (dotsKey !== undefined) this.ensureDots(ids, dotsKey, target);
+    if (dotsKey !== undefined) this.ensureDots(ids, dotsKey);
   }
 
   private ensureCovers(ids: readonly string[]) {
@@ -94,7 +94,7 @@ export class ClipMeta {
     }
   }
 
-  private ensureDots(ids: readonly string[], key: string, target: ReadyNotesTarget | null) {
+  private ensureDots(ids: readonly string[], key: string) {
     if (key !== this.dotsKey) {
       this.dotsKey = key;
       this.epoch += 1;
@@ -107,7 +107,7 @@ export class ClipMeta {
     const missing = [...new Set(ids)].filter((id) => !this.dotAsked.has(id));
     for (const batch of chunks(missing)) {
       for (const id of batch) this.dotAsked.add(id);
-      loadUnreadAmong(this.drive, batch, target).then(
+      loadUnreadAmong(this.drive, batch).then(
         (unread) => {
           if (epoch !== this.epoch) return;
           const next = new Set(this.unread);
@@ -126,12 +126,9 @@ export class ClipMeta {
   }
 }
 
-export const ClipMetaContext = createContext<{
-  meta: ClipMeta;
-  refresh: number;
-  dotsKey: string | null;
-  target?: ReadyNotesTarget | null;
-} | null>(null);
+export const ClipMetaContext = createContext<{ meta: ClipMeta; refresh: number; dotsKey: string | null } | null>(
+  null,
+);
 
 /**
  * Asks for the covers (and, with a profile, the unread dots) of `ids` and reads
@@ -140,12 +137,12 @@ export const ClipMetaContext = createContext<{
 export function useClipMeta(ids: readonly string[], { dots }: { dots: boolean }) {
   const context = useContext(ClipMetaContext);
   if (context === null) throw new Error("useClipMeta needs a ClipMetaContext");
-  const { meta, refresh, dotsKey, target = null } = context;
+  const { meta, refresh, dotsKey } = context;
   const key = dots ? dotsKey : null;
   const idsKey = ids.join(",");
   useEffect(() => {
-    meta.ensure(idsKey === "" ? [] : idsKey.split(","), key ?? undefined, target);
-  }, [meta, idsKey, key, refresh, target]);
+    meta.ensure(idsKey === "" ? [] : idsKey.split(","), key ?? undefined);
+  }, [meta, idsKey, key, refresh]);
   useSyncExternalStore(meta.subscribe, meta.getVersion, meta.getVersion);
   return {
     coverOf: (id: string) => meta.coverOf(id),

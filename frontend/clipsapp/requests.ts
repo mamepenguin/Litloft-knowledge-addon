@@ -228,27 +228,15 @@ export function loadTagCounts(
     : getTagCountsWithFileIds(drive, params, target.fileIds, options);
 }
 
-/**
- * Which of these clips the viewer has not opened. The ids scope it, so only a
- * collection Target rides along: its cards are known to be in that collection.
- */
+/** Which of these clips the viewer has not opened. Asked without a target. */
 export async function loadUnreadAmong(
   drive: string,
   ids: readonly string[],
-  target: ReadyNotesTarget | null = null,
   options?: Signal,
 ): Promise<Set<string>> {
-  const collection = target?.params?.collection;
   const res = await getShelves(
     drive,
-    {
-      ...(collection === undefined ? {} : { collection }),
-      by: "all",
-      key: "all",
-      opened: false,
-      ids,
-      per_shelf: PAGE_SIZE,
-    },
+    { by: "all", key: "all", opened: false, ids, per_shelf: PAGE_SIZE },
     options,
   );
   return new Set(res.shelves.flatMap((shelf) => shelf.items.map((item) => item.id)));
