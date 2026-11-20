@@ -9,6 +9,7 @@ import { formatRelativeAge } from "@/lib/format";
 import { buildCanonicalFileUrl } from "@/lib/canonicalFileUrl";
 import type { FileItem } from "@/types";
 
+import { useCardMenuHandlers } from "../cardMenu/PageFileMenu";
 import type { ClipCover } from "../api";
 
 /** About 500 Japanese characters or 250 English words; one rate serves both. */
@@ -79,15 +80,29 @@ export interface ClipCardProps {
   now: Date;
   /** The Library draws "site · N min"; Home and a shelf page add the age. */
   showAge: boolean;
+  /** The page list this card belongs to; absent leaves the card as it was. */
+  listKey?: string;
 }
 
-export default function ClipCard({ file, cover, dot, now, showAge }: ClipCardProps) {
+export default function ClipCard({ file, cover, dot, now, showAge, listKey }: ClipCardProps) {
   const t = useTranslations("knowledge.clips");
   const metaLine = useMetaLine();
+  const href = buildCanonicalFileUrl(file, file.id);
+  const menu = useCardMenuHandlers(
+    file,
+    listKey === undefined ? undefined : { href, listKey },
+  );
   return (
     <Link
-      href={buildCanonicalFileUrl(file, file.id)}
-      className="group relative block min-w-0 rounded-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
+      href={href}
+      onClick={menu.onClick}
+      onContextMenu={menu.onContextMenu}
+      onTouchStart={menu.onTouchStart}
+      onTouchEnd={menu.onTouchEnd}
+      onTouchMove={menu.onTouchMove}
+      className={`group relative block min-w-0 rounded-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus-ring${
+        listKey === undefined ? "" : " select-none [-webkit-touch-callout:none]"
+      }`}
     >
       <Cover cover={cover} className="aspect-[4/3] rounded-xl">
         {dot && (

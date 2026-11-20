@@ -7,6 +7,7 @@ import { buildCanonicalFileUrl } from "@/lib/canonicalFileUrl";
 import { readTargetView, writeTargetView, type TargetView } from "@/lib/appPrefs";
 import type { FileItem } from "@/types";
 
+import { usePageFileLists, type CardMenuOptions } from "../cardMenu/PageFileMenu";
 import { registerChangeGate } from "../notesapp/changeGate";
 import { NOTES_APP, type NotesTarget } from "../notesapp/useNotesTarget";
 import { useNoteClock } from "../useNoteClock";
@@ -102,8 +103,12 @@ export default function NotesLibrary({
   const onSaved = useCallback(() => setRefresh((n) => n + 1), []);
 
   const rail = useRailEntries(drive, ready, segment, refresh);
-  const list = useNotesList(drive, ready, selection, sort, params.q, refresh);
-  const rowIds = useMemo(() => list.rows.map((row) => row.id), [list.rows]);
+  const lists = usePageFileLists();
+  const removed = useRef(0);
+  const list = useNotesList(drive, ready, selection, sort, params.q, refresh, () => removed.current, lists.version);
+  const rows = useMemo(() => lists.filter("list", list.rows), [lists, list.rows]);
+  removed.current = lists.removedCount("list", list.rows);
+  const rowIds = useMemo(() => rows.map((row) => row.id), [rows]);
   const openings = useNoteOpenings(drive, rowIds);
 
   const paneDrawn = layout === "three" || layout === "menu";
@@ -239,6 +244,23 @@ export default function NotesLibrary({
     return true;
   };
 
+  const [paneRevision, setPaneRevision] = useState(0);
+  const paneNote = paneDrawn ? shownId : null;
+  const menuFor = (file: FileItem): CardMenuOptions => ({
+    href: buildCanonicalFileUrl(file, file.id),
+    listKey: "list",
+    before: file.id === paneNote ? gate : undefined,
+    onTrashed: (target) => {
+      if (target.id === paneNote) navigate({ note: null }, "replace");
+    },
+    onRenamed: (target) => {
+      if (target.id === paneNote) setPaneRevision((n) => n + 1);
+    },
+    onMoved: (target) => {
+      if (target.id === paneNote) setPaneRevision((n) => n + 1);
+    },
+  });
+
   if (ready === null) return null;
 
   const railProps = {
@@ -265,6 +287,7 @@ export default function NotesLibrary({
         key={paneId}
         drive={drive}
         noteId={paneId}
+        revision={paneRevision}
         saveHandle={saveHandle}
         gateRef={gateRef}
         onModeChange={setPaneMode}
@@ -311,7 +334,8 @@ export default function NotesLibrary({
         >
           <LibraryList
             phone={layout === "list"}
-            rows={list.rows}
+            rows={rows}
+            menuFor={menuFor}
             openings={openings.text}
             phase={list.phase}
             more={list.more}

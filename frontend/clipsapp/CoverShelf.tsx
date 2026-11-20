@@ -14,9 +14,14 @@ interface CardOptions {
   allUnread?: boolean;
   /** No card has a dot (Recently opened). */
   noDots?: boolean;
+  /** The page list the cards belong to, for the file menu. */
+  listKey?: string;
 }
 
-function useCards(items: readonly FileItem[], { now, showAge, allUnread, noDots }: CardOptions) {
+function useCards(
+  items: readonly FileItem[],
+  { now, showAge, allUnread, noDots, listKey }: CardOptions,
+) {
   const meta = useClipMeta(
     items.map((item) => item.id),
     { dots: !allUnread && !noDots },
@@ -28,6 +33,7 @@ function useCards(items: readonly FileItem[], { now, showAge, allUnread, noDots 
       dot={allUnread === true || (!noDots && meta.hasDot(file.id))}
       now={now}
       showAge={showAge}
+      listKey={listKey}
     />
   );
 }

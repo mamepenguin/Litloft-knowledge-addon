@@ -13,9 +13,12 @@ import { formatNoteTime } from "../noteDates";
 import { excerptFromText } from "../noteExcerpt";
 import { LIBRARY_SORTS, type LibrarySort, type Selection } from "./libraryUrl";
 import type { ListPhase } from "./useNotesList";
+import { useCardMenuHandlers, type CardMenuOptions } from "../cardMenu/PageFileMenu";
 
 export interface LibraryListProps {
   rows: FileItem[];
+  /** The page menu's entry for a row; absent leaves the row as it was. */
+  menuFor?: (file: FileItem) => CardMenuOptions;
   /** The opening text of the notes whose answer is in. */
   openings: Record<string, string>;
   phase: ListPhase;
@@ -101,6 +104,7 @@ function Row({
   now,
   dateField,
   href,
+  menu,
   onClick,
 }: {
   file: FileItem;
@@ -109,18 +113,28 @@ function Row({
   now: Date;
   dateField: "created_at" | "updated_at";
   href: string;
+  menu?: CardMenuOptions;
   onClick: (e: MouseEvent<HTMLAnchorElement>) => void;
 }) {
   const locale = useLocale();
   const title = file.title || file.filename;
   const excerpt = opening ? excerptFromText(opening, title).replace(/\s+/g, " ") : "";
+  const handlers = useCardMenuHandlers(file, menu);
   return (
     <li>
       <Link
         href={href}
-        onClick={onClick}
+        onClick={(e) => {
+          handlers.onClick?.(e);
+          if (e.defaultPrevented) return;
+          onClick(e);
+        }}
+        onContextMenu={handlers.onContextMenu}
+        onTouchStart={handlers.onTouchStart}
+        onTouchEnd={handlers.onTouchEnd}
+        onTouchMove={handlers.onTouchMove}
         aria-current={selected ? "true" : undefined}
-        className={`flex flex-col border-b border-bg-border px-4 py-3 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-focus-ring ${
+        className={`flex select-none flex-col border-b border-bg-border px-4 py-3 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-focus-ring [-webkit-touch-callout:none] ${
           selected ? "bg-bg-elevated" : "hover:bg-bg-elevated"
         }`}
       >
@@ -183,6 +197,7 @@ export function LibraryList(props: LibraryListProps) {
             now={props.now}
             dateField={dateField}
             href={props.hrefFor(file)}
+            menu={props.menuFor?.(file)}
             onClick={(e) => {
               if (e.defaultPrevented || e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
               if (props.onChoose(file)) e.preventDefault();

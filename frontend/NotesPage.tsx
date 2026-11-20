@@ -12,9 +12,11 @@ import { useCurrentDrive } from "@/components/CurrentDriveProvider";
 import { EmptyState } from "@/components/EmptyState";
 import { PageFrame } from "@/components/PageFrame";
 import { PageTabs } from "@/components/PageTabs";
+import { useProfile } from "@/components/ProfileProvider";
 import { useQuickNote } from "@/components/quick-note";
 import { readTargetView } from "@/lib/appPrefs";
 
+import { PageFileMenuProvider, usePageFileMenu } from "./cardMenu/PageFileMenu";
 import { hasChangeGate, runGated } from "./notesapp/changeGate";
 import Home from "./notesapp/Home";
 import { listNotes } from "./notesapp/listing";
@@ -32,6 +34,7 @@ export default function NotesPage() {
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const quickNote = useQuickNote();
+  const { nickname } = useProfile();
   const library = searchParams.get("view") === "all";
   const folder = searchParams.get("folder");
 
@@ -44,6 +47,11 @@ export default function NotesPage() {
     onTargetApplied,
   );
   const { target } = notesTarget;
+  const fileMenu = usePageFileMenu({
+    scope: JSON.stringify([drive, notesTarget.selectedId, nickname ?? "", Boolean(nickname)]),
+    hasProfile: Boolean(nickname),
+    historyListKeys: ["continue"],
+  });
   const targetId = target.status === "ready" ? notesTarget.selectedId : null;
   // The URL a Target was chosen on, until the router shows the URL without its sort:
   // the replace lands after the new Target is already in force.
@@ -156,61 +164,64 @@ export default function NotesPage() {
   }
 
   return (
-    <PageFrame
-      width="wide"
-      header={
-        <AppHeader
-          drive={drive}
-          icon={NotebookPen}
-          title={t("title")}
-          countDetail={count === null ? null : t("count", { count })}
-          tabs={tabs}
-          primaryAction={
-            <Button variant="primary" onClick={openNewNote}>
-              <FilePlus size={14} strokeWidth={1.8} />
-              {t("newNote")}
-            </Button>
-          }
-          target={{
-            drive,
-            app: NOTES_APP,
-            homeEntry: notesTarget.pending ? undefined : "knowledge",
-            name: notesTarget.known ? (notesTarget.name ?? t("allNotes")) : null,
-            folders: notesTarget.folders,
-            collections: { list: notesTarget.collections, retry: notesTarget.retryCollections },
-            selectedId: notesTarget.selectedId,
-            currentCount: count,
-            label: t("target"),
-            defaultLabel: t("allNotes"),
-            unavailableLabel: t("unavailable"),
-            defaultTargetTypes: NOTES_BASE_KINDS,
-            defaultTargetExcludeOrigin: "webclip",
-            isUsable: notesTarget.isUsable,
-            onChoose: (id) => {
-              if (id === notesTarget.selectedId) return;
-              runGated(() => {
-                const { pathname: path, searchParams: current } = latest.current;
-                if (current.get("view") === "all") {
-                  const next = new URLSearchParams(current);
-                  next.delete("sort");
-                  next.delete("note");
-                  next.delete("target");
-                  if (next.toString() !== current.toString()) {
-                    setSwitchedFrom(current.toString());
-                    router.replace(`${path}?${next}`);
+    <PageFileMenuProvider value={fileMenu.context}>
+      <PageFrame
+        width="wide"
+        header={
+          <AppHeader
+            drive={drive}
+            icon={NotebookPen}
+            title={t("title")}
+            countDetail={count === null ? null : t("count", { count })}
+            tabs={tabs}
+            primaryAction={
+              <Button variant="primary" onClick={openNewNote}>
+                <FilePlus size={14} strokeWidth={1.8} />
+                {t("newNote")}
+              </Button>
+            }
+            target={{
+              drive,
+              app: NOTES_APP,
+              homeEntry: notesTarget.pending ? undefined : "knowledge",
+              name: notesTarget.known ? (notesTarget.name ?? t("allNotes")) : null,
+              folders: notesTarget.folders,
+              collections: { list: notesTarget.collections, retry: notesTarget.retryCollections },
+              selectedId: notesTarget.selectedId,
+              currentCount: count,
+              label: t("target"),
+              defaultLabel: t("allNotes"),
+              unavailableLabel: t("unavailable"),
+              defaultTargetTypes: NOTES_BASE_KINDS,
+              defaultTargetExcludeOrigin: "webclip",
+              isUsable: notesTarget.isUsable,
+              onChoose: (id) => {
+                if (id === notesTarget.selectedId) return;
+                runGated(() => {
+                  const { pathname: path, searchParams: current } = latest.current;
+                  if (current.get("view") === "all") {
+                    const next = new URLSearchParams(current);
+                    next.delete("sort");
+                    next.delete("note");
+                    next.delete("target");
+                    if (next.toString() !== current.toString()) {
+                      setSwitchedFrom(current.toString());
+                      router.replace(`${path}?${next}`);
+                    }
                   }
-                }
-                notesTarget.choose(id);
-              });
-            },
-            onRetryFolders: notesTarget.retryFolders,
-          }}
-        />
-      }
-    >
-      <div id={PANEL_ID} className={`px-4 pb-10 ${library && target.status !== "lookingUp" && count !== 0 ? "pt-0" : "pt-6"}`}>
-        {body}
-      </div>
-    </PageFrame>
+                  notesTarget.choose(id);
+                });
+              },
+              onRetryFolders: notesTarget.retryFolders,
+            }}
+          />
+        }
+      >
+        <div id={PANEL_ID} className={`px-4 pb-10 ${library && target.status !== "lookingUp" && count !== 0 ? "pt-0" : "pt-6"}`}>
+          {body}
+        </div>
+      </PageFrame>
+      {fileMenu.menu}
+    </PageFileMenuProvider>
   );
 }

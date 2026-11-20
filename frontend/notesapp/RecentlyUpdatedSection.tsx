@@ -8,6 +8,7 @@ import { ChevronRight, Clock } from "lucide-react";
 
 import { useLoad } from "@/components/appshell/useLoad";
 
+import { usePageFileLists } from "../cardMenu/PageFileMenu";
 import { NoteRows } from "../NoteRow";
 import { SectionHeading } from "../NotesLanding";
 import { notesWithOpenings, useNoteOpenings } from "../useNoteOpenings";
@@ -37,7 +38,8 @@ export default function RecentlyUpdatedSection({
     [drive, target],
   );
   const { state, retry } = useLoad(load);
-  const files = state.status === "loaded" ? state.data.data : [];
+  const lists = usePageFileLists();
+  const files = state.status === "loaded" ? lists.filter("recent", state.data.data) : [];
   const openings = useNoteOpenings(drive, files.map((file) => file.id));
   const drawn = notesWithOpenings(files, openings);
 
@@ -66,7 +68,7 @@ export default function RecentlyUpdatedSection({
       ) : drawn.length === 0 ? (
         <SkeletonRows count={LIMIT} rowClass="h-[62px]" />
       ) : (
-        <NoteRows files={drawn} now={now} openings={openings.text} />
+        <NoteRows files={drawn} now={now} openings={openings.text} listKey="recent" />
       )}
     </section>
   );

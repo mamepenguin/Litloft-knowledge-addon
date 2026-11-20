@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback } from "react";
+import { useCallback, useRef } from "react";
 import { useLocale, useTranslations } from "next-intl";
 
 import { FilterMenus } from "@/components/appshell/FilterMenus";
@@ -22,6 +22,7 @@ import {
 } from "./clipsUrl";
 import { FilteredEmpty, LoadFailed } from "./ClipShelfBlock";
 import { CoverGrid, CoverShelf } from "./CoverShelf";
+import { usePageFileLists } from "../cardMenu/PageFileMenu";
 import {
   loadGridPage,
   loadTagCounts,
@@ -160,6 +161,7 @@ function GroupShelves({
 }: Omit<LibraryProps, "group"> & { group: "tag" | "folder" | "month" }) {
   const t = useTranslations("knowledge.clips");
   const locale = useLocale();
+  const lists = usePageFileLists();
   const data = useGroupShelves(drive, target, group, sort, refresh, filters);
   const sentinel = useNearEnd(data.hasMore && data.more === "idle", data.loadMore);
 
@@ -194,16 +196,21 @@ function GroupShelves({
         const title = untagged
           ? t("untagged")
           : (clipsShelfTitle(shelfId, drive, locale) ?? shelf.label);
+        const listKey = `group:${shelf.key}`;
+        const items = lists.filter(listKey, shelf.items);
+        if (items.length === 0) return null;
+        const count = shelf.count - lists.removedCount(listKey, shelf.items);
         return (
           <CoverShelf
             key={shelf.key}
             title={title}
-            count={new Intl.NumberFormat(locale).format(shelf.count)}
+            count={new Intl.NumberFormat(locale).format(count)}
             seeAllHref={clipsHref(pathname, { view: "shelf", shelf: shelfId, sort }, filters)}
-            view={{ status: "loaded", items: shelf.items }}
+            view={{ status: "loaded", items }}
             onRetry={data.retry}
             now={now}
             showAge={false}
+            listKey={listKey}
           />
         );
       })}
@@ -215,6 +222,8 @@ function GroupShelves({
 
 function Ungrouped({ drive, target, sort, filters, refresh, now }: LibraryProps) {
   const t = useTranslations("knowledge.clips");
+  const lists = usePageFileLists();
+  const removed = useRef(0);
   const fetchPage = useCallback(
     (page: number, signal: AbortSignal) =>
       loadGridPage(drive, target, page, sort, filters, { signal }),
@@ -225,11 +234,15 @@ function Ungrouped({ drive, target, sort, filters, refresh, now }: LibraryProps)
     fetchPage,
     pageSize: PAGE_SIZE,
     refresh,
+    removedBefore: () => removed.current,
+    revision: lists.version,
   });
+  const items = lists.filter("grid", data.items);
+  removed.current = lists.removedCount("grid", data.items);
   const sentinel = useNearEnd(data.hasMore && data.more === "idle", data.loadMore);
 
   if (data.phase === "failed") return <LoadFailed onRetry={data.retry} />;
-  if (data.phase === "ready" && data.items.length === 0) {
+  if (data.phase === "ready" && items.length === 0) {
     return hasClipFilters(filters) ? (
       <FilteredEmpty />
     ) : (
@@ -239,10 +252,11 @@ function Ungrouped({ drive, target, sort, filters, refresh, now }: LibraryProps)
   return (
     <>
       <CoverGrid
-        items={data.items}
+        items={items}
         now={now}
         showAge={false}
         skeletons={data.phase === "loading" || data.more === "loading" ? 8 : 0}
+        listKey="grid"
       />
       <MoreRow more={data.more} onRetry={data.loadMore} />
       <div ref={sentinel} aria-hidden="true" className="h-px" />

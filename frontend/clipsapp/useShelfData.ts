@@ -21,6 +21,10 @@ export interface ShelfDataOptions {
   profileKey: string;
   refresh: number;
   onViewerRequired: () => void;
+  /** How many of the drawn cards the menu has taken out. */
+  removedBefore?: () => number;
+  /** Bumps when the page's menu removes a card, so a page in flight is dropped. */
+  revision?: number;
 }
 
 /** One shelf's cards as the page asks for them. */
@@ -35,6 +39,8 @@ export function useShelfData({
   profileKey,
   refresh,
   onViewerRequired,
+  removedBefore,
+  revision,
 }: ShelfDataOptions) {
   const recent = shelf.kind === "recent";
   const ready = recent || target !== null;
@@ -71,5 +77,7 @@ export function useShelfData({
     cap: paged ? undefined : size,
     replaceOnRefresh: recent,
     onError,
+    removedBefore,
+    revision,
   });
 }
