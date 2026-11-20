@@ -312,8 +312,8 @@ describe.each([
   });
 });
 
-describe("SPEC-ADDON-157 the Notes Library view fill-in", () => {
-  it("SPEC-ADDON-157 I5 I6 puts the applied Target's saved view in force, writes no view key, and the fill-in replace drops target", async () => {
+describe("SPEC-ADDON-157 the Notes Library view filled in", () => {
+  it("SPEC-ADDON-157 I5 I6 puts the applied Target's saved view in force, writes no view key, and the replace that fills it in drops target", async () => {
     localStorage.setItem(VIEW_KEY, JSON.stringify({ "sf-trip": { group: "tag" } }));
     const viewBefore = localStorage.getItem(VIEW_KEY);
     open(`${BASE}?view=all&target=sf-trip`);

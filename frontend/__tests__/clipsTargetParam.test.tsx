@@ -93,7 +93,7 @@ function collection(id: string, name: string) {
 }
 const COLLECTIONS = [collection("c-trip", "Trip box"), collection("c-other", "Other box")];
 
-/** Ids that need no held list to be ignored. The Clips Library's own view fill-in already drops an unknown parameter, so it does not run them. */
+/** Ids that need no held list to be ignored. The Clips Library's own view is filled in already and drops an unknown parameter, so it does not run them. */
 const IGNORED_WITHOUT_A_HELD_LIST: [string, string, string | null, ((c: Call) => boolean) | undefined][] = [
   ["an id not in the Smart Folder list", "sf-gone", "sf-gone", undefined],
   ["default", "default", null, undefined],
@@ -309,7 +309,7 @@ describe.each([
   });
 });
 
-describe("SPEC-ADDON-157 the Clips Library view fill-in", () => {
+describe("SPEC-ADDON-157 the Clips Library view filled in", () => {
   it("SPEC-ADDON-157 I5 I6 puts the applied Target's saved view in the URL by the one replace that drops target, and writes no view key", async () => {
     localStorage.setItem(VIEW_KEY, JSON.stringify({ "sf-trip": { group: "folder", sort: "title" } }));
     const viewBefore = localStorage.getItem(VIEW_KEY);
