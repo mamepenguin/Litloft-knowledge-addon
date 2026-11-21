@@ -74,6 +74,7 @@ export default function ShelfPage(props: ShelfPageProps) {
     onViewerRequired: props.onViewerRequired,
     removedBefore: () => removed.current,
     revision: lists.version,
+    menuRemoved: (id) => lists.isRemoved(listKey, id),
   });
   const items = lists.filter(listKey, data.items);
   removed.current = lists.removedCount(listKey, data.items);
@@ -124,7 +125,7 @@ export default function ShelfPage(props: ShelfPageProps) {
         <h2 className="min-w-0 truncate text-lg font-bold text-text-primary">{title}</h2>
         {shelf.kind !== "recent" && data.phase === "ready" && (
           <span className="flex-shrink-0 text-sm tabular-nums text-text-muted">
-            {new Intl.NumberFormat(locale).format(data.count - lists.removedCount(listKey, data.counted))}
+            {new Intl.NumberFormat(locale).format(data.count - lists.removedCount(listKey, data.items))}
           </span>
         )}
       </div>

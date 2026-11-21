@@ -25,6 +25,7 @@ export interface ShelfDataOptions {
   removedBefore?: () => number;
   /** Bumps when the page's menu removes a card, so a page in flight is dropped. */
   revision?: number;
+  menuRemoved?: (id: string) => boolean;
 }
 
 /** One shelf's cards as the page asks for them. */
@@ -41,6 +42,7 @@ export function useShelfData({
   onViewerRequired,
   removedBefore,
   revision,
+  menuRemoved,
 }: ShelfDataOptions) {
   const recent = shelf.kind === "recent";
   const ready = recent || target !== null;
@@ -79,5 +81,6 @@ export function useShelfData({
     onError,
     removedBefore,
     revision,
+    menuRemoved,
   });
 }

@@ -60,6 +60,7 @@ function CardShelf({
 }: HomeProps & { shelf: ShelfId; title: string; withCount: boolean }) {
   const locale = useLocale();
   const lists = usePageFileLists();
+  const listKey = homeListKey(shelf);
   const data = useShelfData({
     drive: props.drive,
     target: shelf.kind === "recent" ? null : props.target,
@@ -70,11 +71,11 @@ function CardShelf({
     profileKey: props.nickname ?? "",
     refresh: props.refresh,
     onViewerRequired: props.onViewerRequired,
+    menuRemoved: (id) => lists.isRemoved(listKey, id),
   });
-  const listKey = homeListKey(shelf);
   const items = lists.filter(listKey, data.items);
   if (data.phase === "ready" && items.length === 0) return null;
-  const count = data.count - lists.removedCount(listKey, data.counted);
+  const count = data.count - lists.removedCount(listKey, data.items);
   return (
     <CoverShelf
       title={title}
@@ -131,6 +132,7 @@ export function UnverifiedRows({
 function UnverifiedShelf(props: HomeProps) {
   const t = useTranslations("knowledge.clips");
   const lists = usePageFileLists();
+  const listKey = "home:unverified";
   const data = useShelfData({
     drive: props.drive,
     target: props.target,
@@ -141,8 +143,8 @@ function UnverifiedShelf(props: HomeProps) {
     profileKey: props.nickname ?? "",
     refresh: props.refresh,
     onViewerRequired: props.onViewerRequired,
+    menuRemoved: (id) => lists.isRemoved(listKey, id),
   });
-  const listKey = "home:unverified";
   const items = lists.filter(listKey, data.items);
   if (data.phase === "ready" && items.length === 0) return null;
   const href = clipsHref(props.pathname, { view: "shelf", shelf: { kind: "unverified" }, sort: "newest" });

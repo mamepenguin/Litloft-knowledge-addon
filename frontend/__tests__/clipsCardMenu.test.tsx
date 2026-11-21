@@ -598,6 +598,27 @@ describe("SPEC-ADDON-164 I1 I3: the Clips shelf pages", () => {
     expect(screen.queryByText("2")).toBeNull();
   });
 
+  it("SPEC-ADDON-164 I3 a clip a refresh pushed past the first page, trashed from the Unread page, lowers its count by one", async () => {
+    nav.set(`${CLIPS}?view=shelf&shelf=unread`);
+    serve([...clips(61), ...NOT_CLIPS]);
+    render(<Page />);
+    await waitFor(() => expect(drawn()).toHaveLength(60));
+    expect(screen.getByText("61")).toBeInTheDocument();
+
+    server.files = [...clips(1, "n", { created: "2026-11-20T00:00:00Z" }), ...server.files];
+    emit("knowledge.clip.ready", { file_id: "n1", job_id: 1 });
+    await waitFor(() => expect(screen.getByText("62")).toBeInTheDocument());
+    expect(drawn()).toHaveLength(61);
+
+    await rightClick(screen.getByText("C clip 60"));
+    await choose("Move to Trash");
+    await submit("submit-trash");
+
+    await waitFor(() => expect(screen.queryByText("C clip 60")).toBeNull());
+    expect(screen.getByText("61")).toBeInTheDocument();
+    expect(screen.queryByText("62")).toBeNull();
+  });
+
   it("SPEC-ADDON-164 I3 the Unverified page: a row's title opens the menu, its Mark as verified does not, and a trashed row leaves", async () => {
     nav.set(`${CLIPS}?view=shelf&shelf=unverified`);
     serve([...unverified(3), ...NOT_CLIPS], { history: ["v1", "v2", "v3"] });

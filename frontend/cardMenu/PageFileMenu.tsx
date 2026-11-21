@@ -35,6 +35,8 @@ export interface CardFileLists {
   filter: (listKey: string, items: readonly FileItem[]) => FileItem[];
   /** How many of these items this list has lost. */
   removedCount: (listKey: string, items: readonly FileItem[]) => number;
+  /** Whether this list has lost the item. */
+  isRemoved: (listKey: string, id: string) => boolean;
 }
 
 export interface PageFileMenuContextValue extends CardFileLists {
@@ -61,6 +63,7 @@ const NO_LISTS: CardFileLists = {
   version: 0,
   filter: (_listKey, items) => [...items],
   removedCount: () => 0,
+  isRemoved: () => false,
 };
 
 const PageFileMenuContext = createContext<PageFileMenuContextValue | null>(null);
@@ -106,6 +109,7 @@ export function usePageFileMenu({
   menu: ReactNode;
   filter: CardFileLists["filter"];
   removedCount: CardFileLists["removedCount"];
+  isRemoved: CardFileLists["isRemoved"];
 } {
   const [page, setPage] = useState<PageState>(() => freshPage(scope));
   if (page.scope !== scope) setPage(freshPage(scope));
@@ -144,10 +148,11 @@ export function usePageFileMenu({
     return out;
   };
 
-  const removedCount: CardFileLists["removedCount"] = (listKey, items) => {
-    const gone = livePage.removed.get(listKey);
-    return items.filter((item) => livePage.trashed.has(item.id) || gone?.has(item.id)).length;
-  };
+  const isRemoved: CardFileLists["isRemoved"] = (listKey, id) =>
+    livePage.trashed.has(id) || (livePage.removed.get(listKey)?.has(id) ?? false);
+
+  const removedCount: CardFileLists["removedCount"] = (listKey, items) =>
+    items.filter((item) => isRemoved(listKey, item.id)).length;
 
   const open: PageFileMenuContextValue["open"] = (file, position, options) => {
     setOpened({ scope: scopeRef.current, file, options, position, menuOpen: true });
@@ -214,6 +219,7 @@ export function usePageFileMenu({
     open,
     filter,
     removedCount,
+    isRemoved,
   };
 
   const menu =
@@ -230,7 +236,7 @@ export function usePageFileMenu({
       />
     );
 
-  return { context, menu, filter, removedCount };
+  return { context, menu, filter, removedCount, isRemoved };
 }
 
 export function PageFileMenuProvider({

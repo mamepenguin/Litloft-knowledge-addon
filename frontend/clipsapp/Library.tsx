@@ -236,6 +236,7 @@ function Ungrouped({ drive, target, sort, filters, refresh, now }: LibraryProps)
     refresh,
     removedBefore: () => removed.current,
     revision: lists.version,
+    menuRemoved: (id) => lists.isRemoved("grid", id),
   });
   const items = lists.filter("grid", data.items);
   removed.current = lists.removedCount("grid", data.items);
