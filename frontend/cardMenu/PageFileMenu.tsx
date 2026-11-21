@@ -10,25 +10,9 @@ import {
   type ReactNode,
   type TouchEvent,
 } from "react";
-import { useTranslations } from "next-intl";
 
-import { CollectionPicker } from "@/components/CollectionPicker";
-import { ConfirmDialog } from "@/components/ConfirmDialog";
-import { ContextMenu, type MenuEntry } from "@/components/ContextMenu";
-import { CopyIdDialog } from "@/components/CopyIdDialog";
-import { MoveDialog } from "@/components/MoveDialog";
-import { RenameDialog } from "@/components/RenameDialog";
-import { useToast } from "@/components/ToastProvider";
-import { useFileMenuItems } from "@/hooks/useFileMenuItems";
-import { copyText } from "@/lib/copyText";
-import {
-  deleteFile,
-  deleteWatchProgress,
-  getShelves,
-  moveFile,
-  renameFile,
-  type ShelfItem,
-} from "@/lib/api";
+import { FileContextMenu } from "@/components/FileContextMenu";
+import { deleteWatchProgress, getShelves, type ShelfItem } from "@/lib/api";
 import type { FileItem } from "@/types";
 
 /** One card's entry into the page's menu. */
@@ -361,149 +345,37 @@ function PageFileMenuView({
   onMoved: (file: FileItem) => void;
   onHistoryRemoved: (listKey: string, id: string) => void;
 }) {
-  const tt = useTranslations("trash");
-  const tf = useTranslations("file");
-  const toast = useToast();
-  const [renameOpen, setRenameOpen] = useState(false);
-  const [moveOpen, setMoveOpen] = useState(false);
-  const [deleteOpen, setDeleteOpen] = useState(false);
-  const [collectionOpen, setCollectionOpen] = useState(false);
-  const [copyIdOpen, setCopyIdOpen] = useState(false);
-  const running = useRef(false);
-
   const file = opened.file;
   const listKey = opened.options.listKey;
 
-  useEffect(() => {
-    setRenameOpen(false);
-    setMoveOpen(false);
-    setDeleteOpen(false);
-    setCollectionOpen(false);
-    setCopyIdOpen(false);
-  }, [file.id]);
-
-  const gated = (run: () => Promise<void>) => {
-    const start = () => {
-      if (running.current) return;
-      running.current = true;
-      void run().finally(() => {
-        running.current = false;
-      });
-    };
-    if (opened.options.before) opened.options.before(start);
-    else start();
-  };
-
-  const rename = async (newName: string) => {
-    try {
-      await renameFile(file.id, newName);
-    } catch {
-      return;
-    }
-    setRenameOpen(false);
-    onRenamed(file);
-  };
-
-  const move = async (path: string) => {
-    try {
-      await moveFile(file.id, path);
-    } catch {
-      return;
-    }
-    setMoveOpen(false);
-    onMoved(file);
-  };
-
-  const trash = async () => {
-    try {
-      await deleteFile(file.id);
-    } catch {
-      return;
-    }
-    setDeleteOpen(false);
-    onTrashed(file);
-  };
-
   const offersHistory = hasProfile && historyListKeys.includes(listKey);
   const onRemoveFromHistory = offersHistory
-    ? () => {
-        void (async () => {
-          try {
-            await deleteWatchProgress(file.id);
-          } catch {
-            return;
-          }
-          onHistoryRemoved(listKey, file.id);
-        })();
+    ? async () => {
+        try {
+          await deleteWatchProgress(file.id);
+        } catch {
+          return;
+        }
+        onHistoryRemoved(listKey, file.id);
       }
     : undefined;
 
-  const items = useFileMenuItems(file, {
-    onOpenInNewTab: () => {
-      window.open(opened.options.href, "_blank");
-    },
-    onAddToCollection: () => setCollectionOpen(true),
-    onCopyId: () => {
-      void (async () => {
-        if (await copyText(file.id)) toast.success(tf("idCopied"));
-        else setCopyIdOpen(true);
-      })();
-    },
-    onRename: () => setRenameOpen(true),
-    onMove: () => setMoveOpen(true),
-    onRemoveFromHistory,
-    onTrash: () => setDeleteOpen(true),
-  }).map((item) => ({ ...item, immediate: true }));
-
-  const entries: MenuEntry[] = items;
-
   return (
-    <>
-      <ContextMenu
-        open={opened.menuOpen}
-        position={opened.position}
-        items={entries}
-        onClose={onClose}
-      />
-      <RenameDialog
-        open={renameOpen}
-        currentName={file.filename}
-        onRename={(name) => {
-          gated(async () => {
-            await rename(name);
-          });
-        }}
-        onCancel={() => setRenameOpen(false)}
-      />
-      <MoveDialog
-        open={moveOpen}
-        drive={file.drive}
-        currentPath={file.folder_path}
-        onMove={(path) => {
-          gated(async () => {
-            await move(path);
-          });
-        }}
-        onCancel={() => setMoveOpen(false)}
-      />
-      <CollectionPicker
-        open={collectionOpen}
-        drive={file.drive}
-        fileIds={[file.id]}
-        onClose={() => setCollectionOpen(false)}
-      />
-      <CopyIdDialog open={copyIdOpen} fileId={file.id} onClose={() => setCopyIdOpen(false)} />
-      <ConfirmDialog
-        open={deleteOpen}
-        title={tt("moveToTrash")}
-        message={tt("confirmMoveToTrash", { name: file.filename })}
-        confirmLabel={tt("moveToTrash")}
-        note={tt("autoDelete")}
-        onConfirm={() => {
-          gated(trash);
-        }}
-        onCancel={() => setDeleteOpen(false)}
-      />
-    </>
+    <FileContextMenu
+      key={file.id}
+      open={opened.menuOpen}
+      position={opened.position}
+      target={file}
+      onClose={onClose}
+      onOpenInNewTab={() => {
+        window.open(opened.options.href, "_blank");
+      }}
+      immediateRows
+      onRemoveFromHistory={onRemoveFromHistory}
+      beforeChange={opened.options.before}
+      onTrashed={onTrashed}
+      onRenamed={onRenamed}
+      onMoved={onMoved}
+    />
   );
 }
