@@ -21,6 +21,8 @@ interface Held<T> {
   pages: number;
   /** A page that added nothing new ended the list, whatever the count says. */
   exhausted: boolean;
+  /** Held cards the latest answer left out, so `count` does not include them. */
+  kept: ReadonlySet<string>;
 }
 
 export interface PagedOptions<T> {
@@ -43,8 +45,10 @@ export interface PagedOptions<T> {
 }
 
 function empty<T>(scope: string): Held<T> {
-  return { scope, items: [], count: 0, phase: "loading", more: "idle", pages: 0, exhausted: false };
+  return { scope, items: [], count: 0, phase: "loading", more: "idle", pages: 0, exhausted: false, kept: NONE_KEPT };
 }
+
+const NONE_KEPT: ReadonlySet<string> = new Set();
 
 function appendUnseen<T extends { id: string }>(drawn: readonly T[], page: readonly T[]): T[] {
   const seen = new Set(drawn.map((item) => item.id));
@@ -120,6 +124,7 @@ export function usePagedClips<T extends { id: string }>(options: PagedOptions<T>
             phase: "ready",
             pages,
             exhausted: false,
+            kept: replaceOnRefresh ? NONE_KEPT : new Set(unnamed.map((item) => item.id)),
           };
         });
       },
@@ -176,6 +181,7 @@ export function usePagedClips<T extends { id: string }>(options: PagedOptions<T>
             pages: page,
             more: "idle",
             exhausted: items.length === prev.items.length,
+            kept: reread ? NONE_KEPT : prev.kept,
           };
         }),
       () => setHeld((prev) => (prev !== null && prev.scope === scope ? { ...prev, more: "failed" } : prev)),
@@ -207,9 +213,12 @@ export function usePagedClips<T extends { id: string }>(options: PagedOptions<T>
   }, []);
 
   const phase: PagedPhase = own?.phase ?? "loading";
+  const items = own?.items ?? [];
   return {
     phase,
-    items: own?.items ?? [],
+    items,
+    /** The held cards `count` includes. */
+    counted: own === null || own.kept.size === 0 ? items : items.filter((item) => !own.kept.has(item.id)),
     count: own?.count ?? 0,
     more: own?.more ?? "idle",
     hasMore: own !== null && !own.exhausted && own.items.length < own.count,

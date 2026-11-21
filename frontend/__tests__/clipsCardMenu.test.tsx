@@ -13,6 +13,7 @@ import {
   NOT_CLIPS,
   captureHistory,
   clips,
+  emit,
   fileItem,
   installClipsServer,
   isNewShelf,
@@ -349,6 +350,23 @@ describe("SPEC-ADDON-164 I3: clips leave Home's shelves in place", () => {
     expect(listLoads(server.calls.slice(before))).toEqual([]);
   });
 
+  it("SPEC-ADDON-164 I3 after a trash, a refresh for a new clip draws Unread's count from the server alone", async () => {
+    home();
+    await homeLoaded();
+
+    await rightClick(card(UNREAD, "V clip 2"));
+    await choose("Move to Trash");
+    await submit("submit-trash");
+    await waitFor(() => expect(titles(UNREAD)).toEqual(["C clip 1", "C clip 2"]));
+
+    server.files = [...clips(1, "n", { created: "2026-11-20T00:00:00Z" }), ...server.files];
+    emit("knowledge.clip.ready", { file_id: "n1", job_id: 1 });
+
+    await waitFor(() => expect(titles(UNREAD)).toEqual(["N clip 1", "C clip 1", "C clip 2"]));
+    expect(within(shelf(UNREAD)!).getByText("3")).toBeInTheDocument();
+    expect(within(shelf(UNREAD)!).queryByText("2")).toBeNull();
+  });
+
   it("SPEC-ADDON-164 I3 I10 Remove from history takes the card out of Recently opened alone, through DELETE progress only", async () => {
     home();
     await homeLoaded();
@@ -558,6 +576,26 @@ describe("SPEC-ADDON-164 I1 I3: the Clips shelf pages", () => {
 
     expect(await rightClick(await screen.findByText("C clip 2"))).toBe(false);
     expect(rows()).toEqual(FILE_ROWS);
+  });
+
+  it("SPEC-ADDON-164 I3 after a trash, a refresh for a new clip draws the Unread page's count from the server alone", async () => {
+    nav.set(`${CLIPS}?view=shelf&shelf=unread`);
+    serve([...clips(3), ...NOT_CLIPS]);
+    render(<Page />);
+    await waitFor(() => expect(drawn()).toEqual(["C clip 1", "C clip 2", "C clip 3"]));
+
+    await rightClick(screen.getByText("C clip 2"));
+    await choose("Move to Trash");
+    await submit("submit-trash");
+    await waitFor(() => expect(drawn()).toEqual(["C clip 1", "C clip 3"]));
+    expect(screen.getByText("2")).toBeInTheDocument();
+
+    server.files = [...clips(1, "n", { created: "2026-11-20T00:00:00Z" }), ...server.files];
+    emit("knowledge.clip.ready", { file_id: "n1", job_id: 1 });
+
+    await waitFor(() => expect(drawn()).toEqual(["N clip 1", "C clip 1", "C clip 3"]));
+    expect(screen.getByText("3")).toBeInTheDocument();
+    expect(screen.queryByText("2")).toBeNull();
   });
 
   it("SPEC-ADDON-164 I3 the Unverified page: a row's title opens the menu, its Mark as verified does not, and a trashed row leaves", async () => {

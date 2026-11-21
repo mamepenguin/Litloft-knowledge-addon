@@ -74,7 +74,7 @@ function CardShelf({
   const listKey = homeListKey(shelf);
   const items = lists.filter(listKey, data.items);
   if (data.phase === "ready" && items.length === 0) return null;
-  const count = data.count - lists.removedCount(listKey, data.items);
+  const count = data.count - lists.removedCount(listKey, data.counted);
   return (
     <CoverShelf
       title={title}
