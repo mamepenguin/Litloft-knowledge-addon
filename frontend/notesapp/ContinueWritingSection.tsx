@@ -9,6 +9,7 @@ import { useProfile } from "@/components/ProfileProvider";
 import { getWatchHistory } from "@/lib/api";
 
 import ContinueCard from "../ContinueCard";
+import { usePageFileLists } from "../cardMenu/PageFileMenu";
 import { SectionHeading } from "../NotesLanding";
 import { notesWithOpenings, useNoteOpenings } from "../useNoteOpenings";
 import { SkeletonCards } from "./Skeleton";
@@ -29,7 +30,8 @@ export default function ContinueWritingSection({ drive, now }: { drive: string; 
     [drive],
   );
   const { state } = useLoad(nickname ? load : null);
-  const rows = state.status === "loaded" ? state.data : [];
+  const lists = usePageFileLists();
+  const rows = state.status === "loaded" ? lists.filter("continue", state.data) : [];
   const openings = useNoteOpenings(drive, rows.map((file) => file.id));
   const cards = notesWithOpenings(rows, openings);
 
@@ -46,7 +48,7 @@ export default function ContinueWritingSection({ drive, now }: { drive: string; 
       ) : (
         <div className={GRID}>
           {cards.map((file) => (
-            <ContinueCard key={file.id} file={file} now={now} opening={openings.text[file.id]} />
+            <ContinueCard key={file.id} file={file} now={now} opening={openings.text[file.id]} listKey="continue" />
           ))}
         </div>
       )}

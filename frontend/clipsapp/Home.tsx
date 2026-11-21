@@ -4,6 +4,7 @@ import { useLocale, useTranslations } from "next-intl";
 
 import type { FileItem } from "@/types";
 
+import { usePageFileLists } from "../cardMenu/PageFileMenu";
 import ClipRow from "./ClipRow";
 import { useClipMeta } from "./clipMeta";
 import { clipsHref, type ShelfId } from "./clipsUrl";
@@ -36,6 +37,21 @@ function viewOf(
   return { status: "loaded", items };
 }
 
+function homeListKey(shelf: ShelfId): string {
+  switch (shelf.kind) {
+    case "unread":
+      return "home:unread";
+    case "new":
+      return "home:new";
+    case "recent":
+      return "home:recent";
+    case "unverified":
+      return "home:unverified";
+    default:
+      return "home";
+  }
+}
+
 function CardShelf({
   shelf,
   title,
@@ -43,6 +59,8 @@ function CardShelf({
   ...props
 }: HomeProps & { shelf: ShelfId; title: string; withCount: boolean }) {
   const locale = useLocale();
+  const lists = usePageFileLists();
+  const listKey = homeListKey(shelf);
   const data = useShelfData({
     drive: props.drive,
     target: shelf.kind === "recent" ? null : props.target,
@@ -53,19 +71,23 @@ function CardShelf({
     profileKey: props.nickname ?? "",
     refresh: props.refresh,
     onViewerRequired: props.onViewerRequired,
+    menuRemoved: (id) => lists.isRemoved(listKey, id),
   });
-  if (data.phase === "ready" && data.items.length === 0) return null;
+  const items = lists.filter(listKey, data.items);
+  if (data.phase === "ready" && items.length === 0) return null;
+  const count = data.count - lists.removedCount(listKey, data.items);
   return (
     <CoverShelf
       title={title}
-      count={withCount && data.phase === "ready" ? new Intl.NumberFormat(locale).format(data.count) : undefined}
+      count={withCount && data.phase === "ready" ? new Intl.NumberFormat(locale).format(count) : undefined}
       seeAllHref={clipsHref(props.pathname, { view: "shelf", shelf, sort: "newest" })}
-      view={viewOf(data.phase, data.items)}
+      view={viewOf(data.phase, items)}
       onRetry={data.retry}
       now={props.now}
       showAge
       allUnread={shelf.kind === "unread"}
       noDots={shelf.kind === "recent"}
+      listKey={listKey}
     />
   );
 }
@@ -74,11 +96,13 @@ function CardShelf({
 export function UnverifiedRows({
   items,
   now,
+  listKey,
   remove,
   setSaving,
 }: {
   items: readonly FileItem[];
   now: Date;
+  listKey?: string;
   remove: (id: string) => void;
   setSaving: (id: string, on: boolean) => void;
 }) {
@@ -96,6 +120,7 @@ export function UnverifiedRows({
             cover={meta.coverOf(file.id)}
             now={now}
             status={statusOf(file.id)}
+            listKey={listKey}
             onVerify={() => verify(file.id)}
           />
         </li>
@@ -106,6 +131,8 @@ export function UnverifiedRows({
 
 function UnverifiedShelf(props: HomeProps) {
   const t = useTranslations("knowledge.clips");
+  const lists = usePageFileLists();
+  const listKey = "home:unverified";
   const data = useShelfData({
     drive: props.drive,
     target: props.target,
@@ -116,8 +143,10 @@ function UnverifiedShelf(props: HomeProps) {
     profileKey: props.nickname ?? "",
     refresh: props.refresh,
     onViewerRequired: props.onViewerRequired,
+    menuRemoved: (id) => lists.isRemoved(listKey, id),
   });
-  if (data.phase === "ready" && data.items.length === 0) return null;
+  const items = lists.filter(listKey, data.items);
+  if (data.phase === "ready" && items.length === 0) return null;
   const href = clipsHref(props.pathname, { view: "shelf", shelf: { kind: "unverified" }, sort: "newest" });
   return (
     <section className="min-w-0">
@@ -133,7 +162,13 @@ function UnverifiedShelf(props: HomeProps) {
           ))}
         </div>
       ) : (
-        <UnverifiedRows items={data.items} now={props.now} remove={data.remove} setSaving={data.setSaving} />
+        <UnverifiedRows
+          items={items}
+          now={props.now}
+          listKey={listKey}
+          remove={data.remove}
+          setSaving={data.setSaving}
+        />
       )}
     </section>
   );

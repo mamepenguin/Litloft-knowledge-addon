@@ -46,10 +46,26 @@ export function listScope(
   return [drive, target.key, picked, sort, query].join("\u0000");
 }
 
+function unique(rows: readonly FileItem[]): FileItem[] {
+  const seen = new Set<string>();
+  const out: FileItem[] = [];
+  for (const row of rows) {
+    if (seen.has(row.id)) continue;
+    seen.add(row.id);
+    out.push(row);
+  }
+  return out;
+}
+
 /**
  * The notes of one selection, a page at a time. A new scope starts empty; a
  * `refresh` or a retry keeps the rows drawn until page one answers, and a
  * failure keeps them too.
+ *
+ * `removedBefore` is how many drawn rows the menu has taken out. A page asked
+ * after that starts past the shifted boundary, so the drawn range is read
+ * again from the first page rather than asking a page number the server has
+ * moved under it.
  */
 export function useNotesList(
   drive: string,
@@ -58,6 +74,8 @@ export function useNotesList(
   sort: LibrarySort,
   query: string,
   refresh: number,
+  removedBefore = () => 0,
+  revision = 0,
 ): NotesListState {
   const scope = target === null ? null : listScope(drive, target, selection, sort, query);
   const [held, setHeld] = useState<Held | null>(null);
@@ -66,6 +84,8 @@ export function useNotesList(
   useEffect(() => {
     request.current = { drive, target, selection, sort, query };
   });
+  const revisionRef = useRef(revision);
+  revisionRef.current = revision;
 
   const fetchPage = useCallback((page: number, signal?: AbortSignal) => {
     const { drive: d, target: t, selection: s, sort: so, query: q } = request.current;
@@ -98,7 +118,7 @@ export function useNotesList(
         if (controller.signal.aborted) return;
         setHeld({
           scope,
-          rows: res.data,
+          rows: unique(res.data),
           total: res.meta.total,
           nextPage: 2,
           phase: "ready",
@@ -128,23 +148,31 @@ export function useNotesList(
     if (own === null || !hasMore || own.more === "loading") return;
     const page = own.nextPage;
     const asked = own.scope;
+    const atRevision = revisionRef.current;
+    const reread = removedBefore() > 0;
     setHeld({ ...own, more: "loading" });
-    fetchPage(page).then(
-      (res) =>
-        setHeld((now) =>
-          now !== null && now.scope === asked
-            ? {
-                ...now,
-                rows: appendUnseen(now.rows, res.data),
-                total: res.meta.total,
-                nextPage: page + 1,
-                more: "idle",
-              }
-            : now,
-        ),
+    const answered = reread
+      ? Promise.all(Array.from({ length: page }, (_, i) => fetchPage(i + 1)))
+      : fetchPage(page).then((res) => [res]);
+    answered.then(
+      (answers) => {
+        const rows = unique(answers.flatMap((res) => res.data));
+        setHeld((now) => {
+          if (now === null || now.scope !== asked) return now;
+          // A card left while this page was in flight, so its boundary moved.
+          if (revisionRef.current !== atRevision) return { ...now, more: "idle" };
+          return {
+            ...now,
+            rows: reread ? rows : appendUnseen(now.rows, rows),
+            total: answers[answers.length - 1]?.meta.total ?? now.total,
+            nextPage: page + 1,
+            more: "idle",
+          };
+        });
+      },
       () => setHeld((now) => (now !== null && now.scope === asked ? { ...now, more: "failed" } : now)),
     );
-  }, [own, hasMore, fetchPage]);
+  }, [own, hasMore, fetchPage, removedBefore]);
 
   const retry = useCallback(() => setAttempt((n) => n + 1), []);
 

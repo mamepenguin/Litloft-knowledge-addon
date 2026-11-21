@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback } from "react";
+import { useCallback, useEffect, useRef } from "react";
 
 import { useLoad, type LoadState } from "@/components/appshell/useLoad";
 import { getFile, getFileRelations, getStreamUrl, type FileRelationItem } from "@/lib/api";
@@ -29,9 +29,15 @@ async function loadNote(noteId: string): Promise<LoadedNote> {
  * The note's metadata and content, together: the pane draws nothing of the note
  * until both are in, and never mounts the editor before. `retry` asks again.
  */
-export function useNoteData(noteId: string): { note: LoadState<LoadedNote>; retry: () => void } {
+export function useNoteData(noteId: string, revision = 0): { note: LoadState<LoadedNote>; retry: () => void } {
   const load = useCallback(() => loadNote(noteId), [noteId]);
   const { state, retry } = useLoad(load);
+  const last = useRef(revision);
+  useEffect(() => {
+    if (last.current === revision) return;
+    last.current = revision;
+    retry();
+  }, [revision, retry]);
   return { note: state, retry };
 }
 

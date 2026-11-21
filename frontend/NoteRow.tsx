@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useLocale, useTranslations } from "next-intl";
 import { FileText, Folder } from "lucide-react";
 
+import { useCardMenuHandlers } from "./cardMenu/PageFileMenu";
 import { buildCanonicalFileUrl } from "@/lib/canonicalFileUrl";
 import type { FileItem } from "@/types";
 
@@ -65,6 +66,8 @@ interface Props {
   /** In place of the folder, for a list already narrowed to one folder. */
   showTags?: boolean;
   dateField?: NoteDateField;
+  /** The page list this row belongs to; absent leaves the row as it was. */
+  listKey?: string;
 }
 
 function TagChips({ tags }: { tags: string[] }) {
@@ -79,18 +82,27 @@ function TagChips({ tags }: { tags: string[] }) {
   );
 }
 
-export default function NoteRow({ file, now, opening, query, showTags = false, dateField = "updated_at" }: Props) {
+export default function NoteRow({ file, now, opening, query, showTags = false, dateField = "updated_at", listKey }: Props) {
   const t = useTranslations("knowledge.notes");
   const locale = useLocale();
   const title = file.title || file.filename;
   const excerpt = opening ? excerptFromText(opening, title) : "";
   const folder = file.folder_path || t("rootFolder");
   const time = formatNoteTime(file[dateField], now, locale);
+  const href = buildCanonicalFileUrl(file, file.id);
+  const menu = useCardMenuHandlers(file, listKey === undefined ? undefined : { href, listKey });
 
   return (
     <Link
-      href={buildCanonicalFileUrl(file, file.id)}
-      className="group flex items-start gap-3.5 rounded-xl px-1 py-3 transition-colors hover:bg-bg-elevated sm:px-3"
+      href={href}
+      onClick={menu.onClick}
+      onContextMenu={menu.onContextMenu}
+      onTouchStart={menu.onTouchStart}
+      onTouchEnd={menu.onTouchEnd}
+      onTouchMove={menu.onTouchMove}
+      className={`group flex items-start gap-3.5 rounded-xl px-1 py-3 transition-colors hover:bg-bg-elevated sm:px-3${
+        listKey === undefined ? "" : " select-none [-webkit-touch-callout:none]"
+      }`}
     >
       <span
         aria-hidden="true"
@@ -149,6 +161,7 @@ export function NoteRows({
   query,
   showTags,
   dateField,
+  listKey,
 }: {
   files: FileItem[];
   now: Date;
@@ -157,6 +170,7 @@ export function NoteRows({
   query?: string;
   showTags?: boolean;
   dateField?: NoteDateField;
+  listKey?: string;
 }) {
   return (
     <ul role="list" className="flex flex-col">
@@ -170,6 +184,7 @@ export function NoteRows({
             query={query}
             showTags={showTags}
             dateField={dateField}
+            listKey={listKey}
           />
         </li>
       ))}

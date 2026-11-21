@@ -162,7 +162,7 @@ describe("the knowledge addon's modules", () => {
   // any assertion noticing, since an orphan among them is no longer looked
   // for. Measured 2026-11-18.
   it("counts every module in the addon", () => {
-    expect(moduleFiles.size).toBe(99);
+    expect(moduleFiles.size).toBe(100);
     expect([...moduleFiles].filter((f) => f.endsWith(".ts")).length).toBe(41);
   });
 

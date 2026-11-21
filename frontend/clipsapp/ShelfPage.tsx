@@ -1,10 +1,12 @@
 "use client";
 
 import Link from "next/link";
+import { useRef } from "react";
 import { useLocale, useTranslations } from "next-intl";
 
 import { useNearEnd } from "@/components/appshell/useNearEnd";
 
+import { usePageFileLists } from "../cardMenu/PageFileMenu";
 import { clipsShelfTitle, backTarget, clipsHref, hasClipFilters, NO_CLIP_FILTERS, type ClipFilters, type ClipSort, type ShelfId } from "./clipsUrl";
 import { FilteredEmpty, LoadFailed } from "./ClipShelfBlock";
 import { CoverGrid } from "./CoverShelf";
@@ -56,6 +58,9 @@ export default function ShelfPage(props: ShelfPageProps) {
   const title = useShelfTitle(shelf, drive);
   const back = backTarget(shelf, sort);
   const backFilters = back.view === "library" ? filters : NO_CLIP_FILTERS;
+  const lists = usePageFileLists();
+  const listKey = shelf.kind === "recent" ? "page:recent" : "page";
+  const removed = useRef(0);
   const data = useShelfData({
     drive,
     target: props.target,
@@ -67,13 +72,18 @@ export default function ShelfPage(props: ShelfPageProps) {
     profileKey: props.nickname ?? "",
     refresh: props.refresh,
     onViewerRequired: props.onViewerRequired,
+    removedBefore: () => removed.current,
+    revision: lists.version,
+    menuRemoved: (id) => lists.isRemoved(listKey, id),
   });
+  const items = lists.filter(listKey, data.items);
+  removed.current = lists.removedCount(listKey, data.items);
   const sentinel = useNearEnd(data.hasMore && data.more === "idle", data.loadMore);
 
   let body;
   if (data.phase === "failed") {
     body = <LoadFailed onRetry={data.retry} />;
-  } else if (data.phase === "ready" && data.items.length === 0) {
+  } else if (data.phase === "ready" && items.length === 0) {
     body = hasClipFilters(backFilters) ? (
       <FilteredEmpty />
     ) : (
@@ -81,17 +91,24 @@ export default function ShelfPage(props: ShelfPageProps) {
     );
   } else if (shelf.kind === "unverified" && data.phase === "ready") {
     body = (
-      <UnverifiedRows items={data.items} now={now} remove={data.remove} setSaving={data.setSaving} />
+      <UnverifiedRows
+        items={items}
+        now={now}
+        listKey={listKey}
+        remove={data.remove}
+        setSaving={data.setSaving}
+      />
     );
   } else {
     body = (
       <CoverGrid
-        items={data.items}
+        items={items}
         now={now}
         showAge
         allUnread={shelf.kind === "unread"}
         noDots={shelf.kind === "recent"}
         skeletons={data.phase === "loading" || data.more === "loading" ? 8 : 0}
+        listKey={listKey}
       />
     );
   }
@@ -108,7 +125,7 @@ export default function ShelfPage(props: ShelfPageProps) {
         <h2 className="min-w-0 truncate text-lg font-bold text-text-primary">{title}</h2>
         {shelf.kind !== "recent" && data.phase === "ready" && (
           <span className="flex-shrink-0 text-sm tabular-nums text-text-muted">
-            {new Intl.NumberFormat(locale).format(data.count)}
+            {new Intl.NumberFormat(locale).format(data.count - lists.removedCount(listKey, data.items))}
           </span>
         )}
       </div>

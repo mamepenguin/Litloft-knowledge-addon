@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useLocale, useTranslations } from "next-intl";
 
+import { useCardMenuHandlers } from "./cardMenu/PageFileMenu";
 import { buildCanonicalFileUrl } from "@/lib/canonicalFileUrl";
 import type { FileItem } from "@/types";
 
@@ -13,21 +14,36 @@ export default function ContinueCard({
   file,
   now,
   opening,
+  listKey,
 }: {
   file: FileItem;
   now: Date;
   /** The note's opening text, already in hand when the card is drawn. */
   opening?: string;
+  /** The page list this card belongs to; absent leaves the card as it was. */
+  listKey?: string;
 }) {
   const t = useTranslations("knowledge.notesApp");
   const locale = useLocale();
   const title = file.title || file.filename;
   const excerpt = opening ? excerptFromText(opening, title) : "";
+  const href = buildCanonicalFileUrl(file, file.id);
+  const menu = useCardMenuHandlers(
+    file,
+    listKey === undefined ? undefined : { href, listKey },
+  );
 
   return (
     <Link
-      href={buildCanonicalFileUrl(file, file.id)}
-      className="group block overflow-hidden rounded-2xl border border-bg-border bg-bg-card shadow-card transition-colors hover:bg-bg-elevated"
+      href={href}
+      onClick={menu.onClick}
+      onContextMenu={menu.onContextMenu}
+      onTouchStart={menu.onTouchStart}
+      onTouchEnd={menu.onTouchEnd}
+      onTouchMove={menu.onTouchMove}
+      className={`group block overflow-hidden rounded-2xl border border-bg-border bg-bg-card shadow-card transition-colors hover:bg-bg-elevated${
+        listKey === undefined ? "" : " select-none [-webkit-touch-callout:none]"
+      }`}
     >
       <div aria-hidden="true" className="h-32 overflow-hidden bg-bg-elevated px-4 pt-4">
         <div className="h-full rounded-t-lg border border-b-0 border-bg-border bg-bg-card px-4 py-3.5">

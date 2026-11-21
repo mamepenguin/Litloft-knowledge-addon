@@ -17,6 +17,8 @@ interface Held<T> {
   count: number;
   phase: PagedPhase;
   more: MorePhase;
+  /** The pages requested so far; after a removal the next request starts from this count, not the shrunken card count. */
+  pages: number;
   /** A page that added nothing new ended the list, whatever the count says. */
   exhausted: boolean;
 }
@@ -34,10 +36,16 @@ export interface PagedOptions<T> {
   replaceOnRefresh?: boolean;
   /** The first page's failure, before it is drawn as one. */
   onError?: (error: unknown) => void;
+  /** How many of the drawn items the menu has taken out; read when a page is asked. */
+  removedBefore?: () => number;
+  /** Bumps when the page's menu removes a card, so a page in flight is dropped. */
+  revision?: number;
+  /** Whether the page's menu took the card out; a refresh that leaves it out does not keep it. */
+  menuRemoved?: (id: string) => boolean;
 }
 
 function empty<T>(scope: string): Held<T> {
-  return { scope, items: [], count: 0, phase: "loading", more: "idle", exhausted: false };
+  return { scope, items: [], count: 0, phase: "loading", more: "idle", pages: 0, exhausted: false };
 }
 
 function appendUnseen<T extends { id: string }>(drawn: readonly T[], page: readonly T[]): T[] {
@@ -96,11 +104,14 @@ export function usePagedClips<T extends { id: string }>(options: PagedOptions<T>
         setHeld((prev) => {
           const base = prev !== null && prev.scope === scope ? prev : empty<T>(scope);
           const fresh = page.items.filter((item) => !removed.has(item.id));
-          const { cap, replaceOnRefresh } = latest.current;
+          const { cap, replaceOnRefresh, menuRemoved } = latest.current;
           // Several pages asked again are the whole drawn range in the server's
           // order, so a card they leave out is gone, unless it is being saved.
           const unnamed = base.items.filter(
-            (item) => !fresh.some((f) => f.id === item.id) && (pages === 1 || saving.current.has(item.id)),
+            (item) =>
+              !fresh.some((f) => f.id === item.id) &&
+              (pages === 1 || saving.current.has(item.id)) &&
+              !(menuRemoved?.(item.id) ?? false),
           );
           const merged = replaceOnRefresh ? fresh : [...fresh, ...unnamed];
           return {
@@ -112,6 +123,7 @@ export function usePagedClips<T extends { id: string }>(options: PagedOptions<T>
                 : merged.filter((item, i) => i < cap || saving.current.has(item.id)),
             count: page.count,
             phase: "ready",
+            pages,
             exhausted: false,
           };
         });
@@ -135,23 +147,40 @@ export function usePagedClips<T extends { id: string }>(options: PagedOptions<T>
     if (scope === null || own === null) return;
     if (own.phase !== "ready" || own.more === "loading" || own.exhausted) return;
     if (own.items.length >= own.count) return;
-    const page = Math.floor(own.items.length / pageSize) + 1;
+    const reread = (latest.current.removedBefore?.() ?? 0) > 0;
+    const atRevision = latest.current.revision ?? 0;
+    const page = reread ? own.pages + 1 : Math.floor(own.items.length / pageSize) + 1;
     setHeld({ ...own, more: "loading" });
-    latest.current.fetchPage(page, new AbortController().signal).then(
+    const answered = reread
+      ? Promise.all(
+          Array.from({ length: page }, (_, i) =>
+            latest.current.fetchPage(i + 1, new AbortController().signal),
+          ),
+        ).then((answers) => ({
+          items: answers.flatMap((answer) => answer.items),
+          count: answers[answers.length - 1]?.count ?? own.count,
+        }))
+      : latest.current.fetchPage(page, new AbortController().signal);
+    answered.then(
       (res) =>
         setHeld((prev) => {
           if (prev === null || prev.scope !== scope) return prev;
+          // A card left while this page was in flight, so its boundary moved.
+          if ((latest.current.revision ?? 0) !== atRevision) return { ...prev, more: "idle" };
           const removed = goneIds(scope);
-          const added = appendUnseen(
-            prev.items,
-            res.items.filter((item) => !removed.has(item.id)),
-          );
+          const items = reread
+            ? res.items.filter((item) => !removed.has(item.id))
+            : appendUnseen(
+                prev.items,
+                res.items.filter((item) => !removed.has(item.id)),
+              );
           return {
             ...prev,
-            items: added,
+            items,
             count: res.count,
+            pages: page,
             more: "idle",
-            exhausted: added.length === prev.items.length,
+            exhausted: items.length === prev.items.length,
           };
         }),
       () => setHeld((prev) => (prev !== null && prev.scope === scope ? { ...prev, more: "failed" } : prev)),

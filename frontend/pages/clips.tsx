@@ -17,6 +17,7 @@ import { useWebSocket } from "@/hooks/useWebSocket";
 import { readTargetView, writeTargetView, type TargetView } from "@/lib/appPrefs";
 
 import ClipSection from "../ClipSection";
+import { PageFileMenuProvider, usePageFileMenu } from "../cardMenu/PageFileMenu";
 import { ClipMeta, ClipMetaContext } from "../clipsapp/clipMeta";
 import { CLIPS_APP } from "../clipsapp/clipsApp";
 import {
@@ -117,6 +118,11 @@ export default function ClipsPage() {
   );
   const { target } = notesTarget;
   const readyTarget = target.status === "ready" ? target : null;
+  const fileMenu = usePageFileMenu({
+    scope: JSON.stringify([drive, notesTarget.selectedId, nickname ?? "", withProfile]),
+    hasProfile: withProfile,
+    historyListKeys: ["home:recent", "page:recent"],
+  });
   const metaContext = useMemo(
     () => ({ meta, refresh, dotsKey: withProfile ? nickname : null }),
     [meta, refresh, withProfile, nickname],
@@ -456,56 +462,59 @@ export default function ClipsPage() {
 
   return (
     <ClipMetaContext value={metaContext}>
-      <PageFrame
-        width="wide"
-        header={
-          <AppHeader
-            drive={drive}
-            icon={Newspaper}
-            title={tNav("clips")}
-            countDetail={count === null ? null : t("count", { count })}
-            tabs={tabs}
-            primaryAction={
-              <Button
-                variant="primary"
-                aria-expanded={clipOpen}
-                aria-controls={clipMounted ? clipRegionId : undefined}
-                onClick={toggleClip}
-              >
-                <Plus size={14} strokeWidth={1.8} aria-hidden="true" />
-                {t("action")}
-              </Button>
-            }
-            target={{
-              drive,
-              app: CLIPS_APP,
-              homeEntry: notesTarget.pending ? undefined : "knowledge/clips",
-              name: notesTarget.known ? (notesTarget.name ?? t("allClips")) : null,
-              folders: notesTarget.folders,
-              collections: { list: notesTarget.collections, retry: notesTarget.retryCollections },
-              selectedId: notesTarget.selectedId,
-              currentCount: count,
-              label: t("target"),
-              defaultLabel: t("allClips"),
-              unavailableLabel: t("unavailable"),
-              defaultTargetTypes: NOTES_BASE_KINDS,
-              defaultTargetOrigin: "webclip",
-              isUsable: notesTarget.isUsable,
-              onChoose: chooseTarget,
-              onRetryFolders: notesTarget.retryFolders,
-            }}
-          />
-        }
-      >
-        <div className={`px-4 pb-10 ${view.view === "home" ? "pt-7" : view.view === "library" ? "pt-4" : "pt-6"}`}>
-          {clipMounted && (
-            <div id={clipRegionId} className="mb-6" hidden={!clipOpen}>
-              <ClipSection onClipAdded={refreshClips} />
-            </div>
-          )}
-          {body}
-        </div>
-      </PageFrame>
+      <PageFileMenuProvider value={fileMenu.context}>
+        <PageFrame
+          width="wide"
+          header={
+            <AppHeader
+              drive={drive}
+              icon={Newspaper}
+              title={tNav("clips")}
+              countDetail={count === null ? null : t("count", { count })}
+              tabs={tabs}
+              primaryAction={
+                <Button
+                  variant="primary"
+                  aria-expanded={clipOpen}
+                  aria-controls={clipMounted ? clipRegionId : undefined}
+                  onClick={toggleClip}
+                >
+                  <Plus size={14} strokeWidth={1.8} aria-hidden="true" />
+                  {t("action")}
+                </Button>
+              }
+              target={{
+                drive,
+                app: CLIPS_APP,
+                homeEntry: notesTarget.pending ? undefined : "knowledge/clips",
+                name: notesTarget.known ? (notesTarget.name ?? t("allClips")) : null,
+                folders: notesTarget.folders,
+                collections: { list: notesTarget.collections, retry: notesTarget.retryCollections },
+                selectedId: notesTarget.selectedId,
+                currentCount: count,
+                label: t("target"),
+                defaultLabel: t("allClips"),
+                unavailableLabel: t("unavailable"),
+                defaultTargetTypes: NOTES_BASE_KINDS,
+                defaultTargetOrigin: "webclip",
+                isUsable: notesTarget.isUsable,
+                onChoose: chooseTarget,
+                onRetryFolders: notesTarget.retryFolders,
+              }}
+            />
+          }
+        >
+          <div className={`px-4 pb-10 ${view.view === "home" ? "pt-7" : view.view === "library" ? "pt-4" : "pt-6"}`}>
+            {clipMounted && (
+              <div id={clipRegionId} className="mb-6" hidden={!clipOpen}>
+                <ClipSection onClipAdded={refreshClips} />
+              </div>
+            )}
+            {body}
+          </div>
+        </PageFrame>
+        {fileMenu.menu}
+      </PageFileMenuProvider>
     </ClipMetaContext>
   );
 }

@@ -9,6 +9,7 @@ import { buildCanonicalFileUrl } from "@/lib/canonicalFileUrl";
 
 import { formatNoteTime } from "../noteDates";
 import { excerptFromText } from "../noteExcerpt";
+import { useCardMenuHandlers, usePageFileLists } from "../cardMenu/PageFileMenu";
 import { SectionHeading } from "../NotesLanding";
 import { notesWithOpenings, useNoteOpenings } from "../useNoteOpenings";
 import { formatLocator } from "./locator";
@@ -35,11 +36,18 @@ function SourcedRow({
   const excerpt = opening ? excerptFromText(opening, title).replace(/\s+/g, " ") : "";
   const folder = source.folder_path || t("rootFolder");
   const Icon = sourceIcon(source.mime_type);
+  const href = buildCanonicalFileUrl(file, file.id);
+  const menu = useCardMenuHandlers(file, { href, listKey: "sources" });
 
   return (
     <Link
-      href={buildCanonicalFileUrl(file, file.id)}
-      className="flex items-start gap-3.5 rounded-xl px-1 py-3 transition-colors hover:bg-bg-elevated sm:px-3"
+      href={href}
+      onClick={menu.onClick}
+      onContextMenu={menu.onContextMenu}
+      onTouchStart={menu.onTouchStart}
+      onTouchEnd={menu.onTouchEnd}
+      onTouchMove={menu.onTouchMove}
+      className="flex select-none items-start gap-3.5 rounded-xl px-1 py-3 transition-colors hover:bg-bg-elevated [-webkit-touch-callout:none] sm:px-3"
     >
       <span className="relative h-[54px] w-24 shrink-0 overflow-hidden rounded-lg bg-bg-elevated">
         {source.has_thumbnail ? (
@@ -94,7 +102,14 @@ export default function NotesWithSourcesSection({
 }) {
   const t = useTranslations("knowledge.notesApp");
   const state = useNotesWithSources(drive, target);
-  const notes = state.status === "loaded" ? state.data : [];
+  const lists = usePageFileLists();
+  const notes =
+    state.status === "loaded"
+      ? lists.filter("sources", state.data.map((note) => note.file)).flatMap((file) => {
+          const note = state.data.find((candidate) => candidate.file.id === file.id);
+          return note === undefined ? [] : [{ ...note, file }];
+        })
+      : [];
   const openings = useNoteOpenings(drive, notes.map((note) => note.file.id));
   const drawn = notes.filter((note) => notesWithOpenings([note.file], openings).length > 0);
 

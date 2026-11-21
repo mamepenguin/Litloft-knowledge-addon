@@ -38,6 +38,8 @@ export type PaneGate = (proceed: () => void) => void;
 export interface NotePaneProps {
   drive: string;
   noteId: string;
+  /** Bumped when the note was renamed or moved, to read it anew. */
+  revision?: number;
   saveHandle: MutableRefObject<EditorSaveHandle | null>;
   /** Set to this pane's gate while it is mounted. */
   gateRef: MutableRefObject<PaneGate | null>;
@@ -70,6 +72,7 @@ function hasHandle(ref: MutableRefObject<EditorSaveHandle | null>): boolean {
 export default function NotePaneContainer({
   drive,
   noteId,
+  revision = 0,
   saveHandle,
   gateRef,
   onModeChange,
@@ -84,7 +87,7 @@ export default function NotePaneContainer({
   const [flushNote, setFlushNote] = useState<FlushNote>(null);
   const [wiki, setWiki] = useState<Record<string, WikiResolveResult> | undefined>(undefined);
 
-  const { note, retry } = useNoteData(noteId);
+  const { note, retry } = useNoteData(noteId, revision);
   const connections = useConnections(drive, noteId);
   const reloadConnections = connections.reload;
   const loaded = note.status === "loaded" ? note.data : null;
