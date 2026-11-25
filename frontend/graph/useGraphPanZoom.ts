@@ -50,6 +50,11 @@ const VIEWBOX_W = 1100;
 const VIEWBOX_H = 620;
 const INERTIA_DECAY = 0.92;
 
+function prefersReducedMotion(): boolean {
+  if (typeof window === "undefined" || !window.matchMedia) return false;
+  return window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+}
+
 export interface PanZoomTransform {
   tx: number;
   ty: number;
@@ -296,7 +301,7 @@ export function useGraphPanZoom(): UseGraphPanZoom {
         // ignore
       }
       if (pointers.current.size === 0) {
-        if (didDragRef.current) {
+        if (didDragRef.current && !prefersReducedMotion()) {
           // Inertia. Already inside rAF, so paint directly rather than
           // scheduling another frame.
           const step = () => {
