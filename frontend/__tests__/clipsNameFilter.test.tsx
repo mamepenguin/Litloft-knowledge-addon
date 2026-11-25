@@ -243,7 +243,7 @@ describe("SPEC-ADDON-159 I1 the Library and its shelf pages carry the name", () 
 
   it.each(["tags", "folder", "month"])("SPEC-ADDON-159 I6 every See all link under group=%s carries q", async (group) => {
     nav.set(`${LIBRARY}&group=${group}&sort=newest&q=${NAME}`);
-    serve();
+    serve([...FILES, { id: "n2", title: "Web news", folder: "news", created: "2026-10-07T09:00:00Z" }]);
     render(<Page />);
     await libraryDrawn();
 

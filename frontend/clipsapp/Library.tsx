@@ -165,7 +165,31 @@ function GroupShelves({
   const data = useGroupShelves(drive, target, group, sort, refresh, filters);
   const sentinel = useNearEnd(data.hasMore && data.more === "idle", data.loadMore);
 
+  const scope = [drive, target.key, group, sort, clipFiltersKey(filters)].join("|");
+  const body = useRef<{ scope: string; value: "grid" | "shelves" | "empty" } | null>(null);
+  if (data.phase === "ready") {
+    const kept = body.current !== null && body.current.scope === scope ? body.current.value : null;
+    // Drawn shelves stay until the conditions change: swapping them for the grid on a
+    // refresh would put the grid's loading cards where cards were drawn.
+    const value =
+      data.total === 0 ? "empty" : kept === "shelves" || data.total >= 2 ? "shelves" : "grid";
+    body.current = { scope, value };
+  }
+
   if (data.phase === "failed") return <LoadFailed onRetry={data.retry} />;
+  if (data.phase === "ready" && body.current !== null && body.current.scope === scope && body.current.value === "grid") {
+    return (
+      <ClipsGrid
+        drive={drive}
+        target={target}
+        sort={sort}
+        filters={filters}
+        refresh={data.answer}
+        now={now}
+        paging="single"
+      />
+    );
+  }
   if (data.phase === "ready" && data.shelves.length === 0) {
     return hasClipFilters(filters) ? (
       <FilteredEmpty />
@@ -220,7 +244,23 @@ function GroupShelves({
   );
 }
 
-function Ungrouped({ drive, target, sort, filters, refresh, now }: LibraryProps) {
+function ClipsGrid({
+  drive,
+  target,
+  sort,
+  filters,
+  refresh,
+  now,
+  paging,
+}: {
+  drive: string;
+  target: ReadyNotesTarget;
+  sort: ClipSort;
+  filters: ClipFilters;
+  refresh: number;
+  now: Date;
+  paging: "none" | "single";
+}) {
   const t = useTranslations("knowledge.clips");
   const lists = usePageFileLists();
   const removed = useRef(0);
@@ -230,7 +270,7 @@ function Ungrouped({ drive, target, sort, filters, refresh, now }: LibraryProps)
     [drive, target, sort, filters],
   );
   const data = usePagedClips({
-    scope: [drive, target.key, sort, "grid", clipFiltersKey(filters)].join("|"),
+    scope: [drive, target.key, sort, "grid", paging, clipFiltersKey(filters)].join("|"),
     fetchPage,
     pageSize: PAGE_SIZE,
     refresh,
@@ -270,7 +310,15 @@ export default function Library(props: LibraryProps) {
     <div>
       <Menus {...props} />
       {props.group === "none" ? (
-        <Ungrouped {...props} />
+        <ClipsGrid
+          drive={props.drive}
+          target={props.target}
+          sort={props.sort}
+          filters={props.filters}
+          refresh={props.refresh}
+          now={props.now}
+          paging="none"
+        />
       ) : (
         <GroupShelves {...props} group={props.group === "tags" ? "tag" : props.group} />
       )}

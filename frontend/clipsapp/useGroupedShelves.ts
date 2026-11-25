@@ -16,10 +16,12 @@ interface Held {
   total: number;
   phase: GroupShelvesPhase;
   more: "idle" | "loading" | "failed";
+  /** Counts the first-page answers for this scope; a grid keyed on it re-asks only after an answer. */
+  answer: number;
 }
 
 function empty(scope: string): Held {
-  return { scope, shelves: [], total: 0, phase: "loading", more: "idle" };
+  return { scope, shelves: [], total: 0, phase: "loading", more: "idle", answer: 0 };
 }
 
 /**
@@ -55,7 +57,14 @@ export function useGroupShelves(
     }).then(
       (res) => {
         if (controller.signal.aborted) return;
-        setHeld({ scope, shelves: res.shelves, total: res.total_shelves, phase: "ready", more: "idle" });
+        setHeld((prev) => ({
+          scope,
+          shelves: res.shelves,
+          total: res.total_shelves,
+          phase: "ready",
+          more: "idle",
+          answer: prev !== null && prev.scope === scope ? prev.answer + 1 : 1,
+        }));
       },
       () => {
         if (controller.signal.aborted) return;
@@ -97,6 +106,8 @@ export function useGroupShelves(
   return {
     phase: own?.phase ?? ("loading" as GroupShelvesPhase),
     shelves: own?.shelves ?? [],
+    total: own?.total ?? 0,
+    answer: own?.answer ?? 0,
     more: own?.more ?? ("idle" as const),
     hasMore: own !== null && own.shelves.length < own.total,
     loadMore,

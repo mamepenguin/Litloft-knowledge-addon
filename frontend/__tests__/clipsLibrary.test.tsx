@@ -188,7 +188,7 @@ describe("SPEC-ADDON-139 step 10: Library by tag", () => {
 
   it("SPEC-ADDON-139 a failed first By tag request says Couldn't load with Try again in place of the shelves", async () => {
     nav.set(LIBRARY);
-    serve([...tagged("curry", 2, "k"), ...NOT_CLIPS]);
+    serve([...tagged("curry", 2, "k"), ...tagged("soup", 1, "s"), ...NOT_CLIPS]);
     let failing = true;
     server.override = (call) => (isTagShelves(call) && failing ? new Response("{}", { status: 500 }) : null);
     render(<Page />);
@@ -205,7 +205,7 @@ describe("SPEC-ADDON-139 step 10: Library by tag", () => {
     ["Date Added (Oldest First)", "oldest", "created_at", "asc"],
   ])("SPEC-ADDON-139 sorting by %s pushes sort=%s and asks the shelves in that order", async (item, value, sort, order) => {
     nav.set(LIBRARY);
-    serve([...tagged("curry", 3, "k"), ...NOT_CLIPS]);
+    serve([...tagged("curry", 3, "k"), ...tagged("soup", 1, "s"), ...NOT_CLIPS]);
     render(<Page />);
     await screen.findByRole("heading", { level: 2, name: "curry" });
     const asked = server.calls.length;
@@ -232,7 +232,7 @@ describe("SPEC-ADDON-139 step 10: Library by tag", () => {
 
   it("SPEC-ADDON-139 an unknown group or sort is read as the default and replaced in the URL", async () => {
     nav.set(`${LIBRARY}&group=shelves&sort=size`);
-    serve([...tagged("curry", 2, "k"), ...NOT_CLIPS]);
+    serve([...tagged("curry", 2, "k"), ...tagged("soup", 1, "s"), ...NOT_CLIPS]);
     render(<Page />);
 
     expect(await screen.findByRole("heading", { level: 2, name: "curry" })).toBeInTheDocument();
@@ -248,7 +248,7 @@ describe("SPEC-ADDON-139 step 10: Library by tag", () => {
 describe("SPEC-ADDON-139 step 10: Library with no grouping (SPEC-ADDON-100 I29 as revised)", () => {
   it("SPEC-ADDON-139 I3 choosing No grouping pushes group=none and pages every clip in 60s as a grid", async () => {
     nav.set(LIBRARY);
-    serve([...clips(65), ...NOT_CLIPS]);
+    serve([...clips(65).map((clip, i) => (i === 0 ? { ...clip, tags: ["curry"] } : clip)), ...NOT_CLIPS]);
     render(<Page />);
     await screen.findByRole("heading", { level: 2, name: "Untagged" });
 
@@ -479,6 +479,13 @@ describe("SPEC-ADDON-139 step 12: Library cards", () => {
 
 describe("SPEC-ADDON-139 review r1: Target conditions, Target change, refresh on the Library and shelf pages", () => {
   const TRIP_CLIPS = () => [...clips(2, "t", { tags: ["trip"] }), ...clips(2, "w", { tags: ["work"] }), ...NOT_CLIPS];
+  const TWO_TAGGED_TARGETS = () => [
+    ...clips(2, "t", { tags: ["trip"] }),
+    ...clips(1, "tx", { tags: ["trip", "x"] }),
+    ...clips(2, "w", { tags: ["work"] }),
+    ...clips(1, "wx", { tags: ["work", "x"] }),
+    ...NOT_CLIPS,
+  ];
   const listing = (c: { url: URL }) => isTagShelves(c as never) || isNewShelf(c as never);
 
   it.each([
@@ -501,7 +508,7 @@ describe("SPEC-ADDON-139 review r1: Target conditions, Target change, refresh on
   it("SPEC-ADDON-139 step 4 a Target change starts the By tag shelves over under the new Target", async () => {
     localStorage.setItem(CLIPS_TARGET_KEY, "sf-trip");
     nav.set(LIBRARY);
-    serve(TRIP_CLIPS());
+    serve(TWO_TAGGED_TARGETS());
     render(<Page />);
     await screen.findByRole("heading", { level: 2, name: "trip" });
 
@@ -559,7 +566,7 @@ describe("SPEC-ADDON-147 I8: nothing is asked before the Target is ready", () =>
     localStorage.setItem(CLIPS_VIEW_KEY, JSON.stringify({ "sf-trip": { group: "folder", sort: "title" } }));
     const lookup = deferred<Response>();
     nav.set(LIBRARY);
-    serve(clips(3, "c", { tags: ["trip"] }));
+    serve([...clips(2, "c", { tags: ["trip"] }), ...clips(1, "n", { tags: ["trip"], folder: "news" })]);
     server.override = (c) => (c.url.pathname.endsWith("/smart-folders") ? lookup.promise : null);
     render(<Page />);
 
@@ -589,7 +596,7 @@ describe("SPEC-ADDON-147 I8: nothing is asked before the Target is ready", () =>
     const lookup = deferred<unknown>();
     member.evaluation = () => lookup.promise;
     nav.set(LIBRARY);
-    serve(clips(2), { smartFolders: [smartFolder("sf-beach", "Beach", "beach")] });
+    serve(clips(2).map((clip, i) => (i === 1 ? { ...clip, created: "2026-10-05T00:00:00Z" } : clip)), { smartFolders: [smartFolder("sf-beach", "Beach", "beach")] });
     render(<Page />);
 
     await act(() => settle(50));

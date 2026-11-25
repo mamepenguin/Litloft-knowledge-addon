@@ -723,3 +723,30 @@ describe("SPEC-ADDON-164 I3: the Library's tag shelves", () => {
     expect(listLoads(server.calls.slice(before))).toEqual([]);
   });
 });
+
+describe("SPEC-ADDON-184 a card removal does not switch the Library to the grid", () => {
+  it("SPEC-ADDON-184 a trash that leaves one shelf keeps the shelves and asks nothing; the next shelves answer for a new sort draws the grid", async () => {
+    nav.set(LIBRARY);
+    serve([...clips(2, "k", { tags: ["curry"] }), ...clips(1, "s", { tags: ["soup"] }), ...NOT_CLIPS]);
+    render(<Page />);
+    await waitFor(() => expect(titles("soup")).toEqual(["S clip 1"]));
+    const before = server.calls.length;
+
+    await rightClick(card("soup", "S clip 1"));
+    await choose("Move to Trash");
+    await submit("submit-trash");
+    await waitFor(() => expect(heading("soup")).toBeNull());
+    await act(() => settle());
+    expect(titles("curry")).toEqual(["K clip 1", "K clip 2"]);
+    expect(listLoads(server.calls.slice(before))).toEqual([]);
+
+    fireEvent.click(screen.getByRole("button", { name: /Sort By/ }));
+    fireEvent.click(await screen.findByRole("menuitemradio", { name: "Title" }));
+
+    await waitFor(() =>
+      expect(server.calls.some((c) => isNewShelf(c) && c.url.searchParams.get("per_shelf") === "60" && c.url.searchParams.get("key") === "all")).toBe(true),
+    );
+    await waitFor(() => expect(heading("curry")).toBeNull());
+    expect(drawn()).toEqual(["K clip 1", "K clip 2"]);
+  });
+});

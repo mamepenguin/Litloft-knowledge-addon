@@ -244,12 +244,12 @@ describe("SPEC-ADDON-147 Library by Folder and by Date Added", () => {
   it("SPEC-ADDON-147 Folder under a Target asks with the Target's conditions", async () => {
     localStorage.setItem(TARGET_KEY, "sf-trip");
     nav.set(`${LIBRARY}&group=folder&sort=newest`);
-    serve(SPREAD);
+    serve([...SPREAD, { id: "n3", title: "News three", folder: "news", created: "2026-10-06T09:00:00Z", tags: ["trip"] }]);
     render(<Page />);
 
     expect(await screen.findByRole("heading", { level: 2, name: "web" })).toBeInTheDocument();
     await act(() => settle());
-    expect(shelfHeadings()).toEqual(["web"]);
+    expect(shelfHeadings()).toEqual(["web", "news"]);
     for (const call of server.calls.filter(byShelves("folder"))) expect(q(call).getAll("tag")).toEqual(["trip"]);
   });
 
@@ -531,7 +531,7 @@ describe("SPEC-ADDON-147 the view in force and the URL", () => {
     localStorage.setItem(TARGET_KEY, target);
     localStorage.setItem(VIEW_KEY, JSON.stringify({ [target]: { group: "month", sort: "title" }, default: { group: "none" } }));
     nav.set(`${LIBRARY}&group=folder&sort=oldest`);
-    serve(SPREAD);
+    serve([...SPREAD, { id: "w4", title: "Web four", folder: "web", created: "2026-10-05T09:00:00Z", tags: ["work"] }]);
     render(<Page />);
 
     await waitFor(() => expect(server.calls.some(byShelves("folder"))).toBe(true));
