@@ -213,7 +213,7 @@ describe("SPEC-ADDON-138 step 6, I11: Home without a profile, and after viewer_r
   });
 
   it("SPEC-ADDON-138 I11 after Unread answers viewer_required no request needing a viewer is sent until the nickname changes", async () => {
-    serve([...clips(3, "c", { tags: ["food"] }), ...NOT_CLIPS], { viewer: false });
+    serve([...clips(3, "c", { tags: ["food"] }), ...clips(1, "d", { tags: ["drink"] }), ...NOT_CLIPS], { viewer: false });
     render(<Page />);
 
     expect(await screen.findByRole("heading", { level: 2, name: "New clips" })).toBeInTheDocument();
@@ -438,7 +438,7 @@ describe("SPEC-ADDON-138 step 8, I5: Mark as verified", () => {
 describe("SPEC-ADDON-138 step 9: a card", () => {
   it("SPEC-ADDON-138 links to the clip's file page and records nothing itself", async () => {
     nav.set(`${CLIPS}?view=all`);
-    serve([{ id: "c1", title: "Curry", folder: "web/recipes", created: "2026-11-10T00:00:00Z" }, ...NOT_CLIPS]);
+    serve([{ id: "c1", title: "Curry", folder: "web/recipes", created: "2026-11-10T00:00:00Z" }, ...clips(1, "k", { tags: ["food"] }), ...NOT_CLIPS]);
     render(<Page />);
 
     const link = (await within(await waitFor(() => shelf("Untagged"))).findByText("Curry")).closest("a")!;

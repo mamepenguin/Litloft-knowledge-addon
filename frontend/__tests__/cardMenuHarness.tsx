@@ -72,6 +72,7 @@ export async function choose(label: string) {
   const row = screen.getByRole("menuitem", { name: label });
   await act(async () => {
     fireEvent.pointerDown(row);
+    fireEvent.pointerUp(row);
     fireEvent.click(row);
   });
 }

@@ -145,7 +145,7 @@ describe("a Target chosen on Clips Home", () => {
     localStorage.setItem("litloft.addon.knowledge-clips.target.d", "sf-work");
     nav.set(`${LIBRARY}&group=folder&sort=title`);
     installClipsServer({
-      files: SPREAD,
+      files: [...SPREAD, { id: "w5", title: "Web five", folder: "web", created: "2026-11-05T09:00:00Z", tags: ["work"] }],
       smartFolders: [smartFolder("sf-work", "Work", "tag:work"), smartFolder("sf-beach", "Beach", "beach")],
     });
     render(<Page />);
