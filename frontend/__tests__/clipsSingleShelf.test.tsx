@@ -533,4 +533,22 @@ describe("SPEC-ADDON-184 I8 a refresh never blanks what is drawn", () => {
     await waitFor(() => expect(gridAsks()).toHaveLength(1));
     await waitFor(() => expect(headings()).toEqual([]));
   });
+
+  it("SPEC-ADDON-184 I1 I8 empty state → grid: a refresh whose answer is one shelf draws the grid, not a headed shelf", async () => {
+    nav.set(`${LIBRARY}&group=tags&trust=verified`);
+    serve([...clips(3, "c", { trust: "unverified" }), ...NOT_CLIPS]);
+    render(<Page />);
+    expect(await screen.findByText("Nothing matches these filters")).toBeInTheDocument();
+    await act(() => settle());
+    const from = server.calls.length;
+    server.files = [{ id: "n1", title: "N clip 1", created: "2026-11-20T00:00:00Z", trust: "verified" }, ...server.files];
+
+    emit("knowledge.clip.ready", { file_id: "n1", job_id: 1 });
+
+    expect(await screen.findByText("N clip 1")).toBeInTheDocument();
+    await act(() => settle());
+    expect(gridAsks(from)).toHaveLength(1);
+    expect(headings()).toEqual([]);
+    expect(seeAllLinks()).toEqual([]);
+  });
 });

@@ -166,12 +166,13 @@ function GroupShelves({
   const sentinel = useNearEnd(data.hasMore && data.more === "idle", data.loadMore);
 
   const scope = [drive, target.key, group, sort, clipFiltersKey(filters)].join("|");
-  const body = useRef<{ scope: string; value: "grid" | "shelves" } | null>(null);
+  const body = useRef<{ scope: string; value: "grid" | "shelves" | "empty" } | null>(null);
   if (data.phase === "ready") {
     const kept = body.current !== null && body.current.scope === scope ? body.current.value : null;
-    // Shelves stay drawn until the conditions change, so a refresh that adds the
-    // clips of a second shelf does not swap a drawn body for another one.
-    body.current = { scope, value: kept === "shelves" ? "shelves" : data.total === 1 ? "grid" : "shelves" };
+    // Drawn shelves stay until the conditions change: swapping them for the grid on a
+    // refresh would put the grid's loading cards where cards were drawn.
+    const value = kept === "shelves" || data.total >= 2 ? "shelves" : data.total === 1 ? "grid" : "empty";
+    body.current = { scope, value };
   }
 
   if (data.phase === "failed") return <LoadFailed onRetry={data.retry} />;
