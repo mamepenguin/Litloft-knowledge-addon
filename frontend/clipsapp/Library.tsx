@@ -171,7 +171,8 @@ function GroupShelves({
     const kept = body.current !== null && body.current.scope === scope ? body.current.value : null;
     // Drawn shelves stay until the conditions change: swapping them for the grid on a
     // refresh would put the grid's loading cards where cards were drawn.
-    const value = kept === "shelves" || data.total >= 2 ? "shelves" : data.total === 1 ? "grid" : "empty";
+    const value =
+      data.total === 0 ? "empty" : kept === "shelves" || data.total >= 2 ? "shelves" : "grid";
     body.current = { scope, value };
   }
 

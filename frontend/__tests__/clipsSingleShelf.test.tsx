@@ -551,4 +551,30 @@ describe("SPEC-ADDON-184 I8 a refresh never blanks what is drawn", () => {
     expect(headings()).toEqual([]);
     expect(seeAllLinks()).toEqual([]);
   });
+
+  it("SPEC-ADDON-184 I1 I8 shelves → empty state → grid: after a refresh empties the shelves, one that brings one shelf draws the grid", async () => {
+    nav.set(`${LIBRARY}&group=tags&trust=verified`);
+    serve([
+      ...clips(2, "t", { tags: ["trip"], trust: "verified" }),
+      ...clips(2, "w", { tags: ["work"], trust: "verified" }),
+      ...NOT_CLIPS,
+    ]);
+    render(<Page />);
+    await waitFor(() => expect(headings()).toEqual(["trip", "work"]));
+
+    server.files = server.files.map((c) => ({ ...c, trust: "unverified" }));
+    emit("knowledge.clip.ready", { file_id: "t1", job_id: 1 });
+    expect(await screen.findByText("Nothing matches these filters")).toBeInTheDocument();
+    await act(() => settle());
+
+    const from = server.calls.length;
+    server.files = [{ id: "n1", title: "N clip 1", created: "2026-11-20T00:00:00Z", trust: "verified" }, ...server.files];
+    emit("knowledge.clip.ready", { file_id: "n1", job_id: 2 });
+
+    expect(await screen.findByText("N clip 1")).toBeInTheDocument();
+    await act(() => settle());
+    expect(gridAsks(from)).toHaveLength(1);
+    expect(headings()).toEqual([]);
+    expect(seeAllLinks()).toEqual([]);
+  });
 });
