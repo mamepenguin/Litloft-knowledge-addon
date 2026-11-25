@@ -218,6 +218,20 @@ describe("SPEC-ADDON-184 I4 the chosen grouping is kept", () => {
     expect([undefined, group]).toContain(storedViews()?.default?.group);
     expect(server.calls.filter((c) => !["GET", "POST"].includes(c.method))).toEqual([]);
   });
+
+  it("SPEC-ADDON-184 I4 the grouping stored for the Target is applied and kept as stored while the grid is drawn", async () => {
+    localStorage.setItem(VIEW_KEY, JSON.stringify({ default: { group: "folder" } }));
+    nav.set(LIBRARY);
+    serve([...untagged(), ...NOT_CLIPS]);
+    render(<Page />);
+
+    await gridDrawn();
+    await act(() => settle());
+    expect(groupedAsks().every((c) => q(c).get("by") === "folder")).toBe(true);
+    expect(groupButton()).toHaveTextContent("Folder");
+    expect(nav.params.get("group")).toBe("folder");
+    expect(storedViews()).toEqual({ default: { group: "folder" } });
+  });
 });
 
 describe("SPEC-ADDON-184 I5 the grid is asked only after a shelves answer of one", () => {
@@ -311,9 +325,10 @@ describe("SPEC-ADDON-184 changed conditions ask the shelves first", () => {
     ["the sort", () => choose(/Sort By/, "Title"), (c) => q(c).get("sort") === "title"],
     ["the grouping", () => choose(/Group By/, "Date Added"), (c) => q(c).get("by") === "month" || isGridAsk(c)],
     ["the Target", () => choose(/Target/, /Trip/), (c) => q(c).getAll("tag").includes("trip")],
+    ["the state", () => choose(/^State/, "Unverified"), (c) => q(c).get("trust") === "unverified"],
   ])("SPEC-ADDON-184 I5 a change of %s under a single shelf asks the shelves, and the grid only after they answer", async (_label, change, carriesNew) => {
     nav.set(`${LIBRARY}&group=tags`);
-    serve([...clips(65, "c", { tags: ["trip"] }), ...NOT_CLIPS]);
+    serve([...clips(65, "c", { tags: ["trip"], trust: "unverified" }), ...NOT_CLIPS]);
     render(<Page />);
     await gridDrawn();
     const from = server.calls.length;
