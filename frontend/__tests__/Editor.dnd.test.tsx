@@ -43,8 +43,9 @@ vi.mock("@/components/MarkdownPreview", () => ({
 }));
 
 const toastErrorMock = vi.hoisted(() => vi.fn());
+const toastInfoMock = vi.hoisted(() => vi.fn());
 vi.mock("@/components/ToastProvider", () => ({
-  useToast: () => ({ error: toastErrorMock, success: vi.fn(), info: vi.fn() }),
+  useToast: () => ({ error: toastErrorMock, success: vi.fn(), info: toastInfoMock }),
 }));
 
 const initUploadMock = vi.hoisted(() => vi.fn());
@@ -98,6 +99,7 @@ function stubContentFetch(content = "body\n") {
 
 beforeEach(() => {
   toastErrorMock.mockClear();
+  toastInfoMock.mockClear();
   initUploadMock.mockReset();
   uploadChunkMock.mockReset();
   completeUploadMock.mockReset();
@@ -223,6 +225,38 @@ describe("Editor D&D / ペースト アップロード", () => {
       });
       // 画像形式（![]()）ではない
       expect(editorContent(ta)).not.toMatch(/!\[document\.pdf\]/);
+    });
+
+    it("SPEC-ADDON-187 I14: a dropped subtitle leaves no link and no placeholder, and says where it went", async () => {
+      stubContentFetch("body\n");
+      completeUploadMock.mockResolvedValue({
+        status: "sidecar",
+        drive: "d",
+        file_path: "notes/movie.srt",
+      });
+
+      render(
+        <Editor
+          fileId="f1"
+          filename="note.md"
+          folderPath="notes/"
+          drive="d"
+          inlineMode
+        />,
+      );
+      const ta = await waitFor(() => getEditor());
+
+      const file = new File(["1\n00:00:01,000 --> 00:00:02,000\nhi\n"], "movie.srt", {
+        type: "application/x-subrip",
+      });
+      fireEvent.drop(ta, { dataTransfer: { files: [file] } });
+
+      await waitFor(() => {
+        expect(toastInfoMock).toHaveBeenCalled();
+      });
+      expect(editorContent(ta)).not.toContain("uploading...");
+      expect(editorContent(ta)).not.toContain("loft://");
+      expect(toastErrorMock).not.toHaveBeenCalled();
     });
 
     it("複数ファイル同時ドロップ → 各 placeholder が独立して置換される", async () => {

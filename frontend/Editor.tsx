@@ -782,6 +782,17 @@ export default function Editor({
           );
         }
         const fileItem = await completeUpload(drive, initResult.upload_id);
+        if ("status" in fileItem && fileItem.status === "sidecar") {
+          // A subtitle lands beside the videos as a sidecar with no file id,
+          // so there is nothing a `loft://` link could point at.
+          updateContent((prev) =>
+            prev === null
+              ? null
+              : prev.replace(`${placeholder}\n`, "").replace(placeholder, ""),
+          );
+          toast.info(t("subtitleSavedBeside", { name: file.name }));
+          return;
+        }
         const final = isImage
           ? `![${file.name}](loft://${fileItem.id})`
           : `[${file.name}](loft://${fileItem.id})`;
