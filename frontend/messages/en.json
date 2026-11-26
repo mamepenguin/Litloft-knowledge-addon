@@ -142,6 +142,7 @@
         "dismiss": "Dismiss"
       },
       "uploadFailed": "Failed to upload {name}",
+      "subtitleSavedBeside": "{name} was saved as a subtitle beside the videos in this folder",
       "restoreContentChanged": "The note changed while the version was loading. Restore was canceled.",
       "versions": {
         "heading": "Version history",
